@@ -38,7 +38,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 			if progress == "" {
 				progress = weixinSessionStatus(session.Status)
 			}
-			manager.send(account, message.FromUserID, message.ContextToken, fmt.Sprintf("当前会话：%s\n状态：%s\n进度：%s\n运行时：%s", session.Title, weixinSessionStatus(session.Status), progress, weixinRuntimeLabel(session.Runtime)))
+			manager.send(account, message.FromUserID, message.ContextToken, fmt.Sprintf("💬 当前会话：%s\n状态：%s\n🧭 进度：%s\n⚙️ 运行时：%s", session.Title, weixinSessionStatus(session.Status), progress, weixinRuntimeLabel(session.Runtime)))
 		}
 		return true
 	case "stop":
@@ -53,7 +53,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 			return true
 		}
 		manager.server.tasks.cancel(session.ID)
-		manager.send(account, message.FromUserID, message.ContextToken, "已停止当前任务。")
+		manager.send(account, message.FromUserID, message.ContextToken, "⏹️ 已停止当前任务。")
 		return true
 	case "projects":
 		projects, err := manager.server.projects()
@@ -283,14 +283,14 @@ func (manager *weixinManager) sendChunks(account store.WeixinAccount, userID, co
 
 func finalSessionText(session store.Session) string {
 	if session.Status == "failed" {
-		return fmt.Sprintf("任务失败 · %s\n\n%s\n\n发送“状态”查看会话，或发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Error))
+		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送“状态”查看会话，或发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Error))
 	}
 	if session.Status == "canceled" {
-		return fmt.Sprintf("任务已停止 · %s\n\n可以继续发送消息，或发送“新会话”开始独立任务。", session.Title)
+		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送“新会话”开始独立任务。", session.Title)
 	}
 	for index := len(session.Messages) - 1; index >= 0; index-- {
 		if session.Messages[index].Role == "assistant" && strings.TrimSpace(session.Messages[index].Content) != "" {
-			return fmt.Sprintf("任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Messages[index].Content))
+			return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Messages[index].Content))
 		}
 	}
 	return ""
@@ -299,17 +299,17 @@ func finalSessionText(session store.Session) string {
 func weixinSessionStatus(status string) string {
 	switch status {
 	case "queued":
-		return "排队中"
+		return "🟡 排队中"
 	case "running":
-		return "运行中"
+		return "🔵 运行中"
 	case "paused":
-		return "已暂停"
+		return "⏸️ 已暂停"
 	case "failed":
-		return "失败"
+		return "❌ 失败"
 	case "canceled":
-		return "已停止"
+		return "⏹️ 已停止"
 	default:
-		return "已完成"
+		return "✅ 已完成"
 	}
 }
 

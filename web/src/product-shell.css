@@ -349,12 +349,14 @@ body { overflow: hidden; background: #f7f7f5; }
 .project-picker-list strong { font-size: 10px; }.project-picker-list span { overflow: hidden; color: #7e8982; font-family: var(--mono); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .project-dialog, .session-dialog { width: min(660px, 100%); }
 .project-field { display: grid; gap: 7px; margin-bottom: 18px; color: #49574e; font-size: 11px; font-weight: 600; }
+.project-field-label { display: flex; align-items: center; gap: 7px; }.project-field-label small { padding: 2px 5px; border-radius: 4px; color: #815f28; background: #fff3d6; font-size: 8px; font-weight: 600; }
 .project-field > input, .project-field > select, .project-name-input { width: 100%; min-height: 46px; border: 1px solid #d9dfda; border-radius: 10px; background: #fff; }
 .project-field > input, .project-field > select { padding: 0 13px; color: #26322a; font-size: 14px; }
 .project-name-input { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; overflow: hidden; }
 .project-name-input svg, .project-source svg { width: 19px; height: 19px; justify-self: center; fill: none; stroke: #66736b; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .project-name-input input { width: 100%; height: 44px; padding: 0 13px; border: 0; border-left: 1px solid #e5e8e5; outline: 0; color: #273129; font-size: 14px; }
 .project-field > input:focus, .project-field > select:focus, .project-name-input:focus-within, .project-source:focus-within { border-color: #6f9d80; box-shadow: 0 0 0 3px #e2eee6; outline: 0; }
+.project-field-hint { color: #7b8780; font-size: 10px; font-weight: 400; line-height: 1.5; }.project-field.invalid .project-name-input { border-color: #c96d62; background: #fffafa; }.project-field.invalid .project-name-input:focus-within { box-shadow: 0 0 0 3px #f6dedb; }
 .project-sources { margin: 0; padding: 0; border: 0; }
 .project-sources legend { display: flex; width: 100%; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: #49574e; font-size: 11px; font-weight: 600; }
 .project-sources legend small { color: #929c95; font-size: 9px; font-weight: 400; }
@@ -383,6 +385,7 @@ body { overflow: hidden; background: #f7f7f5; }
 .project-default-state strong { color: #3f654c; font-size: 10px; }.project-default-state span { color: #869087; font-size: 9px; }
 .project-help { margin: 0 0 20px; color: #849087; font-size: 9px; line-height: 1.6; }
 .project-dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 15px; border-top: 1px solid #e8ebe8; }.project-dialog-actions > div:last-child { display: flex; gap: 8px; margin-left: auto; }.project-dialog-actions button { min-height: 42px; }
+.project-dialog-submit { align-items: center; }.project-dialog-submit .primary-button:disabled { cursor: not-allowed; }.project-dialog-submit .primary-button[aria-busy="true"] { cursor: wait; }.project-save-reason { margin-right: 3px; color: #9a5d31; font-size: 10px; font-weight: 500; white-space: nowrap; }
 .project-remove { display: flex; align-items: center; gap: 9px; }.project-remove small { color: #929b94; font-size: 9px; white-space: nowrap; }
 .folder-picker-backdrop { z-index: 80; }
 .folder-picker-dialog { display: flex; width: min(620px, 100%); max-height: min(680px, 90vh); flex-direction: column; animation: confirm-in .18s ease-out; }
@@ -418,7 +421,7 @@ body { overflow: hidden; background: #f7f7f5; }
 .session-project-fact { display: grid; gap: 6px; margin: 0 0 22px; padding: 12px; border-radius: 9px; color: #7c8780; background: #f5f7f5; font-size: 9px; }.session-project-fact code { overflow-wrap: anywhere; color: #415249; font-family: var(--mono); font-size: 9px; }
 
 @media (max-width: 700px) {
-  .project-dialog, .session-dialog { padding: 20px; }.project-sources legend { align-items: flex-start; flex-direction: column; gap: 3px; }.project-default-state { align-items: flex-start; flex-direction: column; gap: 3px; }.project-dialog-actions { align-items: stretch; flex-direction: column; }.project-dialog-actions > div, .project-dialog-actions > div:last-child { width: 100%; margin-left: 0; }.project-dialog-actions > div:last-child button { flex: 1; }.project-remove { justify-content: space-between; }.danger-link { justify-content: center; }.folder-picker-dialog { padding: 20px; }.folder-picker-path { grid-template-columns: 24px minmax(0, 1fr); }.folder-picker-path .ghost-button { grid-column: 1 / -1; width: 100%; }.folder-picker-actions { align-items: stretch; }.folder-picker-actions button { flex: 1; }
+  .project-dialog, .session-dialog { padding: 20px; }.project-sources legend { align-items: flex-start; flex-direction: column; gap: 3px; }.project-default-state { align-items: flex-start; flex-direction: column; gap: 3px; }.project-dialog-actions { align-items: stretch; flex-direction: column; }.project-dialog-actions > div, .project-dialog-actions > div:last-child { width: 100%; margin-left: 0; }.project-dialog-actions > div:last-child button { flex: 1; }.project-dialog-submit { flex-wrap: wrap; }.project-save-reason { width: 100%; margin: 0 0 2px; }.project-remove { justify-content: space-between; }.danger-link { justify-content: center; }.folder-picker-dialog { padding: 20px; }.folder-picker-path { grid-template-columns: 24px minmax(0, 1fr); }.folder-picker-path .ghost-button { grid-column: 1 / -1; width: 100%; }.folder-picker-actions { align-items: stretch; }.folder-picker-actions button { flex: 1; }
 }
 
 /* 左下角只保留一个轻量设置入口，避免把设置分区摘要挤进导航。 */

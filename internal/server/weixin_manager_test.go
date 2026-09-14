@@ -59,8 +59,18 @@ func (gateway *fakeWeixinGateway) DownloadMedia(context.Context, weixin.CDNMedia
 func TestWeixinFinalTextNeverIncludesTrace(t *testing.T) {
 	session := store.Session{Title: "检查服务", Status: "idle", Events: []store.Event{{Kind: "tool_end", Detail: "private trace"}}, Messages: []store.Message{{Role: "user", Content: "任务"}, {Role: "assistant", Content: "最终结果"}}}
 	value := finalSessionText(session)
-	if !strings.Contains(value, "任务完成 · 检查服务") || !strings.Contains(value, "最终结果") || strings.Contains(value, "private trace") {
+	if !strings.Contains(value, "✅ 任务完成 · 检查服务") || !strings.Contains(value, "最终结果") || strings.Contains(value, "private trace") {
 		t.Fatalf("微信只应收到最终 assistant 文本: %q", value)
+	}
+}
+
+func TestWeixinAcknowledgementDoesNotExposeTransientQueueStatus(t *testing.T) {
+	value := weixinTaskAcknowledgement(" 小伙计 ")
+	if !strings.Contains(value, "📥 任务已接收\n💬 会话：小伙计") || !strings.Contains(value, "查看实时进度") {
+		t.Fatalf("接收确认缺少必要信息: %q", value)
+	}
+	if strings.Contains(value, "排队中") || strings.Contains(value, "状态：") {
+		t.Fatalf("接收确认不应展示瞬时任务状态: %q", value)
 	}
 }
 
@@ -117,11 +127,27 @@ func TestEasyAgentUsesNativeVoiceTextWithoutBinaryAudio(t *testing.T) {
 }
 
 func TestWeixinFailedAndCanceledFinalText(t *testing.T) {
-	if value := finalSessionText(store.Session{Title: "失败任务", Status: "failed", Error: "模型错误"}); !strings.Contains(value, "任务失败 · 失败任务") || !strings.Contains(value, "模型错误") {
+	if value := finalSessionText(store.Session{Title: "失败任务", Status: "failed", Error: "模型错误"}); !strings.Contains(value, "❌ 任务失败 · 失败任务") || !strings.Contains(value, "模型错误") {
 		t.Fatalf("失败结果错误: %q", value)
 	}
-	if value := finalSessionText(store.Session{Title: "停止任务", Status: "canceled", UpdatedAt: time.Now()}); !strings.Contains(value, "任务已停止 · 停止任务") {
+	if value := finalSessionText(store.Session{Title: "停止任务", Status: "canceled", UpdatedAt: time.Now()}); !strings.Contains(value, "⏹️ 任务已停止 · 停止任务") {
 		t.Fatalf("停止结果错误: %q", value)
+	}
+}
+
+func TestWeixinSessionStatusUsesScannableEmoji(t *testing.T) {
+	tests := map[string]string{
+		"queued":   "🟡 排队中",
+		"running":  "🔵 运行中",
+		"paused":   "⏸️ 已暂停",
+		"failed":   "❌ 失败",
+		"canceled": "⏹️ 已停止",
+		"idle":     "✅ 已完成",
+	}
+	for status, expected := range tests {
+		if actual := weixinSessionStatus(status); actual != expected {
+			t.Fatalf("状态 %q 显示为 %q，期望 %q", status, actual, expected)
+		}
 	}
 }
 

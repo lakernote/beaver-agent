@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -117,13 +116,22 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		manager.send(account, message.FromUserID, message.ContextToken, "任务未提交："+err.Error())
 		return
 	}
-	acknowledgement := "任务已接收，完成后会在这里回复。\n发送“状态”查看进度，发送“停止”中断任务。"
+	acknowledgement := weixinTaskAcknowledgement("")
 	if session, loadErr := manager.server.store.LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
-		acknowledgement = fmt.Sprintf("任务已接收\n会话：%s\n状态：%s\n\n发送“状态”查看进度，发送“停止”中断任务。", session.Title, weixinSessionStatus(session.Status))
+		acknowledgement = weixinTaskAcknowledgement(session.Title)
 	}
 	manager.send(account, message.FromUserID, message.ContextToken, acknowledgement)
 	// 先发送接收确认，再启动结果等待，避免极短任务的最终结果先于确认消息到达。
 	manager.resumeDelivery(account.ID)
+}
+
+func weixinTaskAcknowledgement(title string) string {
+	lines := []string{"📥 任务已接收"}
+	if title = strings.TrimSpace(title); title != "" {
+		lines = append(lines, "💬 会话："+title)
+	}
+	lines = append(lines, "", "完成后会在这里回复。", "发送“状态”查看实时进度，发送“停止”中断任务。")
+	return strings.Join(lines, "\n")
 }
 
 func messageText(message weixin.Message) string {
