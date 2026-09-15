@@ -37,14 +37,18 @@ type Status struct {
 	// CLI 就误报“Runtime 可用”。
 	Installed          bool   `json:"installed"`
 	AppServerAvailable bool   `json:"appServerAvailable"`
+	Authenticated      bool   `json:"authenticated"`
 	Path               string `json:"path,omitempty"`
+	Home               string `json:"home,omitempty"`
 	Version            string `json:"version,omitempty"`
 	Message            string `json:"message"`
 	InstallCommand     string `json:"installCommand"`
 	InstallURL         string `json:"installUrl"`
 }
 
-// Detect 只做本机文件和 --version 检查，不启动 app-server，也不修改用户环境。
+// Detect 只做本机文件、app-server 子命令和登录状态检查，不启动 app-server，
+// 也不修改用户环境。Codex 的账号归属当前 EasyAgent 进程用户及其 HOME/CODEX_HOME，
+// 不由找到的 CLI 文件路径决定。
 func Detect(environment *appenv.Environment) Status {
 	status := Status{InstallURL: installDocsURL, InstallCommand: installCommand}
 	paths := []string{}
@@ -85,6 +89,9 @@ func Detect(environment *appenv.Environment) Status {
 		}
 		status.Installed = true
 		status.Path = path
+		if home, homeErr := codexHome(); homeErr == nil {
+			status.Home = home
+		}
 		status.Version = strings.TrimSpace(string(output))
 		appCtx, appCancel := context.WithTimeout(context.Background(), detectCommandTimeout)
 		appServer := exec.CommandContext(appCtx, path, "app-server", "--help")
@@ -95,7 +102,11 @@ func Detect(environment *appenv.Environment) Status {
 		appCancel()
 		if appErr == nil {
 			status.AppServerAvailable = true
+			status.Authenticated = codexLoginStatus(path, commandEnv(environment))
 			status.Message = "Codex CLI 与 app-server 已就绪"
+			if !status.Authenticated {
+				status.Message = "Codex CLI 与 app-server 已就绪；当前运行用户未完成官方登录"
+			}
 		} else {
 			status.Message = "已找到 Codex CLI，但 app-server 子命令不可用"
 		}
@@ -103,6 +114,28 @@ func Detect(environment *appenv.Environment) Status {
 	}
 	status.Message = "未检测到 Codex CLI；请在服务器终端手动安装，EasyAgent 不会代为下载安装"
 	return status
+}
+
+func commandEnv(environment *appenv.Environment) []string {
+	if environment == nil {
+		return nil
+	}
+	return environment.Environ(nil)
+}
+
+func codexLoginStatus(path string, environment []string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), detectCommandTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, path, "login", "status")
+	if environment != nil {
+		command.Env = environment
+	}
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	value := strings.ToLower(strings.TrimSpace(string(output)))
+	return value != "" && !strings.Contains(value, "not logged in")
 }
 
 type Config struct {

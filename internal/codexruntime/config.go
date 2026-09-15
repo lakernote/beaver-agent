@@ -30,17 +30,22 @@ var (
 )
 
 type MCPServerConfig struct {
-	ID          string
-	Transport   string
-	Command     string
-	Args        []string
-	Endpoint    string
-	AuthType    string
-	Token       string
-	Username    string
-	Password    string
-	Headers     map[string]string
-	Environment map[string]string
+	ID                string
+	Disabled          bool
+	Transport         string
+	Command           string
+	Args              []string
+	Endpoint          string
+	AuthType          string
+	Token             string
+	Username          string
+	Password          string
+	Headers           map[string]string
+	Environment       map[string]string
+	OAuthClientID     string
+	OAuthCallbackURL  string
+	OAuthCallbackPort int
+	OAuthScopes       []string
 }
 
 // ProviderConfig 是 EasyAgent 能够管理的 Codex provider 配置。API Key 永远
@@ -86,6 +91,12 @@ type ProviderConfigInput struct {
 type configDocument map[string]any
 
 func codexHome() (string, error) {
+	if value := strings.TrimSpace(os.Getenv("CODEX_HOME")); value != "" {
+		if !filepath.IsAbs(value) {
+			return "", errors.New("CODEX_HOME 必须是绝对路径")
+		}
+		return filepath.Clean(value), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("读取 Codex 用户目录: %w", err)
@@ -350,9 +361,15 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 		}
 	}
 	environment := map[string]string{}
+	oauthCallbackURL := ""
+	oauthCallbackPort := 0
+	// These are global Codex settings. Always rebuild them so removing or
+	// changing the last OAuth MCP cannot leave a stale callback behind.
+	delete(document, "mcp_oauth_callback_url")
+	delete(document, "mcp_oauth_callback_port")
 	for _, config := range configs {
 		id := managedMCPID(config.ID)
-		entry := map[string]any{"enabled": true}
+		entry := map[string]any{"enabled": !config.Disabled}
 		if config.Transport == "stdio" {
 			entry["command"] = config.Command
 			entry["args"] = append([]string(nil), config.Args...)
@@ -370,6 +387,31 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 			}
 		} else {
 			entry["url"] = config.Endpoint
+			if strings.EqualFold(config.AuthType, "oauth") {
+				entry["auth"] = "oauth"
+				if len(config.OAuthScopes) > 0 {
+					entry["scopes"] = append([]string(nil), config.OAuthScopes...)
+				}
+				oauth := map[string]any{}
+				if strings.TrimSpace(config.OAuthClientID) != "" {
+					oauth["client_id"] = config.OAuthClientID
+				}
+				if strings.TrimSpace(config.OAuthCallbackURL) != "" {
+					oauth["callback_url"] = config.OAuthCallbackURL
+				}
+				if config.OAuthCallbackPort > 0 {
+					oauth["callback_port"] = config.OAuthCallbackPort
+					if oauthCallbackPort == 0 {
+						oauthCallbackPort = config.OAuthCallbackPort
+					}
+				}
+				if oauthCallbackURL == "" && strings.TrimSpace(config.OAuthCallbackURL) != "" {
+					oauthCallbackURL = config.OAuthCallbackURL
+				}
+				if len(oauth) > 0 {
+					entry["oauth"] = oauth
+				}
+			}
 			envHeaders := map[string]string{}
 			for header, value := range config.Headers {
 				envName := managedMCPEnv(id, header)
@@ -396,6 +438,12 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 		servers[id] = entry
 	}
 	document["mcp_servers"] = servers
+	if oauthCallbackURL != "" {
+		document["mcp_oauth_callback_url"] = oauthCallbackURL
+	}
+	if oauthCallbackPort > 0 {
+		document["mcp_oauth_callback_port"] = oauthCallbackPort
+	}
 	return environment
 }
 
@@ -418,6 +466,10 @@ func managedMCPID(value string) string {
 	}
 	return strings.TrimRight(result.String(), "_")
 }
+
+// MCPServerName returns the stable managed name used in Codex config.toml and
+// in app-server's mcpServer/* RPCs.
+func MCPServerName(value string) string { return managedMCPID(value) }
 
 func managedMCPEnv(id, field string) string {
 	value := strings.ToUpper(id + "_" + field)

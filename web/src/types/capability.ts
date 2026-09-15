@@ -21,6 +21,10 @@ export type MCPConfig = {
   password?: string
   headers: Record<string, string>
   environment: Record<string, string>
+  oauthClientId?: string
+  oauthCallbackUrl?: string
+  oauthCallbackPort?: number
+  oauthScopes?: string[]
   secretConfigured?: boolean
 }
 

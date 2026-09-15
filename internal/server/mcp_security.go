@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 
 	"github.com/lakernote/easy-agent/internal/store"
@@ -136,8 +137,21 @@ func validateMCP(value store.MCPConfig) error {
 		if strings.TrimSpace(value.Username) == "" || value.Password == "" {
 			return errors.New("启用 Basic 认证前必须填写用户名和密码")
 		}
+	case "oauth":
+		if value.Transport == "stdio" {
+			return errors.New("OAuth 只支持 HTTP MCP")
+		}
+		if callback := strings.TrimSpace(value.OAuthCallbackURL); callback != "" {
+			parsed, err := url.Parse(callback)
+			if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+				return errors.New("OAuth 回调 URL 必须是带 http/https 的完整地址")
+			}
+		}
+		if value.OAuthCallbackPort < 0 || value.OAuthCallbackPort > 65535 || (value.OAuthCallbackPort > 0 && value.OAuthCallbackPort < 1024) {
+			return errors.New("OAuth 回调端口必须是 1024 到 65535")
+		}
 	default:
-		return errors.New("MCP 认证方式只能是无认证、Bearer Token 或用户名密码")
+		return errors.New("MCP 认证方式只能是无认证、Bearer Token、用户名密码或 OAuth")
 	}
 	return nil
 }

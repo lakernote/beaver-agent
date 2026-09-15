@@ -36,6 +36,7 @@ type Server struct {
 	tasks       *taskManager
 	runtimes    *runtimeRegistry
 	weixin      *weixinManager
+	mcpOAuth    *mcpOAuthManager
 	codexEnvMu  sync.RWMutex
 	retentionMu sync.Mutex
 	codexEnv    map[string]string
@@ -86,6 +87,7 @@ func newServer(database *store.Store, assets fs.FS, environment *appenv.Environm
 		authEnabled: options.authEnabled, externalCapabilitySync: options.externalCapabilitySync,
 	}
 	server.runtimes = newRuntimeRegistry(server)
+	server.mcpOAuth = newMCPOAuthManager(server)
 	server.routes()
 	if err := server.resumeQueuedSessions(); err != nil {
 		cancel()
@@ -160,6 +162,12 @@ func (server *Server) requiresAuthentication(request *http.Request) bool {
 		return false
 	}
 	if request.URL.Path == "/api/v1/auth/login" || request.URL.Path == "/api/v1/auth/logout" || request.URL.Path == "/api/v1/auth/me" || request.URL.Path == "/api/v1/health" {
+		return false
+	}
+	// OAuth providers redirect the browser here without the EasyAgent session
+	// cookie in some flows (notably cross-site POST). The one-time OAuth state
+	// is the authorization gate for this callback, not the UI session cookie.
+	if strings.Contains(request.URL.Path, "/oauth/callback") {
 		return false
 	}
 	return strings.HasPrefix(request.URL.Path, "/api/v1/")

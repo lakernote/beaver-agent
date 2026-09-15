@@ -123,6 +123,9 @@ func (store *Store) GetModelSettingsByProfileID(id string) (ModelSettings, error
 			return withProfile(profile), nil
 		}
 	}
+	if id == DefaultCodexProfileID {
+		return DefaultCodexModelSettings(), nil
+	}
 	return ModelSettings{}, fmt.Errorf("模型配置不存在: %s", id)
 }
 

@@ -12,7 +12,7 @@ EasyAgent 目前处于 Alpha 阶段，仅维护最新发布版本。
 
 - 默认监听 `0.0.0.0:8080`，UI/API 使用单管理员认证。首次账号密码为 `admin` / `admin`，部署后必须立即修改；系统没有 RBAC 或多租户隔离。
 - 登录 Cookie 仅在 HTTPS 请求下自动设置 `Secure`。公网部署必须使用 TLS 反向代理，并通过防火墙、VPN 或访问控制限制来源。
-- 直接填写的模型 Key、MCP Token 和密码保存在 SQLite 中，API 只返回“已配置”状态，但数据库尚未静态加密。优先使用模型 Key 环境变量，并限制数据库文件权限。
+- 直接填写的模型 Key、MCP Token、密码，以及 EasyAgent Runtime 的 OAuth refresh token 保存在服务端 SQLite 中；OAuth 凭证单独放在 `ea_mcp_oauth_credentials` 表，API 只返回“已配置/已授权”状态，但数据库尚未静态加密。优先使用模型 Key 环境变量，并限制数据库文件权限；生产环境应使用磁盘加密、专用低权限服务账号，或后续接入系统密钥库。
 - STDIO MCP 以 EasyAgent 进程用户权限启动，不是安全沙箱。只安装和启用可信 MCP，并让进程使用低权限系统账号。
 - HTTP MCP 和天气工具会主动访问外部地址；部署方应使用网络策略限制出站范围。
 - 会话与 Trace 可能包含 Prompt、日志、模型原始输入输出或业务数据。部署方负责数据库备份、文件权限、历史保留和访问范围。

@@ -117,7 +117,7 @@ go run ./cmd/easyagent-eval \
 - 查询公开 GitHub 仓库指标不要求登录。若要提高 `web_research` 的 GitHub API 限额，可在 **设置 → 工具与 MCP → Web Research** 填写 GitHub Token，或为服务进程设置 `GITHUB_TOKEN` / `GH_TOKEN`。页面配置优先于环境变量，保存后下一轮立即生效。
 - 访问私有仓库、Issue、Pull Request 和 Actions，优先到 **设置 → 工具与 MCP → GitHub** 配置官方 GitHub MCP。Bearer Token 保存在 `~/.easyagent/easyagent.db`，接口和页面只返回已配置状态，不回传明文；数据库本身不是独立的密钥保险库，应继续依赖目录权限、磁盘加密和低权限服务账号。
 - 本地 clone、diff、commit 等操作直接使用服务器的 `git`。HTTPS 凭据、SSH Key 和 `gh`/`glab` 登录态属于运行 EasyAgent 的系统账号，不属于模型配置；请以同一个服务账号执行 `gh auth login` 或 `glab auth login`。GitHub/GitLab CLI 未安装时，EasyAgent 不会自动安装。
-- GitLab 官方远端 MCP 使用 OAuth 动态注册；EasyAgent 当前还没有这套交互式 OAuth 流程。可先使用公开网页研究、本地 `git`，或安装新版 `glab` 后把 `glab mcp serve` 配成自定义 stdio MCP。GitLab CLI MCP 仍是实验能力，生产环境应固定版本并限制权限。
+- HTTP/Streamable HTTP MCP 支持 OAuth：设置页会把浏览器授权回调落到 EasyAgent 服务，EasyAgent Runtime 将 access/refresh token 保存到 SQLite 独立的 `ea_mcp_oauth_credentials` 表；Codex Runtime 通过 app-server 原生 OAuth 登录，并由 Codex 自己保存凭证。远程 Linux 不需要公网 callback，只要浏览器能访问服务地址（例如 `http://10.224.58.180:8080`）；生产环境应使用 HTTPS 内网域名，并在 OAuth provider 注册最终显示的完整 callback URL。
 
 Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环境变量也会传给子进程。不要使用个人全权限 PAT；生产环境应使用专用账号、最小权限和可轮换凭据。
 

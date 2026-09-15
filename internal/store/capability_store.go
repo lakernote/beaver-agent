@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -68,5 +69,37 @@ func (store *Store) SaveMCP(value MCPConfig) error {
 
 func (store *Store) DeleteMCP(id string) error {
 	_, err := store.db.Exec(`DELETE FROM ea_mcp WHERE id=?`, id)
+	return err
+}
+
+func (store *Store) GetMCPOAuthCredential(id string) (*MCPOAuthCredential, error) {
+	var data []byte
+	err := store.db.QueryRow(`SELECT credential_json FROM ea_mcp_oauth_credentials WHERE mcp_id=?`, id).Scan(&data)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var value MCPOAuthCredential
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func (store *Store) SaveMCPOAuthCredential(value MCPOAuthCredential) error {
+	data, err := encode(value)
+	if err != nil {
+		return err
+	}
+	_, err = store.db.Exec(`INSERT INTO ea_mcp_oauth_credentials(mcp_id,credential_json,updated_at) VALUES(?,?,?)
+ON CONFLICT(mcp_id) DO UPDATE SET credential_json=excluded.credential_json,updated_at=excluded.updated_at`,
+		value.MCPID, data, formatTime(time.Now()))
+	return err
+}
+
+func (store *Store) DeleteMCPOAuthCredential(id string) error {
+	_, err := store.db.Exec(`DELETE FROM ea_mcp_oauth_credentials WHERE mcp_id=?`, id)
 	return err
 }

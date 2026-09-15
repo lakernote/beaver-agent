@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS ea_mcp (
   config_json BLOB NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ea_mcp_oauth_credentials (
+  mcp_id TEXT PRIMARY KEY REFERENCES ea_mcp(id) ON DELETE CASCADE,
+  credential_json BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ea_projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

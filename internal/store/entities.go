@@ -10,21 +10,52 @@ import (
 )
 
 type MCPConfig struct {
-	ID               string            `json:"id"`
-	Name             string            `json:"name"`
-	Description      string            `json:"description,omitempty"`
-	Enabled          bool              `json:"enabled"`
-	Transport        string            `json:"transport"`
-	Command          string            `json:"command,omitempty"`
-	Args             []string          `json:"args"`
-	Endpoint         string            `json:"endpoint,omitempty"`
-	AuthType         string            `json:"authType,omitempty"`
-	Token            string            `json:"token,omitempty"`
-	Username         string            `json:"username,omitempty"`
-	Password         string            `json:"password,omitempty"`
-	Headers          map[string]string `json:"headers"`
-	Environment      map[string]string `json:"environment"`
-	SecretConfigured bool              `json:"secretConfigured,omitempty"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	Description       string            `json:"description,omitempty"`
+	Enabled           bool              `json:"enabled"`
+	Transport         string            `json:"transport"`
+	Command           string            `json:"command,omitempty"`
+	Args              []string          `json:"args"`
+	Endpoint          string            `json:"endpoint,omitempty"`
+	AuthType          string            `json:"authType,omitempty"`
+	Token             string            `json:"token,omitempty"`
+	Username          string            `json:"username,omitempty"`
+	Password          string            `json:"password,omitempty"`
+	Headers           map[string]string `json:"headers"`
+	Environment       map[string]string `json:"environment"`
+	OAuthClientID     string            `json:"oauthClientId,omitempty"`
+	OAuthCallbackURL  string            `json:"oauthCallbackUrl,omitempty"`
+	OAuthCallbackPort int               `json:"oauthCallbackPort,omitempty"`
+	OAuthScopes       []string          `json:"oauthScopes,omitempty"`
+	SecretConfigured  bool              `json:"secretConfigured,omitempty"`
+}
+
+// MCPOAuthCredential is server-only OAuth state for an HTTP MCP. It is kept
+// out of MCPConfig deliberately: MCPConfig is returned to the browser and is
+// synchronized to Codex config.toml, while this record contains refresh tokens.
+// The fields are sufficient to reconstruct an oauth2.TokenSource after restart.
+type MCPOAuthCredential struct {
+	MCPID        string    `json:"mcpId"`
+	Endpoint     string    `json:"endpoint"`
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken,omitempty"`
+	TokenType    string    `json:"tokenType,omitempty"`
+	Expiry       time.Time `json:"expiry,omitempty"`
+	// ConfiguredClientID and ConfiguredScopes bind reusable credentials to the
+	// administrator-visible OAuth configuration. ClientID and Scopes below are
+	// the effective values returned by discovery or dynamic registration.
+	ConfiguredClientID string    `json:"configuredClientId,omitempty"`
+	ConfiguredScopes   []string  `json:"configuredScopes,omitempty"`
+	ClientID           string    `json:"clientId"`
+	ClientSecret       string    `json:"clientSecret,omitempty"`
+	AuthURL            string    `json:"authUrl"`
+	TokenURL           string    `json:"tokenUrl"`
+	RedirectURL        string    `json:"redirectUrl"`
+	Issuer             string    `json:"issuer,omitempty"`
+	Scopes             []string  `json:"scopes,omitempty"`
+	Resource           string    `json:"resource,omitempty"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
 // Project 对应 Codex 风格的本地项目：左侧用名称组织会话，一个项目可以包含

@@ -63,10 +63,10 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
     if (!selectedProject) return { tone: 'blocked', label: '缺少项目', detail: '请先添加一个服务器项目。', canSend: false }
     if (!selectedProfile) return { tone: 'blocked', label: '需要配置', detail: `${isCodexRuntime ? 'Codex' : 'EasyAgent'} 暂无可用模型配置。`, canSend: false }
     if (isCodexRuntime) {
-      const ready = data.codex.installed && data.codex.appServerAvailable
+      const ready = data.codex.installed && data.codex.appServerAvailable && (data.codex.authenticated || data.codexConfig.configured)
       return ready
         ? { tone: 'ready', label: '运行环境可用', detail: 'Codex CLI 与 app-server 已就绪。', canSend: true }
-        : { tone: 'blocked', label: 'Codex 不可用', detail: data.codex.message || '请安装或更新 Codex CLI 后重新检测。', canSend: false }
+        : { tone: 'blocked', label: 'Codex 未就绪', detail: data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !data.codexConfig.configured ? '当前运行用户未完成 Codex 登录；请在服务器终端执行 codex login。' : data.codex.message || '请安装或更新 Codex CLI 后重新检测。', canSend: false }
     }
     const settings = selectedProfile.settings
     if (!settings.provider || !settings.baseUrl || !settings.model) return { tone: 'blocked', label: '配置不完整', detail: '请补全 Provider、服务地址和模型名称。', canSend: false }
@@ -74,7 +74,7 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
     if (!selectedProfile.verified) return { tone: 'blocked', label: '模型尚未验证', detail: '请到模型配置运行一次测试；EasyAgent 只接受协议原生 Function Call。', canSend: false }
     if (settings.provider.toLocaleLowerCase() !== 'ollama' && !settings.secretConfigured) return { tone: 'warning', label: '建议先测试', detail: '当前配置没有已保存的 API Key；无需认证的兼容服务仍可直接使用。', canSend: true }
     return { tone: 'warning', label: '配置已保存', detail: `${settings.provider} · ${settings.model}；发送时由 Provider 实际验证，建议先测试连接。`, canSend: true }
-  }, [data.codex, data.ollama.message, data.ollama.running, isCodexRuntime, selectedProfile, selectedProject, session])
+  }, [data.codex, data.codexConfig.configured, data.ollama.message, data.ollama.running, isCodexRuntime, selectedProfile, selectedProject, session])
   useEffect(() => {
     if (!textareaRef.current) return
     textareaRef.current.style.height = 'auto'

@@ -121,7 +121,7 @@ Skill 默认使用渐进式加载：模型先看到简短元数据；任务相�
 
 页面会从同一用户轮次的真实 `web_research` 结果建立来源表。即使小模型只输出 `[S1]` 而漏抄 `citation` 中的 Markdown URL，Web 回答区也会把该编号确定性地链接到对应来源；映射在新用户轮次开始时清空，防止跨轮串用编号。如果同一轮连续调用多次并把同一编号分配给不同 URL，页面不会猜测映射，只渲染模型明确复制的链接。
 
-GitHub/GitLab 能力分三层：公开事实由 `web_research` 读取；本地版本控制由 `shell` 调用服务账号 PATH 中的 `git`、`gh` 或 `glab`；仓库平台的私有对象与工作流优先通过 MCP。GitHub 官方远端 MCP 可在 **设置 → 工具与 MCP** 填写 Bearer Token。GitLab 官方远端 MCP 依赖 OAuth 动态客户端注册，当前 MCP 客户端尚未实现该登录流程；临时接入可安装支持 `mcp serve` 的 `glab` 并配置为 stdio MCP。MCP 密钥会从 Bootstrap/API 响应中遮蔽，但仍保存在权限受限的本地 SQLite 中，不应把数据库当成独立密钥保险库。
+GitHub/GitLab 能力分三层：公开事实由 `web_research` 读取；本地版本控制由 `shell` 调用服务账号 PATH 中的 `git`、`gh` 或 `glab`；仓库平台的私有对象与工作流优先通过 MCP。GitHub 官方远端 MCP 可在 **设置 → 工具与 MCP** 填写 Bearer Token。GitLab 官方远端 MCP 依赖 OAuth 动态客户端注册；HTTP MCP 的 OAuth 授权由浏览器完成，EasyAgent Runtime 的 access/refresh token 独立保存在 `ea_mcp_oauth_credentials`，Codex Runtime 则通过 app-server 原生 OAuth credential store 管理。MCP 密钥会从 Bootstrap/API 响应中遮蔽，本地凭证数据库仍依赖文件权限和磁盘加密，不应把它当成独立密钥保险库。
 
 工作区文件能力直接编译进 Go 二进制：`read` 分段读取文本，`grep` 搜索内容，`find` 查找文件，`ls` 查看目录，`edit` 做唯一精确替换，`write` 创建文件或在已读取版本未变化时完整覆盖。默认工作区固定为 `~/.easyagent/workspaces/default`，不使用进程 CWD。用户在页面创建会话时可以选择服务器上已存在的目录；绝对路径保存在会话中，后续多轮固定使用它。每轮从会话派生独立 Environment，文件、Shell 和 stdio MCP 共用该工作区，路径解析会校验真实符号链接目标并拒绝越界。
 

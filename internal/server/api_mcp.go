@@ -26,10 +26,23 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 	if input.Description == "" {
 		input.Description = input.Name + " 提供的外部工具"
 	}
+	if strings.EqualFold(input.AuthType, "oauth") {
+		if strings.TrimSpace(input.OAuthCallbackURL) == "" {
+			input.OAuthCallbackURL = oauthRedirectURL(request, input)
+		}
+		// Codex app-server listens on this loopback port while the browser calls
+		// EasyAgent's LAN address. The callback handler reverse-proxies to it.
+		if input.OAuthCallbackPort == 0 {
+			input.OAuthCallbackPort = 18765
+		}
+	}
 	// 页面不会回传已经保存的密钥，因此必须先恢复旧值，再做认证校验和连接测试。
 	current, _ := server.store.ListMCPConfigs()
+	var previous *store.MCPConfig
 	for _, value := range current {
 		if value.ID == input.ID {
+			copy := value
+			previous = &copy
 			if input.Token == "" {
 				input.Token = value.Token
 			}
@@ -64,7 +77,7 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	// “已启用”必须代表此刻确实可以连接，避免保存一个看似开启、实际不可用的配置。
-	if input.Enabled {
+	if input.Enabled && !strings.EqualFold(input.AuthType, "oauth") {
 		ctx, cancel := context.WithTimeout(request.Context(), 90*time.Second)
 		connection, err := mcpclient.Connect(ctx, server.env, mcpClientConfig(input))
 		cancel()
@@ -73,6 +86,20 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 			return
 		}
 		_ = connection.Close()
+	}
+	if previous != nil && (oauthBindingChanged(*previous, input) || (previous.Enabled && !input.Enabled && strings.EqualFold(previous.AuthType, "oauth"))) {
+		if strings.EqualFold(previous.AuthType, "oauth") {
+			if err := server.mcpOAuth.logoutCodex(request.Context(), input.ID); err != nil {
+				writeError(response, http.StatusBadGateway, "撤销旧 Codex OAuth 凭证失败："+err.Error())
+				return
+			}
+		}
+		if oauthBindingChanged(*previous, input) {
+			if err := server.mcpOAuth.logout(input.ID); err != nil {
+				writeError(response, http.StatusInternalServerError, "撤销旧 EasyAgent OAuth 凭证失败："+err.Error())
+				return
+			}
+		}
 	}
 	input.SecretConfigured = false
 	if err := server.store.SaveMCP(input); err != nil {
@@ -87,7 +114,26 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 }
 
 func (server *Server) deleteMCP(response http.ResponseWriter, request *http.Request) {
-	if err := server.store.DeleteMCP(request.PathValue("id")); err != nil {
+	id := request.PathValue("id")
+	configs, err := server.store.ListMCPConfigs()
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, config := range configs {
+		if config.ID == id && strings.EqualFold(config.AuthType, "oauth") {
+			if err := server.mcpOAuth.logoutCodex(request.Context(), id); err != nil {
+				writeError(response, http.StatusBadGateway, "撤销 Codex OAuth 凭证失败："+err.Error())
+				return
+			}
+			break
+		}
+	}
+	if err := server.mcpOAuth.logout(id); err != nil {
+		writeError(response, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := server.store.DeleteMCP(id); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -123,7 +169,12 @@ func (server *Server) testMCP(response http.ResponseWriter, request *http.Reques
 	}
 	ctx, cancel := context.WithTimeout(request.Context(), 90*time.Second)
 	defer cancel()
-	connection, err := mcpclient.Connect(ctx, server.env, mcpClientConfig(*selected))
+	clientConfigs, err := server.mcpClientConfigs([]store.MCPConfig{*selected})
+	if err != nil {
+		writeError(response, http.StatusBadGateway, err.Error())
+		return
+	}
+	connection, err := mcpclient.Connect(ctx, server.env, clientConfigs[0])
 	if err != nil {
 		writeError(response, http.StatusBadGateway, err.Error())
 		return

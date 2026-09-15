@@ -67,6 +67,21 @@ func (server *Server) routes() {
 	server.mux.HandleFunc("PUT /api/v1/mcp/{id}", server.saveMCP)
 	server.mux.HandleFunc("DELETE /api/v1/mcp/{id}", server.deleteMCP)
 	server.mux.HandleFunc("POST /api/v1/mcp/{id}/test", server.testMCP)
+	server.mux.HandleFunc("POST /api/v1/mcp/{id}/oauth/start", server.startMCPOAuth)
+	server.mux.HandleFunc("GET /api/v1/mcp/{id}/oauth/status", server.getMCPOAuthStatus)
+	server.mux.HandleFunc("POST /api/v1/mcp/{id}/oauth/callback", server.completeMCPOAuth)
+	server.mux.HandleFunc("GET /api/v1/mcp/{id}/oauth/callback", server.completeMCPOAuth)
+	// Codex may append a provider-specific callback ID to the configured path
+	// when the authorization server does not support issuer-bound callbacks.
+	server.mux.HandleFunc("POST /api/v1/mcp/{id}/oauth/callback/{rest...}", server.completeMCPOAuth)
+	server.mux.HandleFunc("GET /api/v1/mcp/{id}/oauth/callback/{rest...}", server.completeMCPOAuth)
+	// The shared callback is also Codex's global fallback. Codex may append a
+	// server-specific callback ID, so keep the wildcard form as well.
+	server.mux.HandleFunc("POST /api/v1/mcp/oauth/callback", server.completeMCPOAuth)
+	server.mux.HandleFunc("GET /api/v1/mcp/oauth/callback", server.completeMCPOAuth)
+	server.mux.HandleFunc("POST /api/v1/mcp/oauth/callback/{rest...}", server.completeMCPOAuth)
+	server.mux.HandleFunc("GET /api/v1/mcp/oauth/callback/{rest...}", server.completeMCPOAuth)
+	server.mux.HandleFunc("POST /api/v1/mcp/{id}/oauth/logout", server.logoutMCPOAuth)
 	server.mux.HandleFunc("POST /api/v1/mcp/presets/{id}/check", server.checkMCPPreset)
 	server.mux.HandleFunc("POST /api/v1/mcp/presets/{id}/install", server.installMCPPreset)
 	server.mux.HandleFunc("DELETE /api/v1/mcp/presets/{id}/install", server.uninstallMCPPreset)

@@ -61,7 +61,11 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 	if err != nil {
 		return err
 	}
-	mcpLoader := mcpclient.NewLoader(runEnvironment, mcpClientConfigs(mcps))
+	mcpConfigs, err := server.mcpClientConfigs(mcps)
+	if err != nil {
+		return err
+	}
+	mcpLoader := mcpclient.NewLoader(runEnvironment, mcpConfigs)
 	defer mcpLoader.Close()
 	selectedMCPIDsForTurn := selectedMCPIDs(session.Messages)
 	selectedMCPTools, err := mcpLoader.Preload(ctx, selectedMCPIDsForTurn)

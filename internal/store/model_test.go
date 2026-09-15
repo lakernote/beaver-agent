@@ -29,6 +29,25 @@ func TestCodexModelGetsIndependentTurnTimeoutDefault(t *testing.T) {
 	}
 }
 
+func TestCodexDefaultProfileCanCreateSessionWithoutPersistedProfile(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	value, err := database.GetModelSettingsByProfileID(DefaultCodexProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value.ProfileID != DefaultCodexProfileID || value.Runtime != RuntimeCodex || value.Provider != "" || value.Model != "" {
+		t.Fatalf("unexpected Codex default profile: %+v", value)
+	}
+	if value.TurnTimeoutSeconds != DefaultCodexTurnTimeoutSeconds {
+		t.Fatalf("Codex default profile timeout = %d", value.TurnTimeoutSeconds)
+	}
+}
+
 func TestModelCapabilityDetectionUsesEndpoint(t *testing.T) {
 	if !((ModelSettings{BaseURL: "http://localhost:11434/v1"}).IsOllama()) {
 		t.Fatal("标准 Ollama 端点应被识别")

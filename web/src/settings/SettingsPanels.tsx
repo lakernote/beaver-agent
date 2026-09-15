@@ -108,13 +108,14 @@ export function CodexStatus({ data, onDetect }: CodexStatusProps) {
   const [inspecting, setInspecting] = useState(false)
   const [inspectionError, setInspectionError] = useState('')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const ready = data.codex.installed && data.codex.appServerAvailable
+  const configuredProvider = data.codexConfig.configured
+  const ready = data.codex.installed && data.codex.appServerAvailable && (data.codex.authenticated || configuredProvider)
   const title = ready
     ? `Codex CLI + app-server 已就绪${data.codex.version ? ` · ${data.codex.version}` : ''}`
-    : data.codex.installed ? '已找到 CLI，但 app-server 不可用' : '未检测到 Codex CLI'
-  const detail = data.codex.installed
-    ? data.codex.path
-    : data.codex.message
+    : data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !configuredProvider ? 'Codex 已安装，但当前用户未登录' : data.codex.installed ? '已找到 CLI，但 app-server 不可用' : '未检测到 Codex CLI'
+  const detail = data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !configuredProvider
+    ? `请在运行 EasyAgent 的同一用户下执行 codex login${data.codex.home ? `；当前 Codex Home：${data.codex.home}` : ''}。如果使用第三方 Provider，请先完成 Provider 配置。`
+    : data.codex.installed ? [data.codex.path, data.codex.home ? `Codex Home：${data.codex.home}` : ''].filter(Boolean).join(' · ') : data.codex.message
   const inspect = async () => {
     setInspecting(true)
     setInspectionError('')
@@ -153,11 +154,11 @@ export function CodexStatus({ data, onDetect }: CodexStatusProps) {
         <small>{detail}</small>
       </div>
       <div className="runtime-status-actions">
-        {!ready && <a className="ghost-button" href={data.codex.installUrl} target="_blank" rel="noreferrer">OpenAI 官方安装说明</a>}
+        {!ready && (!data.codex.installed || !data.codex.appServerAvailable) && <a className="ghost-button" href={data.codex.installUrl} target="_blank" rel="noreferrer">OpenAI 官方安装说明</a>}
         <button className="ghost-button" type="button" onClick={onDetect}>重新检测</button>
         {ready && <button className="ghost-button" type="button" disabled={inspecting} onClick={() => void inspect()}>{inspecting ? '读取中…' : '查看运行信息'}</button>}
       </div>
-      {!ready && <div className="runtime-manual-install"><div><strong>{data.codex.installed ? '请在服务器终端手动更新 Codex CLI' : '请在服务器终端手动安装 Codex CLI'}</strong><small>EasyAgent 只展示官方命令，不会下载或执行安装脚本。请先核对官方说明，再使用运行 EasyAgent 的同一用户执行；完成后点击“重新检测”，系统会校验 CLI 版本和 app-server 子命令。</small></div><div className="runtime-install-command"><code>{data.codex.installCommand}</code><button className="ghost-button" type="button" onClick={() => void copyInstallCommand()}>{copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制命令'}</button></div></div>}
+      {!ready && (!data.codex.installed || !data.codex.appServerAvailable) && <div className="runtime-manual-install"><div><strong>{data.codex.installed ? '请在服务器终端手动更新 Codex CLI' : '请在服务器终端手动安装 Codex CLI'}</strong><small>EasyAgent 只展示官方命令，不会下载或执行安装脚本。请先核对官方说明，再使用运行 EasyAgent 的同一用户执行；完成后点击“重新检测”，系统会校验 CLI 版本和 app-server 子命令。</small></div><div className="runtime-install-command"><code>{data.codex.installCommand}</code><button className="ghost-button" type="button" onClick={() => void copyInstallCommand()}>{copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制命令'}</button></div></div>}
       {inspectionError && <div className="codex-inspection-error" role="alert">运行信息读取失败：{inspectionError}</div>}
       {inspection && <div className="codex-inspection">
         <div className="codex-inspection-summary"><section><span>账号</span><strong>{account.title}</strong><small>{account.detail}</small></section><section><span>模型</span><strong>{models.title}</strong><small>{models.detail}</small></section></div>
@@ -479,6 +480,7 @@ export function MCPSettings({ data, mcpNotice, installingPreset, checkingPreset,
       <div className="section-heading"><div><h2>MCP 连接</h2><p>一处配置，同时同步给 EasyAgent Runtime 和 Codex app-server。</p></div><button className="ghost-button" type="button" onClick={onCreate}>＋ 自定义</button></div>
       <div className="mcp-overview"><div><p className="eyebrow">连接数</p><strong>{data.mcps.length} 个 MCP</strong><span>配置保存在 EasyAgent 私有目录</span></div><div><p className="eyebrow">已就绪</p><strong>{enabledMCPCount} 个</strong><span>已验证并暴露给 Agent</span></div><div><p className="eyebrow">加载方式</p><strong>按需</strong><span>任务需要时才读取工具清单</span></div></div>
       <div className="capability-note"><strong>共享方式</strong><span>EasyAgent 直接连接 MCP；Codex 使用同一配置生成标准 <code>mcp_servers</code>，密钥只通过环境变量传递。</span></div>
+      <div className="mcp-flow-guide" aria-label="MCP OAuth 流程"><div><span>OAuth 流程</span><strong>保存配置</strong><i>→</i><strong>浏览器授权</strong><i>→</i><strong>回调保存凭证</strong><i>→</i><strong>测试连接</strong></div><small>授权页会在新标签页打开；完成后回到编辑窗口刷新状态，再测试连接。</small></div>
       {mcpNotice && <MCPNotice notice={mcpNotice} onClose={onCloseNotice} />}
       <MCPList data={data} dataPresets={dataPresets} installingPreset={installingPreset} checkingPreset={checkingPreset} togglingMCP={togglingMCP} onInstall={onInstall} onCheck={onCheck} onTest={onTest} onToggle={onToggle} onCreate={onCreate} onEdit={onEdit} />
       <MCPPresets data={data} dataPresets={dataPresets} installingPreset={installingPreset} checkingPreset={checkingPreset} onInstall={onInstall} onCheck={onCheck} />

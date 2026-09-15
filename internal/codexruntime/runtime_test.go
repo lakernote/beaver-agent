@@ -17,7 +17,7 @@ import (
 func TestDetectFindsCodexOnEnvironmentPath(t *testing.T) {
 	bin := t.TempDir()
 	path := filepath.Join(bin, "codex")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo codex-test; exit 0; fi\nexit 1\n"), 0o700); err != nil {
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo codex-test; exit 0; fi\nif [ \"$1\" = \"app-server\" ] && [ \"$2\" = \"--help\" ]; then exit 0; fi\nif [ \"$1\" = \"login\" ] && [ \"$2\" = \"status\" ]; then echo Logged in; exit 0; fi\nexit 1\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home"), ExtraPaths: []string{bin}})
@@ -25,7 +25,7 @@ func TestDetectFindsCodexOnEnvironmentPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := Detect(environment)
-	if !status.Installed || status.Path != path || status.Version != "codex-test" {
+	if !status.Installed || !status.AppServerAvailable || !status.Authenticated || status.Path != path || status.Version != "codex-test" {
 		t.Fatalf("unexpected status: %+v", status)
 	}
 	if status.InstallCommand != installCommand || status.InstallURL != installDocsURL {

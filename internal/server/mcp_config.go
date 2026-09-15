@@ -1,6 +1,8 @@
 package server
 
 import (
+	"strings"
+
 	"github.com/lakernote/easy-agent/internal/mcpclient"
 	"github.com/lakernote/easy-agent/internal/store"
 )
@@ -17,10 +19,18 @@ func mcpClientConfig(value store.MCPConfig) mcpclient.Config {
 	}
 }
 
-func mcpClientConfigs(values []store.MCPConfig) []mcpclient.Config {
+func (server *Server) mcpClientConfigs(values []store.MCPConfig) ([]mcpclient.Config, error) {
 	result := make([]mcpclient.Config, 0, len(values))
 	for _, value := range values {
-		result = append(result, mcpClientConfig(value))
+		config := mcpClientConfig(value)
+		if value.Enabled && strings.EqualFold(value.AuthType, "oauth") {
+			handler, err := server.mcpOAuth.runtimeHandler(value)
+			if err != nil {
+				return nil, err
+			}
+			config.OAuthHandler = handler
+		}
+		result = append(result, config)
 	}
-	return result
+	return result, nil
 }

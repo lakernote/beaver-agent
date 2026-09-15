@@ -312,6 +312,48 @@ input:focus, textarea:focus, select:focus { border-color: #6e9b7d; box-shadow: 0
   .research-settings-head { align-items: flex-start; }.research-health { min-width: 72px; }.research-provider-list, .research-builtins { grid-template-columns: 1fr; }.research-builtins > div + div { border-top: 1px solid #e1e7e3; border-left: 0; }.research-provider > p { min-height: 0; }.research-settings-actions { align-items: stretch; flex-direction: column; }.research-settings-actions .primary-button { width: 100%; min-height: 44px; }.research-provider > footer .ghost-button { min-height: 44px; }
 }
 
+.mcp-flow-guide { display: grid; gap: 8px; margin: -3px 0 16px; padding: 12px 13px; border: 1px solid #d7e4dc; border-radius: 10px; color: #5c7063; background: linear-gradient(105deg, #f5faf6, #fbfdfb); }
+.mcp-flow-guide > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.mcp-flow-guide span { margin-right: 4px; color: #2c714c; font-size: 9px; font-weight: 700; }
+.mcp-flow-guide strong { color: #405d4b; font-size: 9px; font-weight: 600; }
+.mcp-flow-guide i { color: #9bb0a2; font-size: 11px; font-style: normal; }
+.mcp-flow-guide small { color: #85938a; font-size: 9px; line-height: 1.45; }
+.oauth-flow-panel { margin: 18px 0 4px; padding: 16px; border: 1px solid #cfe0d5; border-radius: 12px; background: linear-gradient(135deg, #f3faf5, #fbfdfb); }
+.oauth-flow-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.oauth-flow-heading h3 { margin: 3px 0 4px; color: #2c4c37; font-size: 14px; }
+.oauth-flow-heading p:last-child { margin: 0; color: #78887d; font-size: 9px; line-height: 1.5; }
+.oauth-flow-status { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #c6d8cb; border-radius: 999px; color: #397350; background: #e9f5ec; font-size: 8px; font-weight: 700; white-space: nowrap; }
+.oauth-flow-status.authorizing { border-color: #c8d8ed; color: #3566a1; background: #edf4ff; }
+.oauth-flow-status.authorized { border-color: #c6d8ed; color: #315f99; background: #edf4ff; }
+.oauth-flow-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.oauth-flow-step { min-width: 0; padding: 10px 8px; border: 1px solid #dce7df; border-radius: 9px; background: #fff; }
+.oauth-flow-step > span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; color: #799084; background: #edf2ee; font-size: 9px; font-weight: 700; }
+.oauth-flow-step strong, .oauth-flow-step small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.oauth-flow-step strong { margin-top: 7px; color: #53675a; font-size: 9px; line-height: 1.3; white-space: nowrap; }
+.oauth-flow-step small { margin-top: 4px; color: #8b978f; font-size: 8px; line-height: 1.4; }
+.oauth-flow-step.complete { border-color: #a6cfb2; background: #f5fbf6; }
+.oauth-flow-step.complete > span { color: #fff; background: #2d9565; }
+.oauth-flow-step.complete strong { color: #397350; }
+.oauth-flow-step.current { border-color: #7ca7dc; box-shadow: 0 0 0 3px #eaf2fd; }
+.oauth-flow-step.current > span { color: #fff; background: #3d75c7; }
+.oauth-flow-step.current strong { color: #315f99; }
+.oauth-flow-step.pending { opacity: .7; }
+.oauth-flow-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #dce7df; }
+.oauth-flow-actions .oauth-primary-action { min-height: 44px; }
+.oauth-flow-hint { margin: 10px 0 0; color: #64766a; font-size: 9px; line-height: 1.55; }
+
+@media (max-width: 760px) {
+  .mcp-flow-guide > div { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .mcp-flow-guide i { display: none; }
+  .oauth-flow-heading { flex-direction: column; }
+  .oauth-flow-steps { grid-template-columns: 1fr; }
+  .oauth-flow-step { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 0 8px; align-items: center; }
+  .oauth-flow-step > span { grid-row: span 2; }
+  .oauth-flow-step strong { margin-top: 0; }
+  .oauth-flow-actions { align-items: stretch; flex-direction: column; }
+  .oauth-flow-actions button { width: 100%; }
+}
+
 @media (max-width: 860px) { .runtime-status { grid-template-columns: 1fr; }.runtime-status-actions { justify-content: flex-start; flex-wrap: wrap; }.runtime-status-actions .ghost-button { min-height: 44px; }.runtime-install-command { align-items: stretch; flex-direction: column; }.runtime-install-command button { align-self: flex-start; min-height: 44px; } }
 @media (max-width: 860px) {
   .trace-head { min-height: 0; align-items: stretch; flex-direction: column; gap: 8px; padding: 12px 14px; }.trace-title-row { justify-content: space-between; }.trace-head-actions { justify-content: space-between; gap: 6px; }.trace-mode-tabs { flex: 1; overflow-x: auto; }.trace-mode-tabs button { min-height: 40px; flex: 1; padding: 0 10px; }.trace-close { width: 40px; height: 40px; flex-basis: 40px; }.trace-overview { margin-right: 14px; margin-left: 14px; }.trace-overview-model strong { max-width: 120px; }.trace-toolbar { position: static; padding-right: 14px; padding-left: 14px; }.trace-events, .trace-stats-view, .trace-raw-view { padding-right: 14px; padding-left: 14px; }.trace-turn-head { align-items: flex-start; flex-direction: column; gap: 8px; padding-top: 10px; padding-bottom: 10px; }.trace-turn-head > div:last-child { width: 100%; justify-content: flex-start; }.trace-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.trace-stat-grid > div { border-bottom: 1px solid #e8ece9; }.trace-call-table-head, .trace-call-table-row { grid-template-columns: minmax(0, 1fr) 50px 50px; }.trace-call-table-head > span:last-child, .trace-call-table-row > code { display: none; }.trace-raw-row > summary { grid-template-columns: 46px minmax(0, 1fr) 12px; }.trace-raw-row > summary time { display: none; }.trace-raw-row-body { padding-left: 6px; }.trace-session-summary { align-items: stretch; flex-direction: column; gap: 10px; }.trace-session-summary > div:last-child { flex-wrap: wrap; }.trace-session-summary > div:last-child button { margin-left: auto; }.trace-source-tabs { overflow-x: auto; }.trace-source-tabs button { min-width: 96px; }

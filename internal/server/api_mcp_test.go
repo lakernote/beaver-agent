@@ -103,6 +103,8 @@ func TestValidateMCPRequiresCredentialsOnlyWhenEnabled(t *testing.T) {
 		{name: "enabled bearer needs token", config: store.MCPConfig{Enabled: true, Transport: "http", Endpoint: "https://example.com", AuthType: "bearer"}, wantErr: "Token"},
 		{name: "enabled basic needs both", config: store.MCPConfig{Enabled: true, Transport: "http", Endpoint: "https://example.com", AuthType: "basic", Username: "user"}, wantErr: "用户名和密码"},
 		{name: "enabled bearer complete", config: store.MCPConfig{Enabled: true, Transport: "http", Endpoint: "https://example.com", AuthType: "bearer", Token: "secret"}},
+		{name: "oauth is allowed for HTTP", config: store.MCPConfig{Enabled: true, Transport: "http", Endpoint: "https://example.com", AuthType: "oauth", OAuthCallbackURL: "https://agent.example/callback", OAuthCallbackPort: 18765}},
+		{name: "oauth rejects privileged callback port", config: store.MCPConfig{Enabled: true, Transport: "http", Endpoint: "https://example.com", AuthType: "oauth", OAuthCallbackPort: 80}, wantErr: "1024"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

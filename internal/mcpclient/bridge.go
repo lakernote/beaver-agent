@@ -127,8 +127,11 @@ func createTransport(environment *appenv.Environment, config Config) (mcp.Transp
 		if strings.TrimSpace(config.Endpoint) == "" {
 			return nil, errors.New("HTTP MCP 缺少 Endpoint")
 		}
+		if strings.EqualFold(config.AuthType, "oauth") && config.OAuthHandler == nil {
+			return nil, errors.New("OAuth MCP 尚未初始化授权处理器")
+		}
 		httpClient := &http.Client{Timeout: 90 * time.Second, Transport: authTransport{base: http.DefaultTransport, config: config}}
-		return &mcp.StreamableClientTransport{Endpoint: config.Endpoint, HTTPClient: httpClient, DisableStandaloneSSE: true}, nil
+		return &mcp.StreamableClientTransport{Endpoint: config.Endpoint, HTTPClient: httpClient, OAuthHandler: config.OAuthHandler, DisableStandaloneSSE: true}, nil
 	default:
 		return nil, fmt.Errorf("不支持的 MCP Transport %q", config.Transport)
 	}

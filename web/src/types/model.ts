@@ -51,7 +51,9 @@ export type OllamaStatus = {
 export type CodexRuntimeStatus = {
   installed: boolean
   appServerAvailable: boolean
+  authenticated: boolean
   path?: string
+  home?: string
   version?: string
   message: string
   installCommand: string

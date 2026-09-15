@@ -20,6 +20,7 @@ const (
 	DefaultModelProtocol               = "chat_completions"
 	DefaultOllamaProtocol              = "ollama_chat"
 	DefaultOllamaBaseURL               = "http://127.0.0.1:11434"
+	DefaultCodexProfileID              = "codex-default"
 	DefaultMaxOutputTokens             = 4096
 	DefaultMaxSteps                    = 32
 	MinMaxSteps                        = 4
@@ -81,6 +82,18 @@ func DefaultModelSettings() ModelSettings {
 		RequestTimeoutSeconds:       DefaultRequestTimeoutSeconds,
 		CompressionThresholdPercent: DefaultCompressionThresholdPercent,
 	}
+}
+
+// DefaultCodexModelSettings represents Codex's built-in official login. It
+// deliberately leaves Provider, BaseURL, and Model empty so Codex CLI remains
+// responsible for authentication and model selection.
+func DefaultCodexModelSettings() ModelSettings {
+	return (ModelSettings{
+		ProfileID:   DefaultCodexProfileID,
+		ProfileName: "Codex 默认配置",
+		Runtime:     RuntimeCodex,
+		Protocol:    "app_server",
+	}).WithDefaults()
 }
 
 // WithDefaults 只补齐旧记录或不完整请求中可以安全推导的运行参数，

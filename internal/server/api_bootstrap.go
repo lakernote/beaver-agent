@@ -86,6 +86,16 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A fresh database starts with an EasyAgent profile, but Codex's official
+	// ChatGPT login is a valid runtime configuration even without a third-party
+	// provider entry. Expose a virtual profile so the chat composer can select
+	// Codex and create a session before the user adds a custom provider.
+	if !hasCodexProfile(profiles) {
+		publicProfiles = append(publicProfiles, modelProfileView{
+			ID: store.DefaultCodexProfileID, Name: "Codex 默认配置",
+			Settings: publicModel(store.DefaultCodexModelSettings()), Verified: true,
+		})
+	}
 	catalog, err := loadSkillCatalog(server.store)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
@@ -125,6 +135,15 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		Codex:            server.detectCodex(request.Context()),
 		CodexConfig:      server.loadCodexConfig(),
 	})
+}
+
+func hasCodexProfile(profiles []store.ModelProfile) bool {
+	for _, profile := range profiles {
+		if profile.Settings.Runtime == store.RuntimeCodex {
+			return true
+		}
+	}
+	return false
 }
 
 func (server *Server) modelProfileViews(profiles []store.ModelProfile) ([]modelProfileView, error) {

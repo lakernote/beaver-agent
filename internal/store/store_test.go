@@ -52,6 +52,32 @@ func TestOpenProtectsDatabaseFile(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthCredentialIsSeparateAndCascadesWithMCP(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if err := database.SaveMCP(MCPConfig{ID: "gitlab", Name: "GitLab", Transport: "http", Endpoint: "https://gitlab.example/mcp"}); err != nil {
+		t.Fatal(err)
+	}
+	want := MCPOAuthCredential{MCPID: "gitlab", AccessToken: "access", RefreshToken: "refresh", ClientID: "client", TokenURL: "https://issuer.example/token", UpdatedAt: time.Now()}
+	if err := database.SaveMCPOAuthCredential(want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := database.GetMCPOAuthCredential("gitlab")
+	if err != nil || got == nil || got.RefreshToken != "refresh" || got.AccessToken != "access" {
+		t.Fatalf("OAuth credential round trip failed: got=%+v err=%v", got, err)
+	}
+	if err := database.DeleteMCP("gitlab"); err != nil {
+		t.Fatal(err)
+	}
+	got, err = database.GetMCPOAuthCredential("gitlab")
+	if err != nil || got != nil {
+		t.Fatalf("OAuth credential should cascade with MCP deletion: got=%+v err=%v", got, err)
+	}
+}
+
 func TestDefaultAdminCanRotatePassword(t *testing.T) {
 	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
 	if err != nil {
