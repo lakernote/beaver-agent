@@ -73,7 +73,7 @@ func (server *Server) newTraceObserver(id string, turn int, usage *store.Usage, 
 		// 否则用户无法根据 Trace 复现问题。附件二进制仍只保留结构和 MIME。
 		value.Input = redactTraceAttachmentData(value.Input)
 		value.Output = redactTraceAttachmentData(value.Output)
-		if err := server.store.AppendEvent(id, value); err != nil && onTraceError != nil {
+		if err := server.sessionsRepository().AppendEvent(id, value); err != nil && onTraceError != nil {
 			onTraceError(err)
 		}
 		if event.Kind == agent.EventModelEnd || event.Kind == agent.EventToolEnd || event.Kind == agent.EventToolReject {

@@ -6,22 +6,23 @@ import (
 	"github.com/lakernote/easy-agent/internal/builtin/prompt"
 	builtintools "github.com/lakernote/easy-agent/internal/builtin/tools"
 	"github.com/lakernote/easy-agent/internal/codexruntime"
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	mcppresets "github.com/lakernote/easy-agent/internal/mcp/presets"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
 type bootstrapPayload struct {
 	Sessions             []sessionView               `json:"sessions"`
-	Projects             []store.Project             `json:"projects"`
+	Projects             []httpdto.Project           `json:"projects"`
 	SessionsHasMore      bool                        `json:"sessionsHasMore,omitempty"`
-	Model                store.ModelSettings         `json:"model"`
+	Model                modelSettingsView           `json:"model"`
 	ModelProfiles        []modelProfileView          `json:"modelProfiles"`
 	ActiveModelProfileID string                      `json:"activeModelProfileId"`
 	Skills               []store.SkillOverride       `json:"skills"`
 	BuiltinTools         []builtintools.Info         `json:"builtinTools"`
 	MCPPresets           []mcppresets.Preset         `json:"mcpPresets"`
 	ModelRules           modelRulesPayload           `json:"modelRules"`
-	MCPs                 []store.MCPConfig           `json:"mcps"`
+	MCPs                 []httpdto.MCPConfig         `json:"mcps"`
 	SystemPrompt         string                      `json:"systemPrompt"`
 	Ollama               ollamaStatus                `json:"ollama"`
 	Codex                codexRuntimeStatus          `json:"codex"`
@@ -32,10 +33,10 @@ type bootstrapPayload struct {
 }
 
 type modelProfileView struct {
-	ID       string              `json:"id"`
-	Name     string              `json:"name"`
-	Settings store.ModelSettings `json:"settings"`
-	Verified bool                `json:"verified"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Settings modelSettingsView `json:"settings"`
+	Verified bool              `json:"verified"`
 }
 
 type runtimeInfoPayload struct {
@@ -66,17 +67,17 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	sessions, sessionsHasMore, err := server.store.ListSessionsBefore(30, "", "")
+	sessions, sessionsHasMore, err := server.sessionsRepository().ListSessionsBefore(30, "", "")
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	model, err := server.store.GetModelSettings()
+	model, err := server.modelsRepository().GetModelSettings()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	profiles, activeProfileID, err := server.store.ListModelProfiles()
+	profiles, activeProfileID, err := server.modelsRepository().ListModelProfiles()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -126,7 +127,7 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	writeJSON(response, http.StatusOK, bootstrapPayload{
-		Sessions: server.sessionViews(sessions), Projects: projects, SessionsHasMore: sessionsHasMore, Model: publicModel(model), ModelProfiles: publicProfiles, ActiveModelProfileID: activeProfileID, Skills: catalog.All(),
+		Sessions: server.sessionViews(sessions), Projects: httpdto.ProjectsFromStore(projects), SessionsHasMore: sessionsHasMore, Model: publicModel(model), ModelProfiles: publicProfiles, ActiveModelProfileID: activeProfileID, Skills: catalog.All(),
 		BuiltinTools: toolInfo, MCPPresets: mcppresets.Catalog(), ModelRules: modelRules(),
 		MCPs: publicMCPs(mcps), SystemPrompt: prompt.Template(), Ollama: server.detectOllama(request.Context()),
 		Runtime:          runtimeInfoPayload{Home: server.env.Home(), Workspace: server.env.Workspace(), Runtime: server.env.Runtime()},
@@ -152,7 +153,7 @@ func (server *Server) modelProfileViews(profiles []store.ModelProfile) ([]modelP
 		verified := profile.Settings.Runtime == store.RuntimeCodex
 		if !verified {
 			var err error
-			verified, err = server.store.HasModelCapabilityTest(modelCapabilityFingerprint(profile.Settings))
+			verified, err = server.modelsRepository().HasModelCapabilityTest(modelCapabilityFingerprint(profile.Settings))
 			if err != nil {
 				return nil, err
 			}

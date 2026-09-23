@@ -7,13 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
 type weixinStateView struct {
 	Enabled  bool                `json:"enabled"`
 	Accounts []weixinAccountView `json:"accounts"`
-	Projects []store.Project     `json:"projects"`
+	Projects []httpdto.Project   `json:"projects"`
 }
 
 type weixinAccountView struct {
@@ -84,11 +85,11 @@ func (server *Server) getWeixin(response http.ResponseWriter, _ *http.Request) {
 	server.weixin.mu.Unlock()
 	for _, account := range accounts {
 		var currentSession *weixinSessionView
-		var sessionStatus string
+		var sessionStatus store.SessionStatus
 		if account.CurrentSessionID != "" {
-			if session, loadErr := server.store.LoadSessionWindow(account.CurrentSessionID, 1, 1); loadErr == nil {
+			if session, loadErr := server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 1, 1); loadErr == nil {
 				sessionStatus = session.Status
-				currentSession = &weixinSessionView{ID: session.ID, Title: session.Title, Status: session.Status, Runtime: session.Runtime, Progress: server.tasks.progress(session.ID), UpdatedAt: optionalTimeJSON(session.UpdatedAt)}
+				currentSession = &weixinSessionView{ID: session.ID, Title: session.Title, Status: string(session.Status), Runtime: string(session.Runtime), Progress: server.tasks.progress(session.ID), UpdatedAt: optionalTimeJSON(session.UpdatedAt)}
 			}
 		}
 		views = append(views, weixinAccountView{
@@ -99,7 +100,7 @@ func (server *Server) getWeixin(response http.ResponseWriter, _ *http.Request) {
 			LastSeenAt:     optionalTimeJSON(account.LastSeenAt), LastMessageAt: optionalTimeJSON(account.LastMessageAt), CreatedAt: account.CreatedAt,
 		})
 	}
-	writeJSON(response, http.StatusOK, weixinStateView{Enabled: settings.Enabled, Accounts: views, Projects: projects})
+	writeJSON(response, http.StatusOK, weixinStateView{Enabled: settings.Enabled, Accounts: views, Projects: httpdto.ProjectsFromStore(projects)})
 }
 
 func (server *Server) saveWeixinSettings(response http.ResponseWriter, request *http.Request) {
@@ -253,7 +254,7 @@ func (server *Server) retryWeixinDelivery(response http.ResponseWriter, request 
 	server.getWeixin(response, request)
 }
 
-func weixinDeliveryStatus(account store.WeixinAccount, sessionStatus string, delivering bool) string {
+func weixinDeliveryStatus(account store.WeixinAccount, sessionStatus store.SessionStatus, delivering bool) string {
 	if account.PendingMessageID == 0 {
 		return "idle"
 	}

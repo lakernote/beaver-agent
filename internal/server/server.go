@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
 	"github.com/lakernote/easy-agent/internal/appenv"
 	"github.com/lakernote/easy-agent/internal/codexruntime"
 	"github.com/lakernote/easy-agent/internal/store"
@@ -23,9 +24,17 @@ import (
 
 type Server struct {
 	store  *store.Store
-	assets fs.FS
-	env    *appenv.Environment
-	mux    *http.ServeMux
+	models modelRepository
+	// sessionRepo keeps session handlers and runtimes independent from the
+	// Store's unrelated model, project, capability, and auth APIs.
+	sessionRepo sessionRepository
+	assets      fs.FS
+	env         *appenv.Environment
+	mux         *http.ServeMux
+	// modelAdapters is owned by this application instance. Keeping the registry
+	// here avoids package-global provider state and makes server construction
+	// explicit and testable.
+	modelAdapters *modeladapter.Registry
 
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -59,6 +68,7 @@ type authSession struct {
 type serverOptions struct {
 	authEnabled            bool
 	externalCapabilitySync bool
+	modelAdapters          *modeladapter.Registry
 }
 
 func New(database *store.Store, assets fs.FS, environment *appenv.Environment) (*Server, error) {
@@ -75,14 +85,19 @@ func newServer(database *store.Store, assets fs.FS, environment *appenv.Environm
 			codexEnv = map[string]string{}
 		}
 	}
+	modelAdapters := options.modelAdapters
+	if modelAdapters == nil {
+		modelAdapters = modeladapter.NewRegistry()
+	}
 	runtimeSettings, err := database.GetRuntimeSettings()
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("load runtime settings: %w", err)
 	}
 	server := &Server{
-		store: database, assets: assets, env: environment, mux: http.NewServeMux(),
-		ctx: ctx, cancel: cancel, scheduler: newTaskScheduler(runtimeSettings.MaxConcurrentTasks),
+		store: database, models: database, sessionRepo: database, assets: assets, env: environment, mux: http.NewServeMux(),
+		modelAdapters: modelAdapters,
+		ctx:           ctx, cancel: cancel, scheduler: newTaskScheduler(runtimeSettings.MaxConcurrentTasks),
 		tasks: newTaskManager(), codexEnv: codexEnv, codexEnvErr: codexEnvErr, sessions: make(map[string]authSession),
 		authEnabled: options.authEnabled, externalCapabilitySync: options.externalCapabilitySync,
 	}

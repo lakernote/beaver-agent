@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent/qualification"
+	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
 	"github.com/lakernote/easy-agent/internal/codexruntime"
 	"github.com/lakernote/easy-agent/internal/store"
 )
@@ -27,6 +27,10 @@ type modelTestResult struct {
 // prepareModelInput 统一保存和连接测试的默认值、旧密钥恢复及校验逻辑。
 // 不允许两个入口各自解释“空 API Key”，否则容易再次跨 Provider 复用旧密钥。
 func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool) (store.ModelSettings, error) {
+	return prepareModelInputWithRegistry(input, current, clearAPIKey, modeladapter.NewRegistry())
+}
+
+func prepareModelInputWithRegistry(input, current store.ModelSettings, clearAPIKey bool, registry *modeladapter.Registry) (store.ModelSettings, error) {
 	input = input.WithDefaults()
 	if clearAPIKey && input.APIKey != "" {
 		return store.ModelSettings{}, errors.New("不能同时填写新 API Key 和清除已保存的 API Key")
@@ -59,7 +63,7 @@ func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool) (st
 			return store.ModelSettings{}, errors.New("Provider 或 Base URL 已改变；请填写新 API Key，或勾选清除已保存的 API Key")
 		}
 	}
-	if err := validateModel(input); err != nil {
+	if err := validateModelWithRegistry(input, registry); err != nil {
 		return store.ModelSettings{}, err
 	}
 	return input, nil
@@ -69,12 +73,13 @@ func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool) (st
 // 模型发起原生 Function Call -> EasyAgent 返回工具结果 -> 模型给出最终文本。
 // 这比只请求一句“你好”更能判断模型是否真的适合 EasyAgent。
 func (server *Server) testModel(response http.ResponseWriter, request *http.Request) {
-	var input store.ModelSettings
-	if !decodeJSON(response, request, &input) {
+	var payload modelSettingsInput
+	if !decodeJSON(response, request, &payload) {
 		return
 	}
+	input := payload.settings()
 	current := server.modelSettingsForInput(input)
-	settings, err := prepareModelInput(input, current, false)
+	settings, err := prepareModelInputWithRegistry(input, current, false, server.modelAdapterRegistry())
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -116,12 +121,12 @@ func (server *Server) testModel(response http.ResponseWriter, request *http.Requ
 		writeJSON(response, http.StatusOK, modelTestResult{OK: true, Model: "Codex Runtime", Answer: result.Answer, DurationMS: result.Duration.Milliseconds()})
 		return
 	}
-	result, err := runModelTest(request, settings)
+	result, err := server.runModelTest(request, settings)
 	if err != nil {
 		writeError(response, http.StatusBadGateway, "模型能力测试失败："+err.Error())
 		return
 	}
-	if err := server.store.RecordModelCapabilityTest(modelCapabilityFingerprint(settings), time.Now()); err != nil {
+	if err := server.modelsRepository().RecordModelCapabilityTest(modelCapabilityFingerprint(settings), time.Now()); err != nil {
 		writeError(response, http.StatusInternalServerError, "保存模型能力验证失败："+err.Error())
 		return
 	}
@@ -149,7 +154,7 @@ func (server *Server) requireVerifiedEasyAgent(settings store.ModelSettings) err
 	if settings.Runtime == store.RuntimeCodex {
 		return nil
 	}
-	verified, err := server.store.HasModelCapabilityTest(modelCapabilityFingerprint(settings))
+	verified, err := server.modelsRepository().HasModelCapabilityTest(modelCapabilityFingerprint(settings))
 	if err != nil {
 		return fmt.Errorf("读取模型能力验证: %w", err)
 	}
@@ -159,21 +164,6 @@ func (server *Server) requireVerifiedEasyAgent(settings store.ModelSettings) err
 	return nil
 }
 
-func runModelTest(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
-	client, err := newModelAdapter(settings)
-	if err != nil {
-		return modelTestResult{}, err
-	}
-	result, err := qualification.Run(request.Context(), client, settings.Model)
-	value := modelTestResult{
-		OK: err == nil, Model: result.Model, ToolCall: result.ToolCall, Answer: result.Answer,
-		InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, DurationMS: result.Duration.Milliseconds(),
-	}
-	if err != nil {
-		return value, err
-	}
-	return modelTestResult{
-		OK: true, Model: result.Model, ToolCall: result.ToolCall, Answer: result.Answer,
-		InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, DurationMS: result.Duration.Milliseconds(),
-	}, nil
+func (server *Server) runModelTest(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
+	return runModelTestWithRegistry(request, settings, server.modelAdapterRegistry())
 }

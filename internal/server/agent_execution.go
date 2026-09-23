@@ -11,7 +11,7 @@ import (
 )
 
 func (server *Server) executeSessionTurn(ctx context.Context, id string, settings store.ModelSettings, usage *store.Usage) error {
-	session, err := server.store.RuntimeSession(id)
+	session, err := server.sessionsRepository().RuntimeSession(id)
 	if err != nil {
 		return err
 	}

@@ -5,26 +5,26 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
-func publicMCPs(values []store.MCPConfig) []store.MCPConfig {
-	result := make([]store.MCPConfig, 0, len(values))
+func publicMCPs(values []store.MCPConfig) []httpdto.MCPConfig {
+	result := make([]httpdto.MCPConfig, 0, len(values))
 	for _, value := range values {
 		result = append(result, publicMCP(value))
 	}
 	return result
 }
 
-func publicMCP(value store.MCPConfig) store.MCPConfig {
+func publicMCP(value store.MCPConfig) httpdto.MCPConfig {
 	value.SecretConfigured = value.Token != "" || value.Password != "" || hasRedactedMCPValue(value.Args, value.Headers, value.Environment)
-	value.Token, value.Password = "", ""
 	// Args、Header 和环境变量都可能承载凭证；只遮蔽敏感值并保留非敏感配置，
 	// 保存时由服务端把占位恢复成原值，避免 bootstrap 把秘密发到浏览器。
 	value.Args = redactMCPArgs(value.Args)
 	value.Headers = redactMCPMap(value.Headers)
 	value.Environment = redactMCPMap(value.Environment)
-	return value
+	return httpdto.MCPConfigFromStore(value)
 }
 
 const redactedMCPValue = "__EASYAGENT_REDACTED__"

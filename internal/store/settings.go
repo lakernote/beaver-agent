@@ -9,14 +9,55 @@ import (
 
 var ErrSessionNotRunning = errors.New("任务已不在运行状态")
 
+// Runtime identifies the execution engine pinned to a model profile or
+// session. Using a named type keeps runtime comparisons consistent across the
+// store and application layers while preserving the existing JSON/SQLite
+// string representation.
+type Runtime string
+
+const (
+	RuntimeEasyAgent Runtime = "easyagent"
+	RuntimeCodex     Runtime = "codex"
+)
+
+// Channel identifies the source that created a session.
+type Channel string
+
+const (
+	ChannelWeb        Channel = "web"
+	ChannelWeixin     Channel = "weixin"
+	ChannelAutomation Channel = "automation"
+)
+
+// SessionStatus is the persisted lifecycle state of a session.
+type SessionStatus string
+
+const (
+	SessionIdle     SessionStatus = "idle"
+	SessionQueued   SessionStatus = "queued"
+	SessionRunning  SessionStatus = "running"
+	SessionPaused   SessionStatus = "paused"
+	SessionFailed   SessionStatus = "failed"
+	SessionCanceled SessionStatus = "canceled"
+)
+
+// AutomationStatus is the last observed result of an automation run. A
+// successful session returns to idle, while the automation itself is recorded
+// as completed, so this is intentionally separate from SessionStatus.
+type AutomationStatus string
+
+const (
+	AutomationQueued    AutomationStatus = "queued"
+	AutomationRunning   AutomationStatus = "running"
+	AutomationPaused    AutomationStatus = "paused"
+	AutomationCompleted AutomationStatus = "completed"
+	AutomationFailed    AutomationStatus = "failed"
+	AutomationCanceled  AutomationStatus = "canceled"
+)
+
 // 模型配置默认值集中在这里，避免 Store、HTTP API 和 Agent Runtime
 // 各自维护一份数字，后续调整时出现行为不一致。
 const (
-	RuntimeEasyAgent                   = "easyagent"
-	RuntimeCodex                       = "codex"
-	ChannelWeb                         = "web"
-	ChannelWeixin                      = "weixin"
-	ChannelAutomation                  = "automation"
 	DefaultModelProtocol               = "chat_completions"
 	DefaultOllamaProtocol              = "ollama_chat"
 	DefaultOllamaBaseURL               = "http://127.0.0.1:11434"
@@ -38,18 +79,18 @@ const (
 
 // ModelSettings 是持久化的模型连接和上下文预算设置。
 type ModelSettings struct {
-	ProfileID       string `json:"profileId,omitempty"`
-	ProfileName     string `json:"profileName,omitempty"`
-	Runtime         string `json:"runtime"`
-	Provider        string `json:"provider"`
-	Protocol        string `json:"protocol"`
-	BaseURL         string `json:"baseUrl"`
-	Model           string `json:"model"`
-	APIKey          string `json:"apiKey,omitempty"`
-	APIKeyEnv       string `json:"apiKeyEnv,omitempty"`
-	Thinking        string `json:"thinking,omitempty"`
-	MaxOutputTokens int    `json:"maxOutputTokens,omitempty"`
-	MaxSteps        int    `json:"maxSteps,omitempty"`
+	ProfileID       string  `json:"profileId,omitempty"`
+	ProfileName     string  `json:"profileName,omitempty"`
+	Runtime         Runtime `json:"runtime"`
+	Provider        string  `json:"provider"`
+	Protocol        string  `json:"protocol"`
+	BaseURL         string  `json:"baseUrl"`
+	Model           string  `json:"model"`
+	APIKey          string  `json:"apiKey,omitempty"`
+	APIKeyEnv       string  `json:"apiKeyEnv,omitempty"`
+	Thinking        string  `json:"thinking,omitempty"`
+	MaxOutputTokens int     `json:"maxOutputTokens,omitempty"`
+	MaxSteps        int     `json:"maxSteps,omitempty"`
 	// RequestTimeoutSeconds is the timeout for one provider request in EasyAgent.
 	// Codex uses its own TurnTimeoutSeconds because app-server owns the inner
 	// model/tool requests.

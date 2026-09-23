@@ -77,7 +77,7 @@ func (store *Store) MarkAutomationTaskRun(id string, runAt time.Time, nextRunAt 
 	return changed > 0, err
 }
 
-func (store *Store) RecordAutomationTaskResult(id, status, errorMessage, sessionID string, updatedAt time.Time) error {
+func (store *Store) RecordAutomationTaskResult(id string, status AutomationStatus, errorMessage, sessionID string, updatedAt time.Time) error {
 	_, err := store.db.Exec(`UPDATE ea_automation_tasks SET last_status=?,last_error=?,last_session_id=?,updated_at=? WHERE id=?`, status, errorMessage, sessionID, formatTime(updatedAt), id)
 	return err
 }
@@ -85,7 +85,7 @@ func (store *Store) RecordAutomationTaskResult(id, status, errorMessage, session
 // RecordAutomationSessionResult keeps the task list in sync with the ordinary
 // session created for a scheduled task. The session id is the ownership link;
 // a later, unrelated session must never overwrite the task status.
-func (store *Store) RecordAutomationSessionResult(sessionID, status, errorMessage string, updatedAt time.Time) error {
+func (store *Store) RecordAutomationSessionResult(sessionID string, status AutomationStatus, errorMessage string, updatedAt time.Time) error {
 	_, err := store.db.Exec(`UPDATE ea_automation_tasks SET last_status=?,last_error=?,updated_at=? WHERE last_session_id=?`, status, errorMessage, formatTime(updatedAt), sessionID)
 	return err
 }

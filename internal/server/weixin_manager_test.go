@@ -145,7 +145,7 @@ func TestWeixinSessionStatusUsesScannableEmoji(t *testing.T) {
 		"idle":     "✅ 已完成",
 	}
 	for status, expected := range tests {
-		if actual := weixinSessionStatus(status); actual != expected {
+		if actual := weixinSessionStatus(store.SessionStatus(status)); actual != expected {
 			t.Fatalf("状态 %q 显示为 %q，期望 %q", status, actual, expected)
 		}
 	}
@@ -370,7 +370,7 @@ func TestWeixinAPIShowsCurrentTaskAndRetriesDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	response.Body.Close()
-	if len(before.Accounts) != 1 || before.Accounts[0].CurrentSession == nil || before.Accounts[0].CurrentSession.Title != "检查发布状态" || before.Accounts[0].CurrentSession.Runtime != store.RuntimeCodex || before.Accounts[0].DeliveryStatus != "pending" {
+	if len(before.Accounts) != 1 || before.Accounts[0].CurrentSession == nil || before.Accounts[0].CurrentSession.Title != "检查发布状态" || before.Accounts[0].CurrentSession.Runtime != string(store.RuntimeCodex) || before.Accounts[0].DeliveryStatus != "pending" {
 		t.Fatalf("当前任务视图错误: %+v", before.Accounts)
 	}
 

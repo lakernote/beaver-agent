@@ -16,6 +16,7 @@ import (
 )
 
 func TestBuiltInAdaptersShareNativeStreamingQualification(t *testing.T) {
+	registry := NewRegistry()
 	for _, protocol := range []string{ProtocolChatCompletions, ProtocolResponses, ProtocolAnthropic, ProtocolOllamaChat} {
 		t.Run(protocol, func(t *testing.T) {
 			var calls atomic.Int32
@@ -32,7 +33,7 @@ func TestBuiltInAdaptersShareNativeStreamingQualification(t *testing.T) {
 			}))
 			defer provider.Close()
 
-			model, err := New(Config{Provider: "fixture", Protocol: protocol, BaseURL: provider.URL, DisableThinking: true})
+			model, err := registry.New(Config{Provider: "fixture", Protocol: protocol, BaseURL: provider.URL, DisableThinking: true})
 			if err != nil {
 				t.Fatal(err)
 			}

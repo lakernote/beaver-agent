@@ -47,7 +47,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送“新会话”可开始独立任务。")
 			return true
 		}
-		changed, cancelErr := manager.server.store.CancelSession(session.ID, time.Now())
+		changed, cancelErr := manager.server.sessionsRepository().CancelSession(session.ID, time.Now())
 		if cancelErr != nil || !changed {
 			manager.send(account, message.FromUserID, message.ContextToken, "任务已经结束，未执行停止。")
 			return true
@@ -116,9 +116,9 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 	sessionID := account.CurrentSessionID
 	var model store.ModelSettings
 	if sessionID != "" {
-		current, err := manager.server.store.LoadSessionWindow(sessionID, 1, 1)
+		current, err := manager.server.sessionsRepository().LoadSessionWindow(sessionID, 1, 1)
 		if err == nil {
-			model, err = manager.server.store.GetModelSettingsByProfileID(current.ProfileID)
+			model, err = manager.server.modelsRepository().GetModelSettingsByProfileID(current.ProfileID)
 			if err != nil {
 				return "", err
 			}
@@ -133,7 +133,7 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 	}
 	if sessionID == "" {
 		var err error
-		model, err = manager.server.store.GetModelSettings()
+		model, err = manager.server.modelsRepository().GetModelSettings()
 		if err != nil {
 			return "", err
 		}
@@ -151,7 +151,7 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 			return "", err
 		}
 		workspace := manager.server.prepareSessionWorkspace(manager.server.ctx, sessionID, runEnvironment.Workspace(), runtimeSettings)
-		if _, err := manager.server.store.CreateSession(store.CreateSessionParams{
+		if _, err := manager.server.sessionsRepository().CreateSession(store.CreateSessionParams{
 			ID: sessionID, Title: makeTitle(text), Runtime: model.Runtime,
 			Channel:   store.ChannelWeixin,
 			ProfileID: model.ProfileID, Model: model.Model, ProjectID: project.ID,
@@ -160,13 +160,13 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
-		if err := manager.server.store.SetSessionWorkspace(sessionID, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
-			_ = manager.server.store.DeleteSession(sessionID)
+		if err := manager.server.sessionsRepository().SetSessionWorkspace(sessionID, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
+			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
 		if err := manager.server.enqueueTurn(sessionID, text, attachments, model); err != nil {
-			_ = manager.server.store.DeleteSession(sessionID)
+			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
@@ -229,7 +229,7 @@ func (manager *weixinManager) resumeDelivery(accountID string) {
 		if !settings.Enabled || !account.Enabled {
 			return
 		}
-		session, err := manager.server.store.LoadSessionWindow(account.CurrentSessionID, 40, 1)
+		session, err := manager.server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 40, 1)
 		if err != nil {
 			return
 		}
@@ -249,7 +249,7 @@ func (manager *weixinManager) currentSession(account store.WeixinAccount) (store
 	if strings.TrimSpace(account.CurrentSessionID) == "" {
 		return store.Session{}, sql.ErrNoRows
 	}
-	return manager.server.store.LoadSessionWindow(account.CurrentSessionID, 1, 1)
+	return manager.server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 1, 1)
 }
 
 func (manager *weixinManager) send(account store.WeixinAccount, userID, contextToken, text string) {
@@ -282,10 +282,10 @@ func (manager *weixinManager) sendChunks(account store.WeixinAccount, userID, co
 }
 
 func finalSessionText(session store.Session) string {
-	if session.Status == "failed" {
+	if session.Status == store.SessionFailed {
 		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送“状态”查看会话，或发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Error))
 	}
-	if session.Status == "canceled" {
+	if session.Status == store.SessionCanceled {
 		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送“新会话”开始独立任务。", session.Title)
 	}
 	for index := len(session.Messages) - 1; index >= 0; index-- {
@@ -296,25 +296,25 @@ func finalSessionText(session store.Session) string {
 	return ""
 }
 
-func weixinSessionStatus(status string) string {
+func weixinSessionStatus(status store.SessionStatus) string {
 	switch status {
-	case "queued":
+	case store.SessionQueued:
 		return "🟡 排队中"
-	case "running":
+	case store.SessionRunning:
 		return "🔵 运行中"
-	case "paused":
+	case store.SessionPaused:
 		return "⏸️ 已暂停"
-	case "failed":
+	case store.SessionFailed:
 		return "❌ 失败"
-	case "canceled":
+	case store.SessionCanceled:
 		return "⏹️ 已停止"
 	default:
 		return "✅ 已完成"
 	}
 }
 
-func weixinRuntimeLabel(runtime string) string {
-	if runtime == "codex" {
+func weixinRuntimeLabel(runtime store.Runtime) string {
+	if runtime == store.RuntimeCodex {
 		return "Codex Runtime"
 	}
 	return "EasyAgent Runtime"

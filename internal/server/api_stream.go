@@ -62,7 +62,7 @@ func (server *Server) streamSession(response http.ResponseWriter, request *http.
 			flusher.Flush()
 		case <-ticker.C:
 			for {
-				events, eventErr := server.store.ListEventsAfter(id, lastID, 300)
+				events, eventErr := server.sessionsRepository().ListEventsAfter(id, lastID, 300)
 				if eventErr != nil {
 					writeSSE(response, "error", 0, map[string]string{"error": eventErr.Error()})
 					flusher.Flush()
@@ -86,7 +86,7 @@ func (server *Server) streamSession(response http.ResponseWriter, request *http.
 				lastState = state
 			}
 			flusher.Flush()
-			if current.Status != "queued" && current.Status != "running" {
+			if current.Status != store.SessionQueued && current.Status != store.SessionRunning {
 				return
 			}
 		}

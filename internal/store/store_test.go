@@ -669,9 +669,9 @@ func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
 	}
 	defer value.Close()
 	now := time.Now()
-	for _, runtime := range []string{RuntimeEasyAgent, RuntimeCodex} {
-		id := "session-" + runtime
-		if _, err := value.CreateSession(CreateSessionParams{ID: id, Title: runtime, Runtime: runtime, Model: "fixture", CreatedAt: now}); err != nil {
+	for _, runtime := range []Runtime{RuntimeEasyAgent, RuntimeCodex} {
+		id := "session-" + string(runtime)
+		if _, err := value.CreateSession(CreateSessionParams{ID: id, Title: string(runtime), Runtime: runtime, Model: "fixture", CreatedAt: now}); err != nil {
 			t.Fatal(err)
 		}
 		if err := value.QueueSession(id, "fixture", now); err != nil {
@@ -690,8 +690,8 @@ func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
 	if err := value.RecoverRunning(now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	for _, runtime := range []string{RuntimeEasyAgent, RuntimeCodex} {
-		id := "session-" + runtime
+	for _, runtime := range []Runtime{RuntimeEasyAgent, RuntimeCodex} {
+		id := "session-" + string(runtime)
 		operations, err := value.ListToolOperations(id)
 		expectedGuarantee := ToolGuaranteeObserved
 		if runtime == RuntimeEasyAgent {
@@ -701,7 +701,7 @@ func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
 			t.Fatalf("%s 未完成工具没有标记 unknown: operations=%+v err=%v", runtime, operations, err)
 		}
 		events, _, _, err := value.ListEventsBefore(id, 0, 20)
-		if err != nil || len(events) != 1 || events[0].Kind != "tool_unknown" || events[0].Status != ToolOperationUnknown {
+		if err != nil || len(events) != 1 || events[0].Kind != "tool_unknown" || events[0].Status != string(ToolOperationUnknown) {
 			t.Fatalf("%s 缺少可见 unknown Trace: events=%+v err=%v", runtime, events, err)
 		}
 	}

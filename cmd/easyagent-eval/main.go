@@ -69,10 +69,11 @@ func run() int {
 
 	summaries := make([]modelSummary, 0, len(models))
 	failed := false
+	registry := modeladapter.NewRegistry()
 	for _, modelName := range models {
 		summary := modelSummary{Model: modelName, Runs: *runs}
 		for runIndex := 0; runIndex < *runs; runIndex++ {
-			model, err := modeladapter.New(modeladapter.Config{
+			model, err := registry.New(modeladapter.Config{
 				Provider: *provider, Protocol: *protocol, BaseURL: *baseURL, APIKey: apiKey,
 				Timeout: *timeout, DisableThinking: true, ContextWindowTokens: *contextWindow,
 			})

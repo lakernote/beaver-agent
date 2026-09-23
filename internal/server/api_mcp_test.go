@@ -30,7 +30,7 @@ func TestPublicMCPDoesNotExposeCredentialBearingFields(t *testing.T) {
 			t.Fatalf("public MCP 泄露秘密 %q: %s", secret, encoded)
 		}
 	}
-	if !value.SecretConfigured || value.Token != "" || value.Password != "" || value.Args[0] != "--headless" || value.Args[2] != redactedMCPValue || value.Headers["Authorization"] != redactedMCPValue || value.Headers["X-MCP-Toolsets"] != "repos" || value.Environment["SERVICE_TOKEN"] != redactedMCPValue || value.Environment["NODE_ENV"] != "test" {
+	if !value.SecretConfigured || value.Args[0] != "--headless" || value.Args[2] != redactedMCPValue || value.Headers["Authorization"] != redactedMCPValue || value.Headers["X-MCP-Toolsets"] != "repos" || value.Environment["SERVICE_TOKEN"] != redactedMCPValue || value.Environment["NODE_ENV"] != "test" {
 		t.Fatalf("public MCP 脱敏结果错误: %+v", value)
 	}
 }

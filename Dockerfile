@@ -21,14 +21,16 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION} 
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 easyagent \
-    && adduser -S -D -H -u 10001 -G easyagent easyagent \
+    && adduser -S -D -H -h /data -u 10001 -G easyagent easyagent \
     && mkdir -p /data \
     && chown -R easyagent:easyagent /data
-WORKDIR /app
+ENV HOME=/data
+WORKDIR /data
 COPY --from=backend /easyagent /usr/local/bin/easyagent
 USER easyagent
 VOLUME ["/data"]
 EXPOSE 8080
+STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget -q -O - http://127.0.0.1:8080/api/v1/health >/dev/null || exit 1
 ENTRYPOINT ["easyagent", "-listen", "0.0.0.0:8080", "-db", "/data/easyagent.db"]

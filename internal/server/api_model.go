@@ -7,12 +7,40 @@ import (
 	"strings"
 
 	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
 type modelSettingsInput struct {
-	store.ModelSettings
-	ClearAPIKey bool `json:"clearApiKey,omitempty"`
+	ProfileID                   string `json:"profileId,omitempty"`
+	ProfileName                 string `json:"profileName,omitempty"`
+	Runtime                     string `json:"runtime"`
+	Provider                    string `json:"provider"`
+	Protocol                    string `json:"protocol"`
+	BaseURL                     string `json:"baseUrl"`
+	Model                       string `json:"model"`
+	APIKey                      string `json:"apiKey,omitempty"`
+	APIKeyEnv                   string `json:"apiKeyEnv,omitempty"`
+	Thinking                    string `json:"thinking,omitempty"`
+	MaxOutputTokens             int    `json:"maxOutputTokens,omitempty"`
+	MaxSteps                    int    `json:"maxSteps,omitempty"`
+	RequestTimeoutSeconds       int    `json:"requestTimeoutSeconds,omitempty"`
+	TurnTimeoutSeconds          int    `json:"turnTimeoutSeconds,omitempty"`
+	ContextWindowTokens         int    `json:"contextWindowTokens,omitempty"`
+	CompressionThresholdPercent int    `json:"compressionThresholdPercent,omitempty"`
+	SecretConfigured            bool   `json:"secretConfigured,omitempty"`
+	ClearAPIKey                 bool   `json:"clearApiKey,omitempty"`
+}
+
+func (input modelSettingsInput) settings() store.ModelSettings {
+	return store.ModelSettings{
+		ProfileID: input.ProfileID, ProfileName: input.ProfileName, Runtime: store.Runtime(input.Runtime),
+		Provider: input.Provider, Protocol: input.Protocol, BaseURL: input.BaseURL, Model: input.Model,
+		APIKey: input.APIKey, APIKeyEnv: input.APIKeyEnv, Thinking: input.Thinking,
+		MaxOutputTokens: input.MaxOutputTokens, MaxSteps: input.MaxSteps,
+		RequestTimeoutSeconds: input.RequestTimeoutSeconds, TurnTimeoutSeconds: input.TurnTimeoutSeconds,
+		ContextWindowTokens: input.ContextWindowTokens, CompressionThresholdPercent: input.CompressionThresholdPercent,
+	}
 }
 
 func (server *Server) saveModel(response http.ResponseWriter, request *http.Request) {
@@ -20,14 +48,15 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 	if !decodeJSON(response, request, &payload) {
 		return
 	}
-	current := server.modelSettingsForInput(payload.ModelSettings)
-	input, err := prepareModelInput(payload.ModelSettings, current, payload.ClearAPIKey)
+	settings := payload.settings()
+	current := server.modelSettingsForInput(settings)
+	input, err := prepareModelInputWithRegistry(settings, current, payload.ClearAPIKey, server.modelAdapterRegistry())
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
 	input.SecretConfigured = false
-	if err := server.store.SaveModelProfile(input); err != nil {
+	if err := server.modelsRepository().SaveModelProfile(input); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -36,7 +65,7 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 
 func (server *Server) activateModelProfile(response http.ResponseWriter, request *http.Request) {
 	id := strings.TrimSpace(request.PathValue("id"))
-	settings, err := server.store.GetModelSettingsByProfileID(id)
+	settings, err := server.modelsRepository().GetModelSettingsByProfileID(id)
 	if err == nil {
 		err = server.requireVerifiedEasyAgent(settings)
 	}
@@ -44,7 +73,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 		writeError(response, http.StatusConflict, err.Error())
 		return
 	}
-	value, err := server.store.SetActiveModelProfile(id)
+	value, err := server.modelsRepository().SetActiveModelProfile(id)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -53,7 +82,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 }
 
 func (server *Server) deleteModelProfile(response http.ResponseWriter, request *http.Request) {
-	if err := server.store.DeleteModelProfile(request.PathValue("id")); err != nil {
+	if err := server.modelsRepository().DeleteModelProfile(request.PathValue("id")); err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -67,25 +96,25 @@ func sameModelEndpoint(left, right store.ModelSettings) bool {
 
 func (server *Server) modelSettingsForInput(input store.ModelSettings) store.ModelSettings {
 	if strings.TrimSpace(input.ProfileID) != "" {
-		value, err := server.store.GetModelSettingsByProfileID(input.ProfileID)
+		value, err := server.modelsRepository().GetModelSettingsByProfileID(input.ProfileID)
 		if err == nil {
 			return value
 		}
 		return store.ModelSettings{}
 	}
-	value, _ := server.store.GetModelSettings()
+	value, _ := server.modelsRepository().GetModelSettings()
 	return value
 }
 
-func publicModel(value store.ModelSettings) store.ModelSettings {
-	// EasyAgent 只公开 DB 密钥是否已配置，不再把环境变量入口带回浏览器。
-	value.SecretConfigured = value.APIKey != ""
-	value.APIKey = ""
-	value.APIKeyEnv = ""
-	return value
+func publicModel(value store.ModelSettings) modelSettingsView {
+	return httpdto.ModelSettingsFromStore(value)
 }
 
 func validateModel(value store.ModelSettings) error {
+	return validateModelWithRegistry(value, modeladapter.NewRegistry())
+}
+
+func validateModelWithRegistry(value store.ModelSettings, registry *modeladapter.Registry) error {
 	if value.Runtime == store.RuntimeCodex {
 		if value.MaxOutputTokens <= 0 {
 			return errors.New("最大输出 Token 必须大于 0")
@@ -98,8 +127,8 @@ func validateModel(value store.ModelSettings) error {
 	if strings.TrimSpace(value.BaseURL) == "" || strings.TrimSpace(value.Model) == "" {
 		return errors.New("模型地址和名称不能为空")
 	}
-	if !modeladapter.Supports(value.Protocol) {
-		return errors.New("不支持的模型协议；可用：" + strings.Join(modeladapter.Protocols(), "、"))
+	if !registry.Supports(value.Protocol) {
+		return errors.New("不支持的模型协议；可用：" + strings.Join(registry.Protocols(), "、"))
 	}
 	if value.MaxOutputTokens <= 0 {
 		return errors.New("最大输出 Token 必须大于 0")

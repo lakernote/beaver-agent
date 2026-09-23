@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
@@ -119,7 +121,7 @@ func TestModelProfileViewsExposeCapabilityStatusWithoutSecrets(t *testing.T) {
 	if len(views) != 2 || !views[0].Verified || views[1].Verified {
 		t.Fatalf("unexpected verification status: %+v", views)
 	}
-	if views[0].Settings.APIKey != "" || !views[0].Settings.SecretConfigured {
+	if !views[0].Settings.SecretConfigured {
 		t.Fatalf("bootstrap profile leaked or lost secret status: %+v", views[0].Settings)
 	}
 }
@@ -242,7 +244,14 @@ func TestSaveModelPreservesEditedProfileSecretWithoutActivating(t *testing.T) {
 		t.Fatalf("设为默认不应改写配置或密钥: value=%+v err=%v", active, err)
 	}
 
-	clearPayload, _ := json.Marshal(modelSettingsInput{ModelSettings: second, ClearAPIKey: true})
+	clearPayload, _ := json.Marshal(modelSettingsInput{
+		ProfileID: second.ProfileID, ProfileName: second.ProfileName, Runtime: string(second.Runtime),
+		Provider: second.Provider, Protocol: second.Protocol, BaseURL: second.BaseURL, Model: second.Model,
+		Thinking: second.Thinking, MaxOutputTokens: second.MaxOutputTokens, MaxSteps: second.MaxSteps,
+		RequestTimeoutSeconds: second.RequestTimeoutSeconds, TurnTimeoutSeconds: second.TurnTimeoutSeconds,
+		ContextWindowTokens: second.ContextWindowTokens, CompressionThresholdPercent: second.CompressionThresholdPercent,
+		ClearAPIKey: true,
+	})
 	clearRequest := httptest.NewRequest(http.MethodPut, "/api/v1/model", strings.NewReader(string(clearPayload)))
 	clearRequest.Header.Set("Content-Type", "application/json")
 	clearResponse := httptest.NewRecorder()
@@ -278,5 +287,22 @@ func TestCodexTurnTimeoutIsIndependentFromRequestTimeout(t *testing.T) {
 	input.TurnTimeoutSeconds = store.MaxCodexTurnTimeoutSeconds + 1
 	if err := validateModel(input); err == nil {
 		t.Fatal("超过最大整轮任务上限的配置应失败")
+	}
+}
+
+func TestValidateModelUsesInjectedRegistry(t *testing.T) {
+	registry := modeladapter.NewRegistry()
+	if err := registry.Register("custom_protocol", func(modeladapter.Config) (agent.Model, error) { return nil, nil }); err != nil {
+		t.Fatal(err)
+	}
+	settings := store.DefaultModelSettings().WithDefaults()
+	settings.BaseURL = "http://model.example.test"
+	settings.Model = "fixture"
+	settings.Protocol = "custom_protocol"
+	if err := validateModelWithRegistry(settings, registry); err != nil {
+		t.Fatalf("injected registry protocol should validate: %v", err)
+	}
+	if err := validateModel(settings); err == nil {
+		t.Fatal("default registry must not observe protocols registered on another instance")
 	}
 }

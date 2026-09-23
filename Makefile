@@ -1,9 +1,10 @@
-.PHONY: build build-linux web test run clean
+.PHONY: build build-linux web test run container container-test clean
 
 LINUX_ARCH ?= amd64
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 BUILD_FLAGS ?= -trimpath -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)"
+IMAGE ?= easyagent:local
 
 # 默认发布构建：先生成前端 dist，再把 dist 嵌入 Go 单二进制。
 build: web
@@ -21,7 +22,7 @@ web:
 
 # 本项目的完整本地检查：依赖校验、Go 静态检查、竞态测试和前端构建。
 test:
-	cd web && npm ci && npm run build
+	cd web && npm ci && npm test && npm run build
 	go mod verify
 	go vet ./...
 	go test -race ./...
@@ -29,6 +30,14 @@ test:
 # build 成功后以前台方式启动；默认监听 0.0.0.0:8080。
 run: build
 	./bin/easyagent
+
+# 构建与发布环境相同的非 root 容器镜像。
+container:
+	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --tag $(IMAGE) .
+
+# 验证镜像启动、健康接口、非 root 身份以及 /data 跨容器持久化。
+container-test: container
+	bash .github/scripts/container-smoke.sh $(IMAGE)
 
 # 删除可重新生成的构建产物，不会删除 SQLite 数据目录。
 clean:

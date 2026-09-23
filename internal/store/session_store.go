@@ -13,8 +13,8 @@ const sessionSelectColumns = `id,title,project_id,status,error,runtime,channel,p
 type CreateSessionParams struct {
 	ID          string
 	Title       string
-	Runtime     string
-	Channel     string
+	Runtime     Runtime
+	Channel     Channel
 	ProfileID   string
 	Model       string
 	Permissions permissions.Policy

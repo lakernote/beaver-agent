@@ -67,6 +67,29 @@ kill "$(cat easyagent.pid)" # 停止服务
 
 发布包已带可执行权限。数据库、默认工作区和运行状态保存在 `~/.easyagent/`。
 
+发布流程会为每个归档生成 SHA-256 校验和和 GitHub 构建来源证明。下载后可校验文件完整性，并确认产物确实由本仓库的发布工作流构建：
+
+```bash
+sha256sum --check checksums.txt --ignore-missing
+gh attestation verify easyagent_* -R lakernote/easy-agent
+```
+
+### Docker
+
+容器以固定的非 root 用户（UID/GID `10001`）运行。`/data` 是唯一需要持久化的目录，包含 SQLite 数据库、默认工作区、Runtime 依赖以及 Codex 配置：
+
+```bash
+docker build -t easyagent:local .
+docker volume create easyagent-data
+docker run -d --name easyagent \
+  -p 8080:8080 \
+  -v easyagent-data:/data \
+  --restart unless-stopped \
+  easyagent:local
+```
+
+启动后访问 `http://服务器IP:8080`。使用 bind mount 时，宿主目录必须允许 UID/GID `10001` 写入。升级镜像时保留同一个 volume 即可；不要只备份 `easyagent.db`，工作区、MCP Runtime 和 Codex 登录状态也位于 `/data`。
+
 ## 两种 Runtime
 
 | Runtime | 适合场景 | 要求 |

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	"github.com/lakernote/easy-agent/internal/store"
 )
 
@@ -145,7 +146,7 @@ func (server *Server) createProject(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusConflict, err.Error())
 		return
 	}
-	writeJSON(response, http.StatusCreated, value)
+	writeJSON(response, http.StatusCreated, httpdto.ProjectFromStore(value))
 }
 
 func (server *Server) updateProject(response http.ResponseWriter, request *http.Request) {
@@ -167,7 +168,7 @@ func (server *Server) updateProject(response http.ResponseWriter, request *http.
 		}
 		return
 	}
-	writeJSON(response, http.StatusOK, value)
+	writeJSON(response, http.StatusOK, httpdto.ProjectFromStore(value))
 }
 
 func (server *Server) deleteProject(response http.ResponseWriter, request *http.Request) {

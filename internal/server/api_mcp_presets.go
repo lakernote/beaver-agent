@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lakernote/easy-agent/internal/httpdto"
 	mcppresets "github.com/lakernote/easy-agent/internal/mcp/presets"
 	"github.com/lakernote/easy-agent/internal/mcpclient"
 	"github.com/lakernote/easy-agent/internal/store"
@@ -18,7 +19,7 @@ type mcpInstallResult struct {
 	Ready   bool                 `json:"ready"`
 	Status  string               `json:"status"`
 	Message string               `json:"message"`
-	MCP     store.MCPConfig      `json:"mcp"`
+	MCP     httpdto.MCPConfig    `json:"mcp"`
 	Tools   []mcpclient.ToolInfo `json:"tools"`
 }
 

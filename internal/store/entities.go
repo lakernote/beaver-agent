@@ -73,27 +73,27 @@ type Project struct {
 // manual or scheduled runs. Each run creates a normal Session so the existing
 // queue, trace, worktree and history behavior stays consistent.
 type AutomationTask struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	Prompt          string     `json:"prompt"`
-	ProjectID       string     `json:"projectId"`
-	Workspace       string     `json:"workspace"`
-	ProfileID       string     `json:"profileId,omitempty"`
-	TriggerType     string     `json:"triggerType"`
-	ScheduleEnabled bool       `json:"scheduleEnabled"`
-	Cron            string     `json:"cron,omitempty"`
-	IntervalMinutes int        `json:"-"`
-	Repeat          string     `json:"-"`
-	ScheduleTime    string     `json:"-"`
-	ScheduleWeekday int        `json:"-"`
-	Enabled         bool       `json:"enabled"`
-	NextRunAt       *time.Time `json:"nextRunAt,omitempty"`
-	LastRunAt       *time.Time `json:"lastRunAt,omitempty"`
-	LastStatus      string     `json:"lastStatus,omitempty"`
-	LastError       string     `json:"lastError,omitempty"`
-	LastSessionID   string     `json:"lastSessionId,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
+	ID              string           `json:"id"`
+	Name            string           `json:"name"`
+	Prompt          string           `json:"prompt"`
+	ProjectID       string           `json:"projectId"`
+	Workspace       string           `json:"workspace"`
+	ProfileID       string           `json:"profileId,omitempty"`
+	TriggerType     string           `json:"triggerType"`
+	ScheduleEnabled bool             `json:"scheduleEnabled"`
+	Cron            string           `json:"cron,omitempty"`
+	IntervalMinutes int              `json:"-"`
+	Repeat          string           `json:"-"`
+	ScheduleTime    string           `json:"-"`
+	ScheduleWeekday int              `json:"-"`
+	Enabled         bool             `json:"enabled"`
+	NextRunAt       *time.Time       `json:"nextRunAt,omitempty"`
+	LastRunAt       *time.Time       `json:"lastRunAt,omitempty"`
+	LastStatus      AutomationStatus `json:"lastStatus,omitempty"`
+	LastError       string           `json:"lastError,omitempty"`
+	LastSessionID   string           `json:"lastSessionId,omitempty"`
+	CreatedAt       time.Time        `json:"createdAt"`
+	UpdatedAt       time.Time        `json:"updatedAt"`
 }
 
 type SkillOverride struct {
@@ -225,15 +225,15 @@ type ContextInfo struct {
 }
 
 type Session struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	ProjectID string `json:"projectId,omitempty"`
-	Status    string `json:"status"`
-	Error     string `json:"error,omitempty"`
-	Runtime   string `json:"runtime"`
-	Channel   string `json:"channel,omitempty"`
-	ProfileID string `json:"profileId,omitempty"`
-	Model     string `json:"model,omitempty"`
+	ID        string        `json:"id"`
+	Title     string        `json:"title"`
+	ProjectID string        `json:"projectId,omitempty"`
+	Status    SessionStatus `json:"status"`
+	Error     string        `json:"error,omitempty"`
+	Runtime   Runtime       `json:"runtime"`
+	Channel   Channel       `json:"channel,omitempty"`
+	ProfileID string        `json:"profileId,omitempty"`
+	Model     string        `json:"model,omitempty"`
 	// PendingModel is an immutable snapshot for the currently queued/running
 	// turn. It is server-only and may contain the profile credential already
 	// stored in this permissions-restricted database.

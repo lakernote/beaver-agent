@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/lakernote/easy-agent/internal/store"
 )
 
 func (server *Server) cleanupWorktree(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	session, err := server.store.LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
+	session, err := server.sessionsRepository().LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(response, http.StatusNotFound, "会话不存在")
@@ -18,7 +20,7 @@ func (server *Server) cleanupWorktree(response http.ResponseWriter, request *htt
 		}
 		return
 	}
-	if session.Status == "queued" || session.Status == "running" || session.Status == "paused" {
+	if session.Status == store.SessionQueued || session.Status == store.SessionRunning || session.Status == store.SessionPaused {
 		writeError(response, http.StatusConflict, "任务仍在运行或等待中，不能清理 worktree")
 		return
 	}
@@ -26,7 +28,7 @@ func (server *Server) cleanupWorktree(response http.ResponseWriter, request *htt
 		writeError(response, http.StatusConflict, "任务仍在结束处理中，请稍后再清理 worktree")
 		return
 	}
-	shared, err := server.store.CountOtherSessionsUsingWorkspace(id, session.Workspace)
+	shared, err := server.sessionsRepository().CountOtherSessionsUsingWorkspace(id, session.Workspace)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -44,7 +46,7 @@ func (server *Server) cleanupWorktree(response http.ResponseWriter, request *htt
 	if source == "" {
 		source = session.Workspace
 	}
-	if err := server.store.SetSessionWorkspace(id, source, source, "", notice); err != nil {
+	if err := server.sessionsRepository().SetSessionWorkspace(id, source, source, "", notice); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}

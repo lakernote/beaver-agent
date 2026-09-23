@@ -53,7 +53,7 @@ type codexSessionLogLine struct {
 // an EasyAgent session ID, which is resolved to the saved Codex thread ID and
 // then to the path reported by thread/read.
 func (server *Server) getCodexSessionLog(response http.ResponseWriter, request *http.Request) {
-	session, err := server.store.LoadSessionWindow(request.PathValue("id"), 1, 1)
+	session, err := server.sessionsRepository().LoadSessionWindow(request.PathValue("id"), 1, 1)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(response, http.StatusNotFound, "会话不存在")
 		return

@@ -26,7 +26,7 @@ jobs:
         run: go mod verify
       - name: Install and build frontend
         working-directory: web
-        run: npm ci && npm run build
+        run: npm ci && npm test && npm run build
       - name: Vet backend
         run: go vet ./...
       - name: Test backend with race detector
@@ -53,5 +53,5 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - name: Build container image
-        run: docker build --tag easyagent:test .
+      - name: Build and smoke-test container image
+        run: make container-test IMAGE=easyagent:test VERSION=ci COMMIT=${{ github.sha }}

@@ -9,22 +9,25 @@ import (
 )
 
 const (
-	ToolOperationExecuting = "executing"
-	ToolOperationSucceeded = "succeeded"
-	ToolOperationFailed    = "failed"
-	ToolOperationUnknown   = "unknown"
+	ToolOperationExecuting ToolOperationStatus = "executing"
+	ToolOperationSucceeded ToolOperationStatus = "succeeded"
+	ToolOperationFailed    ToolOperationStatus = "failed"
+	ToolOperationUnknown   ToolOperationStatus = "unknown"
 
-	ToolGuaranteePreEffect    = "pre_effect"
-	ToolGuaranteeObserved     = "observed"
-	ToolGuaranteeUncorrelated = "uncorrelated"
+	ToolGuaranteePreEffect    ToolGuarantee = "pre_effect"
+	ToolGuaranteeObserved     ToolGuarantee = "observed"
+	ToolGuaranteeUncorrelated ToolGuarantee = "uncorrelated"
 )
+
+type ToolOperationStatus string
+type ToolGuarantee string
 
 // ToolOperation 是独立于 Trace 的副作用账本。Trace 用于展示，账本用于在
 // 进程崩溃后判断一次工具调用是否可能已经产生了外部效果。
 type ToolOperation struct {
 	ID             int64
 	SessionID      string
-	Runtime        string
+	Runtime        Runtime
 	Turn           int
 	Step           int
 	ActivityID     string
@@ -34,15 +37,15 @@ type ToolOperation struct {
 	DisplayName    string
 	Input          string
 	Output         string
-	Status         string
-	Guarantee      string
+	Status         ToolOperationStatus
+	Guarantee      ToolGuarantee
 	Error          string
 	StartedAt      time.Time
 	CompletedAt    time.Time
 	UpdatedAt      time.Time
 }
 
-func normalizeToolGuarantee(value ToolOperation) string {
+func normalizeToolGuarantee(value ToolOperation) ToolGuarantee {
 	switch value.Guarantee {
 	case ToolGuaranteePreEffect, ToolGuaranteeObserved, ToolGuaranteeUncorrelated:
 		return value.Guarantee
@@ -57,7 +60,7 @@ func validateToolOperationIdentity(sessionID string, value ToolOperation) error 
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("工具操作缺少 session id")
 	}
-	if strings.TrimSpace(value.Runtime) == "" || strings.TrimSpace(value.ActivityID) == "" || strings.TrimSpace(value.Name) == "" {
+	if strings.TrimSpace(string(value.Runtime)) == "" || strings.TrimSpace(value.ActivityID) == "" || strings.TrimSpace(value.Name) == "" {
 		return errors.New("工具操作缺少 runtime、activity id 或名称")
 	}
 	return nil
@@ -157,7 +160,7 @@ FROM ea_tool_operations WHERE session_id=? ORDER BY id`, sessionID)
 // the selected turn. It is used both on a normal cancellation/error path and
 // during process-start recovery, so neither Runtime leaves a misleading
 // "executing" row or silently retries an operation with an unknown outcome.
-func (store *Store) MarkUnfinishedToolOperationsUnknown(sessionID, runtime string, turn int, reason string, now time.Time) error {
+func (store *Store) MarkUnfinishedToolOperationsUnknown(sessionID string, runtime Runtime, turn int, reason string, now time.Time) error {
 	tx, err := store.db.Begin()
 	if err != nil {
 		return err
@@ -169,7 +172,7 @@ func (store *Store) MarkUnfinishedToolOperationsUnknown(sessionID, runtime strin
 	return tx.Commit()
 }
 
-func markUnfinishedToolOperationsUnknownTx(tx *sql.Tx, sessionID, runtime string, turn int, reason string, now time.Time) error {
+func markUnfinishedToolOperationsUnknownTx(tx *sql.Tx, sessionID string, runtime Runtime, turn int, reason string, now time.Time) error {
 	query := `SELECT id,session_id,runtime,turn,step,activity_id,name,activity_kind,activity_source,display_name,input
 FROM ea_tool_operations WHERE status='executing'`
 	args := []any{}
@@ -214,8 +217,8 @@ FROM ea_tool_operations WHERE status='executing'`
 			Kind: "tool_unknown", Turn: operation.Turn, Step: operation.Step,
 			Name: operation.Name, ActivityID: operation.ActivityID, ActivityKind: operation.ActivityKind,
 			ActivitySource: operation.ActivitySource, DisplayName: operation.DisplayName,
-			Status: ToolOperationUnknown, Detail: reason, Input: operation.Input,
-			Protocol: operation.Runtime, CreatedAt: now,
+			Status: string(ToolOperationUnknown), Detail: reason, Input: operation.Input,
+			Protocol: string(operation.Runtime), CreatedAt: now,
 		}); err != nil {
 			return err
 		}

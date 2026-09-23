@@ -117,7 +117,7 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		return
 	}
 	acknowledgement := weixinTaskAcknowledgement("")
-	if session, loadErr := manager.server.store.LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
+	if session, loadErr := manager.server.sessionsRepository().LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
 		acknowledgement = weixinTaskAcknowledgement(session.Title)
 	}
 	manager.send(account, message.FromUserID, message.ContextToken, acknowledgement)

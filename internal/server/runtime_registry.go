@@ -24,17 +24,17 @@ type runtimeExecutor interface {
 }
 
 type runtimeRegistry struct {
-	executors map[string]runtimeExecutor
+	executors map[store.Runtime]runtimeExecutor
 }
 
 func newRuntimeRegistry(server *Server) *runtimeRegistry {
-	return &runtimeRegistry{executors: map[string]runtimeExecutor{
+	return &runtimeRegistry{executors: map[store.Runtime]runtimeExecutor{
 		store.RuntimeEasyAgent: easyAgentExecutor{server: server},
 		store.RuntimeCodex:     codexExecutor{server: server},
 	}}
 }
 
-func (registry *runtimeRegistry) resolve(name string) (runtimeExecutor, error) {
+func (registry *runtimeRegistry) resolve(name store.Runtime) (runtimeExecutor, error) {
 	if name == "" {
 		name = store.RuntimeEasyAgent
 	}

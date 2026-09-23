@@ -40,7 +40,7 @@ func (server *Server) deleteCodexProvider(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := server.store.ClearCodexProvider(providerID); err != nil {
+	if err := server.modelsRepository().ClearCodexProvider(providerID); err != nil {
 		writeError(response, http.StatusInternalServerError, "Provider 已删除，但切换 Codex 配置失败: "+err.Error())
 		return
 	}

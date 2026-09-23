@@ -9,7 +9,7 @@ import (
 func TestRuntimeRegistryResolvesConfiguredRuntimes(t *testing.T) {
 	registry := newRuntimeRegistry(&Server{})
 
-	for _, name := range []string{store.RuntimeEasyAgent, store.RuntimeCodex} {
+	for _, name := range []store.Runtime{store.RuntimeEasyAgent, store.RuntimeCodex} {
 		executor, err := registry.resolve(name)
 		if err != nil {
 			t.Fatalf("resolve %q: %v", name, err)

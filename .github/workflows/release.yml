@@ -14,6 +14,8 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -49,7 +51,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -59,6 +61,7 @@ jobs:
           VITE_APP_VERSION: ${{ steps.release.outputs.version }}
         run: |
           npm ci
+          npm test
           npm run build
 
       - name: Set up Go
@@ -71,7 +74,7 @@ jobs:
         run: |
           go mod verify
           go vet ./...
-          go test ./...
+          go test -race ./...
 
       - name: Build release archives
         shell: bash
@@ -81,6 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release staging
+          source_date_epoch="$(git show -s --format=%ct "${COMMIT}")"
           targets=(
             "windows amd64"
             "windows arm64"
@@ -103,13 +107,20 @@ jobs:
               -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
               -o "${package_dir}/${binary}" ./cmd/easyagent
             cp README.md LICENSE "${package_dir}/"
+            find "${package_dir}" -exec touch -d "@${source_date_epoch}" {} +
             if [[ "${os}" == "windows" ]]; then
-              (cd staging && zip -q -r "../release/${package}.zip" "${package}")
+              (cd staging && find "${package}" -type f -print | LC_ALL=C sort | zip -X -q "../release/${package}.zip" -@)
             else
-              tar -C staging -czf "release/${package}.tar.gz" "${package}"
+              tar --sort=name --mtime="@${source_date_epoch}" --owner=0 --group=0 --numeric-owner -C staging -czf "release/${package}.tar.gz" "${package}"
             fi
           done
+          "staging/easyagent_${VERSION}_linux_amd64/easyagent" -version | grep -F "easyagent ${VERSION} (${COMMIT})"
           (cd release && sha256sum easyagent_* > checksums.txt)
+
+      - name: Attest release archives
+        uses: actions/attest@v4
+        with:
+          subject-checksums: release/checksums.txt
 
       - name: Publish GitHub Release
         shell: bash

@@ -18,12 +18,12 @@ const (
 )
 
 type sessionHistoryPage struct {
-	Messages        []store.Message `json:"messages,omitempty"`
-	Events          []store.Event   `json:"events,omitempty"`
-	MessageCount    int             `json:"messageCount,omitempty"`
-	EventCount      int             `json:"eventCount,omitempty"`
-	MessagesHasMore bool            `json:"messagesHasMore,omitempty"`
-	EventsHasMore   bool            `json:"eventsHasMore,omitempty"`
+	Messages        []messageView `json:"messages,omitempty"`
+	Events          []eventView   `json:"events,omitempty"`
+	MessageCount    int           `json:"messageCount,omitempty"`
+	EventCount      int           `json:"eventCount,omitempty"`
+	MessagesHasMore bool          `json:"messagesHasMore,omitempty"`
+	EventsHasMore   bool          `json:"eventsHasMore,omitempty"`
 }
 
 type sessionListPage struct {
@@ -42,7 +42,7 @@ func (server *Server) getOlderSessions(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "会话时间游标无效")
 		return
 	}
-	sessions, hasMore, err := server.store.ListSessionsBefore(100, beforeUpdatedAt, beforeID)
+	sessions, hasMore, err := server.sessionsRepository().ListSessionsBefore(100, beforeUpdatedAt, beforeID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -82,13 +82,13 @@ func (server *Server) getSession(response http.ResponseWriter, request *http.Req
 }
 
 func (server *Server) loadLiveSession(ctx context.Context, id string) (store.Session, error) {
-	value, err := server.store.LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
+	value, err := server.sessionsRepository().LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
 	if err != nil {
 		return store.Session{}, err
 	}
-	settings, _ := server.store.GetModelSettingsByProfileID(value.ProfileID)
+	settings, _ := server.modelsRepository().GetModelSettingsByProfileID(value.ProfileID)
 	if settings.Runtime == "" {
-		settings, _ = server.store.GetModelSettings()
+		settings, _ = server.modelsRepository().GetModelSettings()
 	}
 	settings = enrichOllamaContextWindow(ctx, settings)
 	decorateContext(&value, settings)
@@ -96,7 +96,7 @@ func (server *Server) loadLiveSession(ctx context.Context, id string) (store.Ses
 	value.RunProgress = server.tasks.progress(value.ID)
 	// 任务结束后最终 Usage 已写入 SQLite；此时不能再叠加尚未来得及清理的
 	// 进程内快照，否则完成瞬间页面会短暂显示双倍统计。
-	if live := server.tasks.usage(value.ID); (value.Status == "running" || value.Status == "queued") && (live.ModelCalls > 0 || live.ToolCalls > 0 || live.TotalTokens > 0) {
+	if live := server.tasks.usage(value.ID); (value.Status == store.SessionRunning || value.Status == store.SessionQueued) && (live.ModelCalls > 0 || live.ToolCalls > 0 || live.TotalTokens > 0) {
 		addStoreUsage(&value.Usage, live)
 		if live.ContextWindowTokens > 0 {
 			value.Usage.ContextWindowTokens = live.ContextWindowTokens
@@ -110,7 +110,7 @@ func (server *Server) loadLiveSession(ctx context.Context, id string) (store.Ses
 // Trace，避免为了滚动其中一类历史而重新查询、传输另一类历史。
 func (server *Server) getSessionHistory(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	if _, err := server.store.LoadSessionWindow(id, 1, 1); err != nil {
+	if _, err := server.sessionsRepository().LoadSessionWindow(id, 1, 1); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(response, http.StatusNotFound, "会话不存在")
 		} else {
@@ -127,9 +127,13 @@ func (server *Server) getSessionHistory(response http.ResponseWriter, request *h
 	page := sessionHistoryPage{}
 	switch kind {
 	case "messages":
-		page.Messages, page.MessageCount, page.MessagesHasMore, err = server.store.ListMessagesBefore(id, before, apiMessageWindow)
+		var values []store.Message
+		values, page.MessageCount, page.MessagesHasMore, err = server.sessionsRepository().ListMessagesBefore(id, before, apiMessageWindow)
+		page.Messages = publicMessages(values)
 	case "events":
-		page.Events, page.EventCount, page.EventsHasMore, err = server.store.ListEventsBefore(id, before, apiEventWindow)
+		var values []store.Event
+		values, page.EventCount, page.EventsHasMore, err = server.sessionsRepository().ListEventsBefore(id, before, apiEventWindow)
+		page.Events = publicEvents(values)
 	default:
 		writeError(response, http.StatusBadRequest, "历史类型必须是 messages 或 events")
 		return

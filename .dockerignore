@@ -5,8 +5,12 @@
 bin
 data
 output
+release
+staging
 web/dist
 web/node_modules
+coverage.out
+*.log
 *.db
 *.db-*
 *.sqlite

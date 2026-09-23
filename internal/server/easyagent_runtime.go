@@ -80,7 +80,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 		activeTools = append(activeTools, selectedMCPTools...)
 		activeTools = append(activeTools, mcpLoader.Tool())
 	}
-	client, err := newModelAdapter(settings)
+	client, err := server.newModelAdapter(settings)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 			for _, message := range messages {
 				values = append(values, fromCoreMessage(message))
 			}
-			return server.store.AppendMessages(id, values)
+			return server.sessionsRepository().AppendMessages(id, values)
 		},
 		PrepareRequest: func(ctx context.Context, request agent.Request, force bool) (agent.Request, bool, error) {
 			return server.prepareRuntimeRequest(ctx, id, settings, systemPrompt, turn, usage, client, runner, request, force)
@@ -172,7 +172,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 				StartedAt: event.StartedAt,
 			}
 			if event.Kind == agent.EventToolStart {
-				return server.store.BeginToolOperation(id, operation)
+				return server.sessionsRepository().BeginToolOperation(id, operation)
 			}
 			if event.Kind != agent.EventToolEnd {
 				return nil
@@ -184,7 +184,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 				operation.Status = store.ToolOperationFailed
 				operation.Error = event.Err.Error()
 			}
-			return server.store.SettleToolOperation(id, operation)
+			return server.sessionsRepository().SettleToolOperation(id, operation)
 		},
 		IsContextError: isContextLengthError,
 	})
@@ -197,7 +197,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 	if savedTraceErr != nil {
 		return fmt.Errorf("保存 Agent Trace 失败: %w", savedTraceErr)
 	}
-	return server.store.FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
+	return server.sessionsRepository().FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
 }
 
 func easyAgentToolNeedsApproval(name string) bool {
