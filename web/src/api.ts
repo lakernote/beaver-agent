@@ -46,7 +46,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  me: () => request<{ authenticated: boolean; username: string }>('/api/v1/auth/me'),
+  me: () => request<{ authenticated: boolean; username: string; passwordGenerated?: boolean }>('/api/v1/auth/me'),
   login: (username: string, password: string) => request<{ authenticated: boolean; username: string }>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
   changePassword: (currentPassword: string, newPassword: string) => request<{ authenticated: boolean; message: string }>('/api/v1/auth/password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),

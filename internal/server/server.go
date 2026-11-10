@@ -52,6 +52,7 @@ type Server struct {
 	codexEnvErr error
 	authMu      sync.Mutex
 	sessions    map[string]authSession
+	logins      loginLimiter
 	authEnabled bool
 	// externalCapabilitySync writes the shared catalog to the service user's
 	// Codex config/discovery directories. Tests keep it off to remain hermetic.

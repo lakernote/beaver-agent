@@ -38,7 +38,26 @@ func (store *Store) EnsureAdmin() error {
 		return err
 	}
 	store.initialAdminPassword = password
-	return nil
+	return store.setPasswordGenerated(true)
+}
+
+const passwordGeneratedKey = "admin_password_generated"
+
+func (store *Store) setPasswordGenerated(generated bool) error {
+	if !generated {
+		_, err := store.db.Exec(`DELETE FROM ea_settings WHERE key=?`, passwordGeneratedKey)
+		return err
+	}
+	_, err := store.db.Exec(`INSERT INTO ea_settings(key,value_json) VALUES(?,'true') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, passwordGeneratedKey)
+	return err
+}
+
+// PasswordIsGenerated reports whether the admin password is still the one
+// Beaver generated (initial or reset), so the UI can ask the user to change it.
+func (store *Store) PasswordIsGenerated() bool {
+	var count int
+	_ = store.db.QueryRow(`SELECT COUNT(*) FROM ea_settings WHERE key=?`, passwordGeneratedKey).Scan(&count)
+	return count > 0
 }
 
 // InitialAdminPassword returns the generated password when this process created
@@ -63,18 +82,27 @@ func (store *Store) ResetAdminPassword() (string, error) {
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		return "", errors.New("管理员账号不存在")
 	}
+	if err := store.setPasswordGenerated(true); err != nil {
+		return "", err
+	}
 	return password, nil
 }
 
 func randomPassword() (string, error) {
 	const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	raw := make([]byte, 16)
-	if _, err := rand.Read(raw); err != nil {
-		return "", fmt.Errorf("生成随机密码失败: %w", err)
-	}
-	out := make([]byte, len(raw))
-	for i, value := range raw {
-		out[i] = alphabet[int(value)%len(alphabet)]
+	// 拒绝超出整除范围的字节，避免取模偏差。
+	limit := 256 - 256%len(alphabet)
+	out := make([]byte, 0, 16)
+	buffer := make([]byte, 32)
+	for len(out) < 16 {
+		if _, err := rand.Read(buffer); err != nil {
+			return "", fmt.Errorf("生成随机密码失败: %w", err)
+		}
+		for _, value := range buffer {
+			if int(value) < limit && len(out) < 16 {
+				out = append(out, alphabet[int(value)%len(alphabet)])
+			}
+		}
 	}
 	return string(out), nil
 }
@@ -134,7 +162,7 @@ func (store *Store) ChangePassword(username, currentPassword, newPassword string
 	if affected, _ := result.RowsAffected(); affected != 1 {
 		return errors.New("管理员账号不存在")
 	}
-	return nil
+	return store.setPasswordGenerated(false)
 }
 
 func derivePassword(password string, salt []byte, iterations int) []byte {

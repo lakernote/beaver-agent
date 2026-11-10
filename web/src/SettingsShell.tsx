@@ -15,6 +15,7 @@ type SettingsShellProps = {
   onRefresh: () => Promise<Bootstrap>
   onError: (value: string) => void
   onLogout: () => Promise<void>
+  passwordGenerated?: boolean
   onOpenSession: (id: string) => void
 }
 
@@ -38,9 +39,8 @@ function activeSection(page: Page): SettingsSection {
   return page === 'tasks' || page === 'skills' || page === 'tools' || page === 'usage' || page === 'weixin' || page === 'security' ? page : 'runtime'
 }
 
-export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefresh, onError, onLogout, onOpenSession }: SettingsShellProps) {
+export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefresh, onError, onLogout, onOpenSession, passwordGenerated = false }: SettingsShellProps) {
   const selected = activeSection(page)
-  const activeProfile = data.modelProfiles.find((profile) => profile.id === data.activeModelProfileId)
   const pageDescription: Record<SettingsSection, string> = {
     runtime: '选择执行引擎并管理模型配置',
     models: '选择执行引擎并管理模型配置',
@@ -62,6 +62,9 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
   useEffect(() => {
     document.querySelector<HTMLElement>('.settings-hub-content')?.scrollTo({ top: 0, behavior: 'auto' })
   }, [page])
+  useEffect(() => {
+    if (selected === 'security' && passwordGenerated) setShowPassword(true)
+  }, [selected, passwordGenerated])
   useEffect(() => {
     if (selected !== 'security') {
       setShowPassword(false)
@@ -94,8 +97,6 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
         <p>{pageDescription[selected]}</p>
       </div>
       <div className="settings-hub-context">
-        <span className="service-dot" />
-        <div><small>新会话默认</small><strong>{data.model.runtime === 'codex' ? 'Codex · 一套配置' : `Beaver · ${activeProfile?.name || '未命名配置'}`}</strong></div>
         <button className="account-logout" type="button" onClick={() => void onLogout()}>退出</button>
       </div>
     </header>
@@ -117,7 +118,7 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
         {selected === 'weixin' && <WeixinPage onError={onError} onOpenSession={onOpenSession} />}
         {(selected === 'runtime' || selected === 'tasks' || selected === 'models' || selected === 'tools') && <Capabilities section="settings" initialSection={selected} initialModelRuntime={initialModelRuntime} data={data} onRefresh={onRefresh} onError={onError} onSettingsSectionChange={onPage} />}
         {selected === 'security' && <section className="account-panel account-security-page" aria-labelledby="account-title">
-          <div><p className="settings-kicker">账户安全</p><h2 id="account-title">管理员账号</h2><p>当前登录用户：<code>admin</code>。服务重启、12 小时后或修改密码后需要重新登录。</p></div>
+          <div><p className="settings-kicker">账户安全</p><h2 id="account-title">管理员账号</h2><p>当前登录用户：<code>admin</code>。服务重启、12 小时后或修改密码后需要重新登录。</p>{passwordGenerated && <div className="account-warning" role="status">当前仍是系统生成的密码，建议改成你自己的密码。当前密码就是启动日志里显示的初始密码。</div>}</div>
           <button className="ghost-button" type="button" onClick={() => { setShowPassword(!showPassword); setAccountError(''); setAccountMessage('') }}>{showPassword ? '收起改密' : '修改密码'}</button>
           {showPassword && <div className="password-form"><label>当前密码<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label><label>新密码<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /><small>至少 8 个字符</small></label><label>确认新密码<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label><button className="primary-button" type="button" disabled={savingPassword || !currentPassword || newPassword.length < 8 || newPassword !== confirmPassword} onClick={() => void changePassword()}>{savingPassword ? '保存中…' : '保存新密码'}</button></div>}
           {accountMessage && <p className="account-success" role="status">{accountMessage}</p>}

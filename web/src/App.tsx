@@ -25,6 +25,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [authenticated, setAuthenticated] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [passwordGenerated, setPasswordGenerated] = useState(false)
   const [forkOpen, setForkOpen] = useState(false)
   const [forking, setForking] = useState(false)
   const [worktreeOpen, setWorktreeOpen] = useState(false)
@@ -59,6 +60,7 @@ export default function App() {
     api.me().then(async (status) => {
       if (!status.authenticated) return
       await refresh()
+      setPasswordGenerated(Boolean(status.passwordGenerated))
       setAuthenticated(true)
     }).catch((reason) => {
       if (!(reason instanceof APIError) || reason.status !== 401) setAuthError((reason as Error).message)
@@ -93,6 +95,7 @@ export default function App() {
 
   const afterLogin = useCallback(async () => {
     await refresh()
+    setPasswordGenerated(Boolean((await api.me()).passwordGenerated))
     setAuthenticated(true)
     setAuthError('')
     setError('')
@@ -223,11 +226,12 @@ export default function App() {
           {page === 'chat' && session && <button type="button" className={`ghost-button trace-button ${traceOpen ? 'active' : ''}`} onClick={() => setTraceOpen(!traceOpen)} aria-label={traceOpen ? '关闭运行轨迹' : '查看运行轨迹'} title={traceOpen ? '关闭运行轨迹' : '查看运行轨迹'}><TraceIcon /></button>}
         </div>
       </header>
+      {passwordGenerated && page !== 'security' && <div className="security-banner" role="status"><span>你正在使用系统生成的密码，建议现在改成自己的密码。</span><button type="button" onClick={() => setPage('security')}>去修改</button></div>}
       {error && <div className="toast" role="alert"><span>{friendlyError(error)}</span><button aria-label="关闭错误提示" onClick={() => setError('')}>×</button></div>}
       {page === 'chat' && <Chat session={session} data={data} onSession={setCurrentSession} onRefresh={refresh} onError={setError} onLoadOlder={loadSessionHistory} onOpenSkills={() => setPage('skills')} onOpenCapabilities={() => setPage('tools')} onOpenModelSettings={(runtime) => { setSettingsModelRuntime(runtime); setPage('runtime') }} onOpenTrace={() => setTraceOpen(true)} onStop={stopSession} onPause={pauseSession} onResume={resumeSession} runActionBusy={updatingRunState} />}
       <Suspense fallback={<PageLoading />}>
         {page === 'automations' && <AutomationPage data={data} onError={setError} onOpenSession={openSession} />}
-        {page !== 'chat' && page !== 'automations' && <SettingsShell page={page} data={data} initialModelRuntime={settingsModelRuntime} onPage={setPage} onRefresh={refresh} onError={setError} onLogout={logout} onOpenSession={openSession} />}
+        {page !== 'chat' && page !== 'automations' && <SettingsShell page={page} data={data} initialModelRuntime={settingsModelRuntime} onPage={setPage} onRefresh={refresh} onError={setError} onLogout={logout} passwordGenerated={passwordGenerated} onOpenSession={openSession} />}
       </Suspense>
     </main>
     {traceOpen && session && <Suspense fallback={null}><TracePanel session={session} onLoadOlder={loadSessionHistory} onError={setError} onClose={() => setTraceOpen(false)} /></Suspense>}

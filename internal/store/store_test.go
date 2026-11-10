@@ -732,3 +732,26 @@ func TestResetAdminPassword(t *testing.T) {
 		t.Fatal("旧密码应失效")
 	}
 }
+
+func TestPasswordGeneratedFlag(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if !database.PasswordIsGenerated() {
+		t.Fatal("首次启动的随机密码应标记为系统生成")
+	}
+	if err := database.ChangePassword("admin", database.InitialAdminPassword(), "my-own-password"); err != nil {
+		t.Fatal(err)
+	}
+	if database.PasswordIsGenerated() {
+		t.Fatal("用户修改密码后不应再提示")
+	}
+	if _, err := database.ResetAdminPassword(); err != nil {
+		t.Fatal(err)
+	}
+	if !database.PasswordIsGenerated() {
+		t.Fatal("重置后的随机密码应再次标记")
+	}
+}

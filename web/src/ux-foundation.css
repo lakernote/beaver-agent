@@ -487,5 +487,19 @@ pre { color: #dbe7ff; background: #0f1b3d; box-shadow: inset 0 0 0 1px #1e2f66; 
   @supports (height: 100dvh) { .main-canvas, .settings-canvas { height: calc(100dvh - 62px - env(safe-area-inset-bottom)); } }
 }
 
+/* 密码相关体验：系统生成密码提醒、登录页显示/隐藏、帮助折叠 */
+.security-banner { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 9px 16px; border-bottom: 1px solid #f3d9a4; background: #fff8e6; color: #7a5200; font-size: 13.5px; }
+.security-banner button { padding: 4px 12px; border: 1px solid #d9a93a; border-radius: 7px; background: #fff; color: #7a5200; font-weight: 600; cursor: pointer; }
+.security-banner button:hover { background: #fff1cc; }
+.account-warning { margin: 8px 0 0; padding: 8px 12px; border: 1px solid #f3d9a4; border-radius: 8px; background: #fff8e6; color: #7a5200; font-size: 13px; }
+.password-field { position: relative; display: block; }
+.settings-hub-context { border-left: 0; padding-left: 0; }
+.password-field input { width: 100%; padding-right: 58px; }
+.password-reveal { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; color: #2563eb; font-size: 13px; font-weight: 600; cursor: pointer; }
+.password-reveal:hover { background: #eff5ff; }
+details.login-hint { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5ecf5; color: #5c6b82; font-size: 13px; }
+details.login-hint summary { cursor: pointer; color: #315da8; font-weight: 600; }
+details.login-hint ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.7; }
+
 /* 登录页 */
 .login-page { background: radial-gradient(1200px 500px at 50% -10%, #dbe8ff 0%, transparent 60%), var(--canvas); }
