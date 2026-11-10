@@ -6,7 +6,7 @@ RUN npm ci
 COPY web/ ./
 RUN VITE_APP_VERSION="${VERSION}" npm run build
 
-FROM golang:1.26.10-alpine AS backend
+FROM golang:1.27.3-alpine AS backend
 ARG VERSION=dev
 ARG COMMIT=unknown
 WORKDIR /src
