@@ -1,4 +1,4 @@
-import type { AttachmentInput, Bootstrap, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, ResearchProviderTest, ResearchSettings, ResearchSettingsInput, RuntimePermissionSettings, Session, SessionHistoryPage, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
+import type { AttachmentInput, Bootstrap, CodexModelCatalog, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, ResearchProviderTest, ResearchSettings, ResearchSettingsInput, RuntimePermissionSettings, Session, SessionHistoryPage, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
 import type { AutomationTask } from './types/automation'
 
 export class APIError extends Error {
@@ -76,7 +76,7 @@ export const api = {
   updateSession: (id: string, title: string, projectId: string) => request<Session>(`/api/v1/sessions/${id}`, { method: 'PATCH', body: JSON.stringify({ title, projectId }) }),
   sessionHistory: (id: string, kind: 'messages' | 'events', before: number) => request<SessionHistoryPage>(`/api/v1/sessions/${id}/history?kind=${kind}&before=${before}`),
   codexSessionLog: (id: string, cursor = 0, limit = 300) => request<CodexSessionLogPage>(`/api/v1/sessions/${encodeURIComponent(id)}/codex-session-log?cursor=${cursor}&limit=${limit}`),
-  createSession: (message: string, attachments: AttachmentInput[] = [], workspace = '', profileId = '', projectId = '', permissions?: RuntimePermissionSettings) => request<Session>('/api/v1/sessions', { method: 'POST', body: JSON.stringify({ message, attachments, workspace, profileId, projectId, ...(permissions ? { permissions } : {}) }) }),
+  createSession: (message: string, attachments: AttachmentInput[] = [], workspace = '', profileId = '', projectId = '', permissions?: RuntimePermissionSettings, model = '', reasoningEffort = '') => request<Session>('/api/v1/sessions', { method: 'POST', body: JSON.stringify({ message, attachments, workspace, profileId, projectId, model, reasoningEffort, ...(permissions ? { permissions } : {}) }) }),
   createProject: (input: { name: string; directories: string[]; default: boolean }) => request<Bootstrap['projects'][number]>('/api/v1/projects', { method: 'POST', body: JSON.stringify(input) }),
   updateProject: (id: string, input: { name: string; directories: string[]; default: boolean }) => request<Bootstrap['projects'][number]>(`/api/v1/projects/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
   deleteProject: (id: string) => request<void>(`/api/v1/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -94,7 +94,7 @@ export const api = {
   testModel: (model: ModelSettings) => request<{ ok: boolean; model: string; toolCall: string; answer: string; inputTokens: number; outputTokens: number; durationMs: number }>('/api/v1/model/test', { method: 'POST', body: JSON.stringify(model) }),
   useOllama: (model: string) => request<ModelSettings>('/api/v1/ollama/use', { method: 'POST', body: JSON.stringify({ model }) }),
   codex: () => request<Bootstrap['codex']>('/api/v1/codex'),
-  codexModels: () => request<unknown>('/api/v1/codex/models'),
+  codexModels: () => request<CodexModelCatalog>('/api/v1/codex/models'),
   codexAccount: () => request<unknown>('/api/v1/codex/account'),
   codexThreads: (cursor = '', search = '', limit = 50) => request<unknown>(`/api/v1/codex/threads?limit=${limit}&cursor=${encodeURIComponent(cursor)}&search=${encodeURIComponent(search)}`),
   codexThread: (id: string) => request<unknown>(`/api/v1/codex/threads/${encodeURIComponent(id)}`),

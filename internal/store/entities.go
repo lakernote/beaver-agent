@@ -234,6 +234,10 @@ type Session struct {
 	Channel   Channel       `json:"channel,omitempty"`
 	ProfileID string        `json:"profileId,omitempty"`
 	Model     string        `json:"model,omitempty"`
+	// ReasoningEffort pins the Codex effort selected when the session is
+	// created. Keeping it beside Model prevents later config.toml changes from
+	// silently changing an existing conversation's execution behavior.
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	// PendingModel is an immutable snapshot for the currently queued/running
 	// turn. It is server-only and may contain the profile credential already
 	// stored in this permissions-restricted database.

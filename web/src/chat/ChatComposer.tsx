@@ -8,9 +8,9 @@ import { useChatComposer } from './useChatComposer'
 
 type ChatComposerModel = ReturnType<typeof useChatComposer> & { onStop: () => Promise<void>; onPause: () => Promise<void>; onResume: () => Promise<void>; runActionBusy: boolean }
 
-function profileOptionLabel(profile: ModelProfile, codexDefaultModel: string) {
-  const name = profile.settings.runtime === 'codex' ? `Codex · ${profile.settings.provider || '官方登录'}` : profile.name
-  const model = profile.settings.model || (profile.settings.runtime === 'codex' ? codexDefaultModel : '')
+function profileOptionLabel(profile: ModelProfile) {
+  const name = profile.name
+  const model = profile.settings.model
   return `${name}${model ? ` · ${model}` : ''}`
 }
 
@@ -20,7 +20,7 @@ export function ChatComposer(model: ChatComposerModel) {
     capabilityOpen, capabilityQuery, setCapabilityQuery, capabilityIndex, capabilitySearchRef,
     visibleCapabilities, selectedCapabilities, capabilities, enabledCapabilityCount,
     composerRef, textareaRef, fileInputRef, isCodexRuntime, selectedRuntime, selectRuntime, selectedPermissionMode, selectPermissionMode, workspace, projectOptions, selectedProject, selectedProjectId, selectProject, workspaceOpen, setWorkspaceOpen, profileOptions, selectedProfileId,
-    codexDefaultModel, displayedModel, readiness, onOpenSkills, onOpenCapabilities, onOpenModelSettings, addFiles, removeAttachment,
+    codexModelOptions, codexModelsLoading, codexModelsError, selectedCodexModel, selectCodexModel, selectedCodexReasoningEffort, displayedModel, readiness, onOpenSkills, onOpenCapabilities, onOpenModelSettings, addFiles, removeAttachment,
     closeCapabilityPicker, openCapabilityPicker, insertCapability, removeCapability, handleCapabilityKey, updateDraft, send,
     setSelectedProfileId, onStop, onPause, onResume, runActionBusy,
   } = model
@@ -37,8 +37,10 @@ export function ChatComposer(model: ChatComposerModel) {
           <button type="button" className="composer-workspace composer-project-select" title={workspace} aria-expanded={workspaceOpen} aria-controls="workspace-picker" onClick={() => setWorkspaceOpen(!workspaceOpen)}><span className="composer-field-label">项目</span><strong>{selectedProject?.name || workspaceLabel}</strong><span className="composer-field-chevron" aria-hidden="true">⌄</span></button>
           <label className="composer-select-field composer-runtime-select"><span>Runtime</span><select value={selectedRuntime} onChange={(event) => selectRuntime(event.target.value as typeof selectedRuntime)} disabled={sending} aria-label="选择新会话 Runtime"><option value="easyagent">EasyAgent</option><option value="codex">Codex</option></select></label>
           <label className="composer-select-field composer-permission-select"><span>权限</span><select value={selectedPermissionMode} onChange={(event) => selectPermissionMode(event.target.value as typeof selectedPermissionMode)} disabled={sending} aria-label="选择新会话权限"><option value="read_only">只读</option><option value="workspace_write">工作区可写</option><option value="full_access">完全访问</option><option value="custom">自定义目录</option></select></label>
-          <label className="composer-select-field composer-model-select"><span>模型</span>{profileOptions.length > 0 ? <select value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)} disabled={sending} aria-label="选择新会话模型配置">
-            {profileOptions.map((item) => <option key={item.id} value={item.id}>{profileOptionLabel(item, codexDefaultModel)}</option>)}
+          <label className="composer-select-field composer-model-select"><span>模型</span>{profileOptions.length > 0 ? isCodexRuntime ? <select value={selectedCodexModel} onChange={(event) => selectCodexModel(event.target.value)} disabled={sending} aria-label="选择新会话 Codex 模型" title={codexModelsError || (selectedCodexReasoningEffort ? `推理强度：${selectedCodexReasoningEffort}` : '')}>
+            {codexModelOptions.length > 0 ? <>{!selectedCodexModel && <option value="">选择模型</option>}{codexModelOptions.map((item) => <option key={item.model} value={item.model}>{item.displayName?.trim() || item.model}</option>)}</> : <option value="">{codexModelsLoading ? '正在读取模型…' : codexModelsError ? 'Codex 默认模型（目录暂不可用）' : 'Codex 默认模型'}</option>}
+          </select> : <select value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)} disabled={sending} aria-label="选择新会话模型配置">
+            {profileOptions.map((item) => <option key={item.id} value={item.id}>{profileOptionLabel(item)}</option>)}
           </select> : <button type="button" className="composer-setup-link" onClick={onOpenModelSettings}>去设置创建</button>}</label>
         </> : <>
           <div className="composer-fixed-field composer-fixed-project" title={workspace}><span>项目</span><strong>{workspaceLabel}</strong></div>

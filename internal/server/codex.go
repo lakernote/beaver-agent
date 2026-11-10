@@ -18,7 +18,7 @@ type codexRuntimeStatus = codexruntime.Status
 const codexDeveloperInstructions = "使用与用户最新请求相同的语言回答；用户使用中文时必须使用中文。不要在最终回答中输出内部计划、翻译提示或推理草稿。用户明确指定语言或格式时，遵循用户要求。"
 
 func (server *Server) detectCodex(ctx context.Context) codexRuntimeStatus {
-	status := codexruntime.Detect(server.env)
+	status := codexruntime.DetectContext(ctx, server.env)
 	if status.Installed {
 		return status
 	}
@@ -104,7 +104,7 @@ func (server *Server) runCodexTurn(ctx context.Context, session store.Session, s
 		}
 	}
 	result, runErr := codexruntime.RunMessage(runtimeContext, codexruntime.Config{
-		Path: status.Path, Workspace: workspace, AdditionalDirectories: directories, Model: settings.Model, Provider: settings.Provider, ThreadID: session.ResponseID,
+		Path: status.Path, Workspace: workspace, AdditionalDirectories: directories, Model: settings.Model, ReasoningEffort: session.ReasoningEffort, Provider: settings.Provider, ThreadID: session.ResponseID,
 		DeveloperInstructions: codexDeveloperInstructions,
 		Timeout:               time.Duration(turnTimeoutSeconds) * time.Second,
 		Permissions:           policy,

@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS ea_sessions (
 	  channel TEXT NOT NULL DEFAULT 'web',
   profile_id TEXT NOT NULL DEFAULT '',
   model TEXT NOT NULL,
+  reasoning_effort TEXT NOT NULL DEFAULT '',
   pending_model_json BLOB NOT NULL DEFAULT X'',
   permissions_json BLOB NOT NULL DEFAULT '{}',
   workspace TEXT NOT NULL DEFAULT '',
@@ -300,6 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 		{name: "worktree_branch", definition: "TEXT NOT NULL DEFAULT ''"},
 		{name: "workspace_notice", definition: "TEXT NOT NULL DEFAULT ''"},
 		{name: "permissions_json", definition: "BLOB NOT NULL DEFAULT '{}'"},
+		{name: "reasoning_effort", definition: "TEXT NOT NULL DEFAULT ''"},
 	} {
 		var exists int
 		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name=?`, column.name).Scan(&exists); err != nil {

@@ -60,6 +60,28 @@ export type CodexRuntimeStatus = {
   installUrl: string
 }
 
+export type CodexReasoningEffortOption = {
+  reasoningEffort: string
+  description?: string
+}
+
+export type CodexModelOption = {
+  id?: string
+  model: string
+  displayName?: string
+  description?: string
+  hidden?: boolean
+  isDefault?: boolean
+  defaultReasoningEffort?: string
+  supportedReasoningEfforts?: CodexReasoningEffortOption[]
+  inputModalities?: string[]
+}
+
+export type CodexModelCatalog = {
+  data: CodexModelOption[]
+  nextCursor?: string | null
+}
+
 export type CodexProviderConfig = {
   configPath: string
   provider: string

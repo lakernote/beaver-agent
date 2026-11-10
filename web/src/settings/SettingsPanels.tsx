@@ -208,8 +208,8 @@ function codexModelSummary(value: unknown) {
     return ''
   }).filter(Boolean)
   return {
-    title: data.length > 0 ? `${data.length} 个可用模型` : '未读取到模型',
-    detail: names.slice(0, 3).join(' · ') || 'Codex 未返回模型目录',
+    title: data.length > 0 ? `${data.length} 个模型候选项` : '未读取到模型',
+    detail: names.length > 0 ? `${names.slice(0, 3).join(' · ')}${names.length > 3 ? ' 等' : ''}；访问权限在发送时验证` : 'Codex 未返回模型目录',
   }
 }
 
@@ -345,7 +345,7 @@ export function CodexSettings({ config, setConfig, notice, savingConfig, deletin
           <div className="form-grid">
             <label>推理强度
               <select value={config.reasoningEffort} onChange={(event) => update({ reasoningEffort: event.target.value })}>
-                <option value="">Provider 默认</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option>
+                <option value="">Provider 默认</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option><option value="ultra">ultra</option>
               </select>
             </label>
           </div>

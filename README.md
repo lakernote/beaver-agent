@@ -103,7 +103,7 @@ docker run -d --name easyagent \
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
 
-安装命令会下载并执行 OpenAI 官方安装脚本，请在执行前核对[官方安装说明](https://developers.openai.com/codex/cli)。EasyAgent 只检测 Codex CLI，不会下载安装或执行该脚本。`app-server` 是 Codex CLI 自带的子命令，不需要单独安装。两个 Runtime 共用任务队列、项目目录、worktree、Skills 和 MCP；设置中心的 Runtime 权限支持只读、工作区写入、完全访问和自定义模式，默认仍为完全访问以兼容已有安装。
+安装命令会下载并执行 OpenAI 官方安装脚本，请在执行前核对[官方安装说明](https://developers.openai.com/codex/cli)。EasyAgent 只检测 Codex CLI，不会下载安装或执行该脚本。`app-server` 是 Codex CLI 自带的子命令，不需要单独安装。检测会依次检查 EasyAgent 服务进程的 PATH、`~/.local/bin/codex`，以及 macOS ChatGPT 应用内置的 CLI；因此本机终端、IDE 和容器若使用不同账号或环境，检测结果也可能不同。需要固定部署版本时，可给 EasyAgent 服务进程设置 `EASYAGENT_CODEX_PATH=/absolute/path/to/codex`；该值必须是绝对路径，配置错误时会直接报错而不会静默切换到另一份 CLI。两个 Runtime 共用任务队列、项目目录、worktree、Skills 和 MCP；设置中心的 Runtime 权限支持只读、工作区写入、完全访问和自定义模式，默认仍为完全访问以兼容已有安装。
 
 无论选择哪个 Runtime，都使用相同的项目和任务系统：
 

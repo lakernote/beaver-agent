@@ -21,6 +21,7 @@ type Session struct {
 	Channel            string             `json:"channel,omitempty"`
 	ProfileID          string             `json:"profileId,omitempty"`
 	Model              string             `json:"model,omitempty"`
+	ReasoningEffort    string             `json:"reasoningEffort,omitempty"`
 	Permissions        permissions.Policy `json:"permissions"`
 	Workspace          string             `json:"workspace"`
 	SourceWorkspace    string             `json:"sourceWorkspace,omitempty"`
@@ -155,7 +156,7 @@ func SessionFromStore(value store.Session, workspaceIsolation string) Session {
 	}
 	return Session{
 		ID: value.ID, Title: value.Title, ProjectID: value.ProjectID, Status: string(value.Status), Error: value.Error,
-		Runtime: string(value.Runtime), Channel: string(value.Channel), ProfileID: value.ProfileID, Model: value.Model,
+		Runtime: string(value.Runtime), Channel: string(value.Channel), ProfileID: value.ProfileID, Model: value.Model, ReasoningEffort: value.ReasoningEffort,
 		Permissions: policy, Workspace: value.Workspace, SourceWorkspace: value.SourceWorkspace, WorktreeBranch: value.WorktreeBranch,
 		WorkspaceIsolation: workspaceIsolation, WorkspaceNotice: value.WorkspaceNotice, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		Messages: MessagesFromStore(value.Messages), Events: EventsFromStore(value.Events), MessageCount: value.MessageCount, EventCount: value.EventCount,

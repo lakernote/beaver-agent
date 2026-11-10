@@ -327,7 +327,10 @@ func executableFile(value string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if info.IsDir() || info.Mode()&0o111 == 0 {
+	// Windows does not expose Unix executable bits for ordinary .exe files.
+	// ResolveCommand already appends the platform suffix there, so existence and
+	// the non-directory check are the appropriate validation on that platform.
+	if info.IsDir() || (runtime.GOOS != "windows" && info.Mode()&0o111 == 0) {
 		return "", fmt.Errorf("%s 不是可执行文件", absolute)
 	}
 	return filepath.Clean(absolute), nil

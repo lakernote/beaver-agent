@@ -101,6 +101,7 @@ export type Session = {
   runtime: 'easyagent' | 'codex'
   channel?: 'web' | 'weixin' | 'automation' | string
   model?: string
+  reasoningEffort?: string
   permissions?: import('./bootstrap').RuntimePermissionSettings
   workspace: string
   sourceWorkspace?: string

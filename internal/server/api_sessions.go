@@ -16,10 +16,12 @@ import (
 )
 
 type messageRequest struct {
-	Message     string              `json:"message"`
-	Attachments []attachmentRequest `json:"attachments"`
-	ProfileID   string              `json:"profileId,omitempty"`
-	ProjectID   string              `json:"projectId,omitempty"`
+	Message         string              `json:"message"`
+	Attachments     []attachmentRequest `json:"attachments"`
+	ProfileID       string              `json:"profileId,omitempty"`
+	ProjectID       string              `json:"projectId,omitempty"`
+	Model           string              `json:"model,omitempty"`
+	ReasoningEffort string              `json:"reasoningEffort,omitempty"`
 	// Workspace 只在创建会话时使用；后续多轮对话始终沿用会话保存的工作区。
 	Workspace   string              `json:"workspace,omitempty"`
 	Permissions *permissions.Policy `json:"permissions,omitempty"`
@@ -102,6 +104,37 @@ func containsControl(value string) bool {
 	return false
 }
 
+func normalizeCodexSessionSelection(runtime store.Runtime, model, reasoningEffort string) (string, string, error) {
+	model = strings.TrimSpace(model)
+	reasoningEffort = strings.ToLower(strings.TrimSpace(reasoningEffort))
+	if runtime != store.RuntimeCodex {
+		if model != "" || reasoningEffort != "" {
+			return "", "", errors.New("只有 Codex Runtime 可以指定会话模型和推理强度")
+		}
+		return "", "", nil
+	}
+	if utf8.RuneCountInString(model) > 160 || containsControl(model) {
+		return "", "", errors.New("Codex 模型名称不能超过 160 个字符且不能包含控制字符")
+	}
+	switch reasoningEffort {
+	case "", "low", "medium", "high", "xhigh", "max", "ultra":
+	default:
+		return "", "", errors.New("Codex 推理强度只能是 low、medium、high、xhigh、max 或 ultra")
+	}
+	return model, reasoningEffort, nil
+}
+
+func pinCodexSessionModel(session store.Session, settings store.ModelSettings) store.ModelSettings {
+	if session.Runtime != store.RuntimeCodex {
+		return settings
+	}
+	settings.Runtime = store.RuntimeCodex
+	if model := strings.TrimSpace(session.Model); model != "" {
+		settings.Model = model
+	}
+	return settings
+}
+
 func (server *Server) createSession(response http.ResponseWriter, request *http.Request) {
 	var input messageRequest
 	if !decodeJSON(response, request, &input) {
@@ -132,6 +165,14 @@ func (server *Server) createSession(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
+	selectedModel, reasoningEffort, err := normalizeCodexSessionSelection(model.Runtime, input.Model, input.ReasoningEffort)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	if selectedModel != "" {
+		model.Model = selectedModel
+	}
 	id := newID()
 	runtimeSettings, err := server.store.GetRuntimeSettings()
 	if err != nil {
@@ -153,7 +194,7 @@ func (server *Server) createSession(response http.ResponseWriter, request *http.
 	workspace := server.prepareSessionWorkspace(request.Context(), id, runEnvironment.Workspace(), runtimeSettings)
 	if _, err := server.sessionsRepository().CreateSession(store.CreateSessionParams{
 		ID: id, Title: attachmentTitle(input.Message, attachments), Runtime: model.Runtime,
-		ProfileID: model.ProfileID, Model: model.Model, ProjectID: projectID,
+		ProfileID: model.ProfileID, Model: model.Model, ReasoningEffort: reasoningEffort, ProjectID: projectID,
 		Permissions: policy, Workspace: workspace.Execution, CreatedAt: time.Now(),
 	}); err != nil {
 		server.discardPreparedWorkspace(workspace)
@@ -231,6 +272,10 @@ func (server *Server) continueSession(response http.ResponseWriter, request *htt
 		writeError(response, http.StatusBadRequest, "工作区在创建会话时确定；请新建会话后选择其他工作区")
 		return
 	}
+	if strings.TrimSpace(input.Model) != "" || strings.TrimSpace(input.ReasoningEffort) != "" {
+		writeError(response, http.StatusBadRequest, "Codex 模型和推理强度在创建会话时固定；如需切换请新建会话")
+		return
+	}
 	id := request.PathValue("id")
 	// 这里只验证会话存在，避免继续对话前把完整历史加载两次。
 	loaded, err := server.sessionsRepository().LoadSessionWindow(id, 1, 1)
@@ -247,6 +292,7 @@ func (server *Server) continueSession(response http.ResponseWriter, request *htt
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
+	model = pinCodexSessionModel(loaded, model)
 	if err := validateModel(model.WithDefaults()); err != nil {
 		writeError(response, http.StatusBadRequest, "当前模型配置不可用："+err.Error())
 		return
@@ -376,11 +422,15 @@ func (server *Server) resumeSession(response http.ResponseWriter, request *http.
 		}
 		return
 	}
-	model, err := server.modelsRepository().GetModelSettingsByProfileID(value.ProfileID)
+	model, snapshot, err := value.QueuedModelSettings()
+	if err == nil && !snapshot {
+		model, err = server.modelsRepository().GetModelSettingsByProfileID(value.ProfileID)
+	}
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
+	model = pinCodexSessionModel(value, model)
 	changed, err := server.sessionsRepository().ResumePausedSession(id, time.Now())
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())

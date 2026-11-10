@@ -513,8 +513,8 @@ func normalizeProviderInput(input ProviderConfigInput) (ProviderConfigInput, err
 		return ProviderConfigInput{}, errors.New("API Key 环境变量名无效，例如 GROQ_API_KEY")
 	}
 	input.ReasoningEffort = strings.TrimSpace(input.ReasoningEffort)
-	if input.ReasoningEffort != "" && input.ReasoningEffort != "low" && input.ReasoningEffort != "medium" && input.ReasoningEffort != "high" && input.ReasoningEffort != "xhigh" {
-		return ProviderConfigInput{}, errors.New("推理强度只能是 low、medium、high 或 xhigh")
+	if input.ReasoningEffort != "" && input.ReasoningEffort != "low" && input.ReasoningEffort != "medium" && input.ReasoningEffort != "high" && input.ReasoningEffort != "xhigh" && input.ReasoningEffort != "max" && input.ReasoningEffort != "ultra" {
+		return ProviderConfigInput{}, errors.New("推理强度只能是 low、medium、high、xhigh、max 或 ultra")
 	}
 	return input, nil
 }

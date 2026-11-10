@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { api } from '../api'
-import type { Bootstrap, ModelSettings, RuntimePermissionSettings, Session } from '../types'
+import type { Bootstrap, CodexModelOption, ModelSettings, RuntimePermissionSettings, Session } from '../types'
 import { isActive, mergeSessionSnapshot } from '../sessionState'
 import { createAttachmentID, encodeAttachment, supportedAttachment, type PendingAttachment } from '../attachments'
 import { capabilityKindLabel, capabilityMention, capabilityOptions, hasCapabilityToken, type CapabilityOption } from '../capabilities'
 import type { StarterSuggestion } from '../suggestions'
 
 export type ComposerReadiness = { tone: 'ready' | 'warning' | 'blocked'; label: string; detail: string; canSend: boolean }
+
+function compatibleReasoningEffort(model: CodexModelOption | undefined, configuredEffort: string) {
+  const configured = configuredEffort.trim()
+  const supported = (model?.supportedReasoningEfforts || []).map((item) => item.reasoningEffort.trim()).filter(Boolean)
+  if (configured && (!supported.length || supported.includes(configured))) return configured
+  const fallback = model?.defaultReasoningEffort?.trim() || ''
+  if (fallback && (!supported.length || supported.includes(fallback))) return fallback
+  return supported[0] || configured
+}
 
 type ChatComposerOptions = {
   session: Session | null
@@ -33,6 +42,10 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
   const [selectedRuntime, setSelectedRuntime] = useState<ModelSettings['runtime']>(() => data.model.runtime)
   const [selectedPermissionMode, setSelectedPermissionMode] = useState<RuntimePermissionSettings['mode']>(() => data.runtimeSettings.permissions.mode)
   const [selectedProfileId, setSelectedProfileId] = useState(data.activeModelProfileId)
+  const [codexModels, setCodexModels] = useState<CodexModelOption[]>([])
+  const [codexModelsLoading, setCodexModelsLoading] = useState(false)
+  const [codexModelsError, setCodexModelsError] = useState('')
+  const [selectedCodexModel, setSelectedCodexModel] = useState(() => data.codexConfig.model.trim())
   const defaultProject = data.projects.find((item) => item.default) || data.projects[0]
   const [selectedProjectId, setSelectedProjectId] = useState(() => window.localStorage.getItem('easyagent.project') || defaultProject?.id || '')
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
@@ -41,6 +54,7 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
   const capabilitySearchRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachmentRef = useRef<PendingAttachment[]>([])
+  const codexSelectionTouchedRef = useRef(false)
   const runtime = session?.runtime || selectedRuntime
   const isCodexRuntime = runtime === 'codex'
   const capabilities = useMemo(() => capabilityOptions(data).filter((item) => !isCodexRuntime || item.kind !== 'tool'), [data, isCodexRuntime])
@@ -50,14 +64,19 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
   }, [capabilities, capabilityQuery])
   const selectedCapabilities = useMemo(() => capabilities.filter((item) => hasCapabilityToken(draft, item.token)), [capabilities, draft])
   const enabledCapabilityCount = capabilities.filter((item) => item.enabled).length
-  const profileOptions = useMemo(() => {
-    const profiles = data.modelProfiles.filter((item) => item.settings.runtime === runtime)
-    return runtime === 'codex' ? profiles.slice(0, 1) : profiles
-  }, [data.modelProfiles, runtime])
+  const profileOptions = useMemo(() => data.modelProfiles.filter((item) => item.settings.runtime === runtime), [data.modelProfiles, runtime])
   const selectedProfile = profileOptions.find((item) => item.id === selectedProfileId)
   const selectedProject = data.projects.find((item) => item.id === selectedProjectId) || defaultProject
-  const codexDefaultModel = data.codexConfig.model.trim() || 'Codex 默认模型'
-  const displayedModel = session?.model || selectedProfile?.settings.model || (isCodexRuntime ? codexDefaultModel : data.model.model || '未配置模型')
+  const configuredCodexModel = data.codexConfig.model.trim()
+  const codexModelOptions = useMemo(() => {
+    const visible = codexModels.filter((item) => !item.hidden && item.model?.trim()).map((item) => ({ ...item, model: item.model.trim() }))
+    if (!configuredCodexModel || visible.some((item) => item.model === configuredCodexModel)) return visible
+    return [...visible, { model: configuredCodexModel, displayName: configuredCodexModel, description: '当前配置模型' }]
+  }, [codexModels, configuredCodexModel])
+  const selectedCodexModelOption = codexModelOptions.find((item) => item.model === selectedCodexModel)
+  const selectedCodexReasoningEffort = compatibleReasoningEffort(selectedCodexModelOption, data.codexConfig.reasoningEffort)
+  const codexDefaultModel = configuredCodexModel || 'Codex 默认模型'
+  const displayedModel = session?.model || (isCodexRuntime ? selectedCodexModel || codexDefaultModel : selectedProfile?.settings.model || data.model.model || '未配置模型')
   const readiness = useMemo<ComposerReadiness>(() => {
     if (session) return { tone: 'ready', label: '会话已固定', detail: '继续使用创建时的项目、Runtime 与模型配置。', canSend: true }
     if (!selectedProject) return { tone: 'blocked', label: '缺少项目', detail: '请先添加一个服务器项目。', canSend: false }
@@ -83,6 +102,30 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
   useEffect(() => { attachmentRef.current = attachments }, [attachments])
   useEffect(() => () => attachmentRef.current.forEach((item) => item.preview && URL.revokeObjectURL(item.preview)), [])
   useEffect(() => { setCapabilityIndex(0) }, [capabilityQuery])
+  useEffect(() => {
+    if (session || selectedRuntime !== 'codex') return
+    let cancelled = false
+    setCodexModelsLoading(true)
+    setCodexModelsError('')
+    void api.codexModels().then((catalog) => {
+      if (cancelled) return
+      setCodexModels(Array.isArray(catalog.data) ? catalog.data : [])
+    }).catch((reason) => {
+      if (!cancelled) setCodexModelsError((reason as Error).message)
+    }).finally(() => {
+      if (!cancelled) setCodexModelsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [selectedRuntime, session])
+  useEffect(() => {
+    if (session || selectedRuntime !== 'codex') return
+    const configured = codexModels.find((item) => !item.hidden && item.model?.trim() === configuredCodexModel)?.model.trim()
+    const preferred = configured
+      || codexModels.find((item) => !item.hidden && item.isDefault && item.model?.trim())?.model.trim()
+      || codexModels.find((item) => !item.hidden && item.model?.trim())?.model.trim()
+      || configuredCodexModel
+    setSelectedCodexModel((current) => codexSelectionTouchedRef.current && codexModelOptions.some((item) => item.model === current) ? current : preferred || '')
+  }, [codexModelOptions, codexModels, configuredCodexModel, selectedRuntime, session])
   useEffect(() => {
     if (session) return
     const selectedProfile = data.modelProfiles.find((item) => item.id === selectedProfileId)
@@ -223,7 +266,7 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
     try {
       const payload = await Promise.all(attachments.map(encodeAttachment))
       const permissions = { ...data.runtimeSettings.permissions, mode: selectedPermissionMode }
-      const next = session ? await api.sendMessage(session.id, message, payload) : await api.createSession(message, payload, '', selectedProfileId, selectedProjectId, permissions)
+      const next = session ? await api.sendMessage(session.id, message, payload) : await api.createSession(message, payload, '', selectedProfileId, selectedProjectId, permissions, isCodexRuntime ? selectedCodexModel : '', isCodexRuntime ? selectedCodexReasoningEffort : '')
       onSession(session ? mergeSessionSnapshot(session, next) : next); setDraft(''); setWorkspaceOpen(false); closeCapabilityPicker(); attachments.forEach((item) => item.preview && URL.revokeObjectURL(item.preview)); setAttachments([]); await onRefresh()
     } catch (reason) {
       const message = (reason as Error).message
@@ -251,7 +294,17 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
     const defaultProfile = data.modelProfiles.find((item) => item.id === data.activeModelProfileId && item.settings.runtime === value)
       || data.modelProfiles.find((item) => item.settings.runtime === value)
     setSelectedProfileId(defaultProfile?.id || '')
+    if (value === 'codex') {
+      codexSelectionTouchedRef.current = false
+      setSelectedCodexModel(data.codexConfig.model.trim())
+    }
     setCapabilityOpen(false)
+  }
+
+  const selectCodexModel = (value: string) => {
+    if (session) return
+    codexSelectionTouchedRef.current = true
+    setSelectedCodexModel(value)
   }
 
   const selectPermissionMode = (value: RuntimePermissionSettings['mode']) => {
@@ -267,7 +320,8 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
     composerRef, textareaRef, fileInputRef, runtime, isCodexRuntime,
     workspace: session?.workspace || selectedProject?.directories[0] || data.runtime.workspace,
     projectOptions: data.projects, selectedProject, selectedProjectId, selectProject, workspaceOpen, setWorkspaceOpen,
-    profileOptions, selectedRuntime, selectRuntime, selectedPermissionMode, selectPermissionMode, selectedProfileId, setSelectedProfileId, codexDefaultModel, displayedModel, readiness,
+    profileOptions, selectedRuntime, selectRuntime, selectedPermissionMode, selectPermissionMode, selectedProfileId, setSelectedProfileId,
+    codexModelOptions, codexModelsLoading, codexModelsError, selectedCodexModel, selectCodexModel, selectedCodexReasoningEffort, codexDefaultModel, displayedModel, readiness,
     onOpenModelSettings: () => onOpenModelSettings(runtime),
     addFiles, removeAttachment, closeCapabilityPicker, openCapabilityPicker,
     insertCapability, removeCapability, handleCapabilityKey, updateDraft, send, startSuggestion,

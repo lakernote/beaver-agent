@@ -29,6 +29,7 @@ import (
 const installDocsURL = "https://developers.openai.com/codex/cli"
 const installScriptURL = "https://chatgpt.com/codex/install.sh"
 const installCommand = "curl -fsSL " + installScriptURL + " | sh"
+const codexPathEnvironment = "EASYAGENT_CODEX_PATH"
 const detectCommandTimeout = 5 * time.Second
 
 type Status struct {
@@ -50,70 +51,169 @@ type Status struct {
 // 也不修改用户环境。Codex 的账号归属当前 EasyAgent 进程用户及其 HOME/CODEX_HOME，
 // 不由找到的 CLI 文件路径决定。
 func Detect(environment *appenv.Environment) Status {
+	return DetectContext(context.Background(), environment)
+}
+
+// DetectContext behaves like Detect but lets HTTP callers stop a slow or
+// hanging CLI probe when the request is canceled.
+func DetectContext(ctx context.Context, environment *appenv.Environment) Status {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	status := Status{InstallURL: installDocsURL, InstallCommand: installCommand}
+	if configured := strings.TrimSpace(os.Getenv(codexPathEnvironment)); configured != "" {
+		if !filepath.IsAbs(configured) {
+			status.Message = codexPathEnvironment + " 必须是 Codex CLI 的绝对路径"
+			return status
+		}
+		detected, err := detectCodexAtPath(ctx, configured, commandEnv(environment))
+		if err != nil {
+			if ctx.Err() != nil {
+				status.Message = "Codex Runtime 检测被取消"
+				return status
+			}
+			status.Message = fmt.Sprintf("%s 指定的 Codex CLI 不可用：%v", codexPathEnvironment, err)
+			return status
+		}
+		if !detected.AppServerAvailable {
+			detected.Message = codexPathEnvironment + "：" + detected.Message
+		}
+		return detected
+	}
+
 	paths := []string{}
 	if environment != nil {
 		if value, err := environment.ResolveCommand("codex"); err == nil {
 			paths = append(paths, value)
 		}
-	}
-	if value, err := exec.LookPath("codex"); err == nil {
+	} else if value, err := exec.LookPath("codex"); err == nil {
 		paths = append(paths, value)
-	}
-	if runtime.GOOS == "darwin" {
-		paths = append(paths, "/Applications/ChatGPT.app/Contents/Resources/codex")
 	}
 	if userHome, err := os.UserHomeDir(); err == nil {
 		paths = append(paths, filepath.Join(userHome, ".local", "bin", "codex"))
+		if runtime.GOOS == "darwin" {
+			paths = append(paths,
+				filepath.Join(userHome, "Applications", "ChatGPT.app", "Contents", "Resources", "codex-cli", "bin", "codex"),
+				filepath.Join(userHome, "Applications", "ChatGPT.app", "Contents", "Resources", "codex"),
+			)
+		}
 	}
+	if runtime.GOOS == "darwin" {
+		// ChatGPT/Codex 桌面端会携带完整 CLI，但不会保证把它加入登录
+		// Shell 的 PATH。当前新版应用把入口放在 codex-cli/bin 下；保留
+		// 旧版 Resources/codex 路径以兼容尚未升级的安装。
+		paths = append(paths,
+			"/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+			"/Applications/ChatGPT.app/Contents/Resources/codex",
+		)
+	}
+	environmentValues := commandEnv(environment)
+	best := status
 	seen := map[string]struct{}{}
 	for _, path := range paths {
+		if ctx.Err() != nil {
+			status.Message = "Codex Runtime 检测被取消"
+			return status
+		}
 		path = filepath.Clean(path)
 		if _, ok := seen[path]; ok {
 			continue
 		}
 		seen[path] = struct{}{}
-		info, err := os.Stat(path)
-		if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
-			continue
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), detectCommandTimeout)
-		command := exec.CommandContext(ctx, path, "--version")
-		if environment != nil {
-			command.Env = environment.Environ(nil)
-		}
-		output, runErr := command.Output()
-		cancel()
-		if runErr != nil {
-			continue
-		}
-		status.Installed = true
-		status.Path = path
-		if home, homeErr := codexHome(); homeErr == nil {
-			status.Home = home
-		}
-		status.Version = strings.TrimSpace(string(output))
-		appCtx, appCancel := context.WithTimeout(context.Background(), detectCommandTimeout)
-		appServer := exec.CommandContext(appCtx, path, "app-server", "--help")
-		if environment != nil {
-			appServer.Env = environment.Environ(nil)
-		}
-		_, appErr := appServer.Output()
-		appCancel()
-		if appErr == nil {
-			status.AppServerAvailable = true
-			status.Authenticated = codexLoginStatus(path, commandEnv(environment))
-			status.Message = "Codex CLI 与 app-server 已就绪"
-			if !status.Authenticated {
-				status.Message = "Codex CLI 与 app-server 已就绪；当前运行用户未完成官方登录"
+		detected, err := detectCodexAtPath(ctx, path, environmentValues)
+		if err != nil {
+			if ctx.Err() != nil {
+				status.Message = "Codex Runtime 检测被取消"
+				return status
 			}
-		} else {
-			status.Message = "已找到 Codex CLI，但 app-server 子命令不可用"
+			continue
 		}
-		return status
+		if detected.AppServerAvailable {
+			return detected
+		}
+		if !best.Installed {
+			best = detected
+		}
+	}
+	if best.Installed {
+		return best
 	}
 	status.Message = "未检测到 Codex CLI；请在服务器终端手动安装，EasyAgent 不会代为下载安装"
 	return status
+}
+
+func detectCodexAtPath(parent context.Context, path string, environment []string) (Status, error) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if err := parent.Err(); err != nil {
+		return Status{}, err
+	}
+	path = filepath.Clean(path)
+	status := Status{InstallURL: installDocsURL, InstallCommand: installCommand, Path: path}
+	info, err := os.Stat(path)
+	if err != nil {
+		return Status{}, err
+	}
+	if info.IsDir() {
+		return Status{}, errors.New("路径是目录")
+	}
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
+		return Status{}, errors.New("文件不可执行")
+	}
+
+	ctx, cancel := context.WithTimeout(parent, detectCommandTimeout)
+	command := exec.CommandContext(ctx, path, "--version")
+	if environment != nil {
+		command.Env = environment
+	}
+	output, runErr := command.Output()
+	contextErr := ctx.Err()
+	cancel()
+	if runErr != nil {
+		if contextErr != nil {
+			return Status{}, fmt.Errorf("执行 --version: %w", contextErr)
+		}
+		return Status{}, fmt.Errorf("执行 --version: %w", runErr)
+	}
+	status.Installed = true
+	status.Version = strings.TrimSpace(string(output))
+	if home, homeErr := codexHome(); homeErr == nil {
+		status.Home = home
+	}
+
+	appCtx, appCancel := context.WithTimeout(parent, detectCommandTimeout)
+	appServer := exec.CommandContext(appCtx, path, "app-server", "--help")
+	if environment != nil {
+		appServer.Env = environment
+	}
+	_, appErr := appServer.Output()
+	appContextErr := appCtx.Err()
+	appCancel()
+	if appErr != nil {
+		if parent.Err() != nil {
+			return Status{}, parent.Err()
+		}
+		if appContextErr != nil {
+			status.Message = "已找到 Codex CLI，但 app-server 能力探测超时"
+		} else {
+			status.Message = fmt.Sprintf("已找到 Codex CLI，但 app-server 子命令不可用：%v", appErr)
+		}
+		return status, nil
+	}
+
+	status.AppServerAvailable = true
+	status.Authenticated, err = codexLoginStatus(parent, path, environment)
+	if err != nil && parent.Err() != nil {
+		return Status{}, parent.Err()
+	}
+	status.Message = "Codex CLI 与 app-server 已就绪"
+	if err != nil {
+		status.Message = "Codex CLI 与 app-server 已就绪；暂时无法确认官方登录状态"
+	} else if !status.Authenticated {
+		status.Message = "Codex CLI 与 app-server 已就绪；当前运行用户未完成官方登录"
+	}
+	return status, nil
 }
 
 func commandEnv(environment *appenv.Environment) []string {
@@ -123,19 +223,28 @@ func commandEnv(environment *appenv.Environment) []string {
 	return environment.Environ(nil)
 }
 
-func codexLoginStatus(path string, environment []string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), detectCommandTimeout)
+func codexLoginStatus(parent context.Context, path string, environment []string) (bool, error) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, detectCommandTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, path, "login", "status")
 	if environment != nil {
 		command.Env = environment
 	}
 	output, err := command.CombinedOutput()
-	if err != nil {
-		return false
-	}
 	value := strings.ToLower(strings.TrimSpace(string(output)))
-	return value != "" && !strings.Contains(value, "not logged in")
+	if strings.Contains(value, "not logged in") || strings.Contains(value, "未登录") {
+		return false, nil
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 type Config struct {
@@ -143,6 +252,7 @@ type Config struct {
 	Workspace             string
 	AdditionalDirectories []string
 	Model                 string
+	ReasoningEffort       string
 	Provider              string
 	DeveloperInstructions string
 	ThreadID              string
@@ -560,11 +670,18 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 		}
 		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
 	}
-	turnResult, err := request("turn/start", 3, map[string]any{
+	turnParams := map[string]any{
 		"threadId": threadID, "input": input,
 		"cwd": config.Workspace, "approvalPolicy": string(policy.Approval),
 		"sandboxPolicy": codexSandboxPolicy(policy, workspaceRoots),
-	})
+	}
+	if model := strings.TrimSpace(config.Model); model != "" {
+		turnParams["model"] = model
+	}
+	if effort := strings.TrimSpace(config.ReasoningEffort); effort != "" {
+		turnParams["effort"] = effort
+	}
+	turnResult, err := request("turn/start", 3, turnParams)
 	if err != nil {
 		return Result{}, err
 	}

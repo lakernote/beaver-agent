@@ -175,6 +175,7 @@ func (server *Server) resumeQueuedSessions() error {
 			_ = server.sessionsRepository().FailSession(session.ID, err, store.Usage{}, time.Now())
 			continue
 		}
+		model = pinCodexSessionModel(session, model)
 		_ = server.startQueuedTurn(session.ID, model)
 	}
 	return nil
