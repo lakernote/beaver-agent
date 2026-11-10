@@ -453,3 +453,49 @@ button { touch-action: manipulation; }
 /* 设置中心顶部已有页面标题，用量页不再重复一级标题 */
 .settings-hub-content > .usage-page > .page-intro .eyebrow, .settings-hub-content > .usage-page > .page-intro h1 { display: none; }
 .settings-hub-content > .usage-page > .page-intro { margin-bottom: 18px; }
+
+/* ===== Beaver 品牌主题：与图标一致的 海军蓝 / 蓝 / 青绿 / 暖棕 ===== */
+:root {
+  --brand: #2563eb;
+  --brand-deep: #172554;
+  --brand-teal: #2dd4bf;
+  --brand-warm: #b45309;
+  --surface: #ffffff;
+  --canvas: #f5f8fd;
+  --shadow-sm: 0 1px 2px rgba(23, 37, 84, .06), 0 2px 8px rgba(23, 37, 84, .05);
+  --shadow-md: 0 8px 28px rgba(23, 37, 84, .10);
+}
+body { background: var(--canvas); }
+.sidebar { background: linear-gradient(180deg, #f1f6ff 0%, #f7f9fd 100%); border-right-color: #e1e8f5; }
+.brand-copy small { font-family: inherit; color: #6b7a96; }
+.brand-copy strong { color: var(--brand-deep); letter-spacing: -.01em; }
+
+/* 会话列表 */
+.session-row:hover { background: #e9f0fc; }
+.session-row.active, .session-row.active:hover { background: #e0ebff; box-shadow: inset 3px 0 0 var(--brand); }
+.session-row.active .session-copy strong { color: var(--brand-deep); }
+.sidebar-quick-actions button { transition: transform .15s, box-shadow .15s, border-color .15s; }
+.sidebar-quick-actions button:hover { transform: translateY(-1px); border-color: #b6ccf5; box-shadow: var(--shadow-sm); }
+
+/* 对话 */
+.user-message { color: var(--brand-deep); background: #e3edff; border: 1px solid #d3e2fd; }
+.answer-text code { color: #1d4ed8; background: #eaf1ff; }
+pre { color: #dbe7ff; background: #0f1b3d; box-shadow: inset 0 0 0 1px #1e2f66; }
+.composer-wrap { background: linear-gradient(transparent, var(--canvas) 28%); }
+.composer { border-color: #cdd9ee; border-radius: 18px; box-shadow: var(--shadow-md); background: var(--surface); }
+.composer:focus-within { border-color: #7aa7f7; box-shadow: 0 0 0 4px #dbe8ff, var(--shadow-md); }
+.composer-runtime::before { background: var(--brand-teal); box-shadow: 0 0 0 3px #d1faf4; }
+.send-button { background: linear-gradient(135deg, #3b82f6, #1d4ed8); box-shadow: 0 4px 12px rgba(37, 99, 235, .3); }
+
+/* 首页 */
+.welcome h1 { color: var(--brand-deep); letter-spacing: -.03em; }
+.welcome .agent-orb { filter: drop-shadow(0 14px 22px rgba(23, 37, 84, .22)); }
+.suggestions button { border-color: #dfe8f6; background: var(--surface); box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s, border-color .15s; }
+.suggestions button:hover { transform: translateY(-2px); border-color: #b6ccf5; box-shadow: var(--shadow-md); }
+
+/* 设置中心 */
+.settings-hub-content > section, .settings-hub-content .settings-card { box-shadow: var(--shadow-sm); }
+.settings-nav button.active, .settings-nav-item.active { color: var(--brand-deep); background: #e0ebff; }
+
+/* 登录页 */
+.login-page, .login-shell { background: radial-gradient(1200px 500px at 50% -10%, #dbe8ff 0%, transparent 60%), var(--canvas); }

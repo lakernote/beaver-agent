@@ -180,7 +180,7 @@ export function Sidebar({ page, data, session, onPage, onOpen, onNew, onSession,
     </div>
     <button className={`sidebar-settings ${page !== 'chat' && page !== 'automations' ? 'active' : ''}`} type="button" aria-label="设置" aria-current={page !== 'chat' && page !== 'automations' ? 'page' : undefined} onClick={() => onPage('settings')}><Icon name="settings" /><span>设置</span></button>
     <div className="sidebar-feedback" aria-live="polite">{feedback}</div>
-    {notifications?.permission === 'default' && <button className="sidebar-notify" type="button" onClick={notifications.enable}>🔔 任务完成时通知我</button>}
+    {notifications?.permission === 'default' && <button className="sidebar-notify" type="button" onClick={notifications.enable}>开启任务完成通知</button>}
     <div className="sidebar-foot"><a href="https://github.com/lakernote/beaver-agent" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 打开 Beaver 仓库"><strong>Beaver</strong><span aria-hidden="true">↗</span></a><small>{displayVersion}</small></div>
     {editingSession && <RenameSessionDialog session={editingSession} projects={data.projects} busy={savingMetadata} onCancel={() => setEditingSession(null)} onSave={(title, projectId) => void saveSessionTitle(title, projectId)} onDelete={() => { const value = editingSession; setEditingSession(null); requestRemove(value) }} />}
     {projectDialogOpen && <ProjectDialog project={editingProject} projectCount={data.projects.length} busy={savingMetadata} onCancel={() => { setProjectDialogOpen(false); setEditingProject(null) }} onSave={(value) => void saveProject(value)} onDelete={() => editingProject && setPendingProjectDelete(editingProject)} />}

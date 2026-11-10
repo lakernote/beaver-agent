@@ -28,7 +28,7 @@ export function LoginPage({ onLogin, initialError = '' }: LoginPageProps) {
   return <main className="login-page">
     <section className="login-panel" aria-labelledby="login-title">
       <div className="login-brand"><span className="login-logo"><Logo /></span><span><strong>Beaver</strong><small>SELF-HOSTED AGENT WORKBENCH</small></span></div>
-      <div className="login-copy"><p className="login-kicker">团队任务工作台</p><h1 id="login-title">登录 Beaver</h1><p>在自己的服务器运行研发、测试和运维任务，并保留完整执行记录。</p></div>
+      <div className="login-copy"><p className="login-kicker">自托管 Agent 工作台</p><h1 id="login-title">登录 Beaver</h1><p>在你自己的服务器或电脑上运行研发、测试和运维任务，并保留完整执行记录。</p></div>
       <form onSubmit={submit} className="login-form">
         <label>用户名<input autoFocus name="username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></label>
         <label>密码<input name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
