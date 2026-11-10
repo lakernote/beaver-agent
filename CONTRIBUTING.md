@@ -9,7 +9,7 @@ make build
 ./bin/beaver -db ./data/beaver.db
 ```
 
-前端热更新：`make dev`（Vite :5173，`/api` 代理到 :8080），同时另开终端运行 `go run ./cmd/beaver -listen 127.0.0.1:8080`。`make test` 会一次性执行下方全部检查。参与前请阅读[行为准则](CODE_OF_CONDUCT.md)；安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+本地运行：`make serve`。前端热更新：`make api` 启动后端，另开终端 `make dev`（Vite :5173，`/api` 代理到 :8080）。`make test` 会一次性执行下方全部检查。参与前请阅读[行为准则](CODE_OF_CONDUCT.md)；安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
 修改后至少运行：
 

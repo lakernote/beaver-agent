@@ -194,7 +194,8 @@ Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环�
 
 ```bash
 make test   # 前端测试与构建、go vet、go test -race
-make dev    # 启动 Vite 前端（:5173）；另开终端运行 go run ./cmd/beaver -listen 127.0.0.1:8080
+make serve  # 本地一条命令：构建前端并启动 http://127.0.0.1:8080
+make api    # 热更新开发：后端（:8080）；另开终端 make dev 启动 Vite 前端（:5173）
 ```
 
 提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。

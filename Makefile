@@ -1,10 +1,20 @@
-.PHONY: dev build build-linux web test run container container-test clean
+.PHONY: serve api dev build build-linux web test run container container-test clean
 
 LINUX_ARCH ?= amd64
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 BUILD_FLAGS ?= -trimpath -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)"
 IMAGE ?= beaver:local
+
+# 本地开发一条命令：增量构建前端（不跑 npm ci）并仅监听 127.0.0.1:8080，数据在 data/beaver.db。
+serve:
+	cd web && ([ -d node_modules ] || npm ci) && npm run build
+	go run ./cmd/beaver -db data/beaver.db -listen 127.0.0.1:8080
+
+# 热更新开发的后端：需要 web/dist 已存在；另开终端执行 `make dev` 获得 :5173 前端热更新。
+api:
+	@[ -d web/dist ] || (cd web && npm ci && npm run build)
+	go run ./cmd/beaver -db data/beaver.db -listen 127.0.0.1:8080
 
 # 前端热更新开发服务（:5173，/api 代理到 :8080）；需另开终端运行后端。
 dev:
