@@ -497,5 +497,13 @@ pre { color: #dbe7ff; background: #0f1b3d; box-shadow: inset 0 0 0 1px #1e2f66; 
 .settings-hub-content > section, .settings-hub-content .settings-card { box-shadow: var(--shadow-sm); }
 .settings-nav button.active, .settings-nav-item.active { color: var(--brand-deep); background: #e0ebff; }
 
+/* 页面审查修复：空状态按钮、用量页留白、英文 eyebrow 不再用等宽大写 */
+.automation-empty .ghost-button, .automation-empty button { color: #1d4ed8; border-color: #93b4f0; background: #fff; }
+.automation-empty .ghost-button:hover, .automation-empty button:hover { background: #eff5ff; }
+.settings-hub-content > .usage-page { padding: 4px 2px 0; }
+.settings-hub-content > .usage-page > .page-intro { padding: 0 2px; }
+.settings-hub .usage-panel, .settings-hub .usage-kpis { box-shadow: none; }
+.settings-hub .eyebrow, .web-research-panel .eyebrow { font-family: inherit; text-transform: none; letter-spacing: .02em; }
+
 /* 登录页 */
 .login-page, .login-shell { background: radial-gradient(1200px 500px at 50% -10%, #dbe8ff 0%, transparent 60%), var(--canvas); }

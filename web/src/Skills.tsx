@@ -17,6 +17,12 @@ export function Skills({ data, onRefresh, onError }: { data: Bootstrap; onRefres
 
   // 自定义 Skill 在首次保存前还不在 data.skills 中，不能用第一项覆盖这份草稿。
   useEffect(() => {
+    if (!creating) return
+    const closeWithEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCreating(false) }
+    document.addEventListener('keydown', closeWithEscape)
+    return () => document.removeEventListener('keydown', closeWithEscape)
+  }, [creating])
+  useEffect(() => {
     const current = data.skills.find((item) => item.name === selectedName)
     if (current) setDraft({ ...current })
     setToggleState('idle')

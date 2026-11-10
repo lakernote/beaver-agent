@@ -168,6 +168,12 @@ function AutomationEditor({ task, data, busy, onCancel, onSave }: { task: Automa
     setProfileID(nextProfile?.id || '')
   }
 
+  useEffect(() => {
+    const closeWithEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onCancel() }
+    document.addEventListener('keydown', closeWithEscape)
+    return () => document.removeEventListener('keydown', closeWithEscape)
+  }, [busy, onCancel])
+
   return <div className="modal-backdrop" onMouseDown={() => !busy && onCancel()}>
     <section className="modal automation-editor" role="dialog" aria-modal="true" aria-labelledby="automation-editor-title" onMouseDown={(event) => event.stopPropagation()}>
       <div className="modal-head"><div><p className="eyebrow">定时任务</p><h2 id="automation-editor-title">{task ? '编辑任务' : '新建任务'}</h2></div><button type="button" aria-label="关闭" disabled={busy} onClick={onCancel}>×</button></div>
