@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/BurntSushi/toml v1.5.0 // 读写 Codex 配置 config.toml
-	github.com/modelcontextprotocol/go-sdk v1.7.0 // MCP 官方 Go SDK，用于动态接入外部 Agent 工具
+	github.com/modelcontextprotocol/go-sdk v1.8.0 // MCP 官方 Go SDK，用于动态接入外部 Agent 工具
 	golang.org/x/net v0.62.0 // 安全网络连接、HTML 解析和网页字符集解码
 	golang.org/x/oauth2 v0.35.0 // MCP OAuth authorization code 与 refresh token
 	modernc.org/sqlite v1.45.0 // 纯 Go SQLite 驱动，不依赖系统 SQLite 或 CGO
