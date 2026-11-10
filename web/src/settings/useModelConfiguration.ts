@@ -143,10 +143,11 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
 
   const activateCodexProvider = async (providerID: string) => {
     const profile = data.modelProfiles.find((candidate) => candidate.settings.runtime === 'codex')
-    if (!profile || savingModel) return
-    const next = { ...profile.settings, profileId: profile.id, profileName: profile.name, provider: providerID }
+    if (savingModel) return
+    const base = profile ? { ...profile.settings, profileId: profile.id, profileName: profile.name } : { ...draftProfile('codex'), profileName: 'Codex' }
+    const next = { ...base, provider: providerID }
     setModel(next); setSavingModel(true); setModelNotice(null); onError('')
-    try { await api.saveModel(next); await api.activateModelProfile(profile.id); await onRefresh() }
+    try { await api.saveModel(next); await api.activateModelProfile(next.profileId!); await onRefresh() }
     catch (reason) { onError((reason as Error).message) }
     finally { setSavingModel(false) }
   }
