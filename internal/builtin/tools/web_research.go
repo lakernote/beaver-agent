@@ -159,10 +159,6 @@ type researchEngine struct {
 	now       func() time.Time
 }
 
-func newDefaultResearchEngine() *researchEngine {
-	return newDefaultResearchEngineWithConfig(ResearchConfigFromEnvironment())
-}
-
 func newDefaultResearchEngineWithConfig(config ResearchConfig) *researchEngine {
 	return &researchEngine{
 		providers: researchSearchProviders(config),
@@ -600,11 +596,6 @@ func independentResearchDomainCount(sources []researchSource) int {
 		domains[host] = struct{}{}
 	}
 	return len(domains)
-}
-
-func deduplicateResearchSources(sources []researchSource) []researchSource {
-	result, _ := deduplicateResearchSourcesWithStats(sources)
-	return result
 }
 
 func deduplicateResearchSourcesWithStats(sources []researchSource) ([]researchSource, int) {

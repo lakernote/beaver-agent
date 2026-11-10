@@ -48,10 +48,6 @@ func shellToolWithPolicy(environment *appenv.Environment, policy permissions.Pol
 	}
 }
 
-func runShell(parent context.Context, environment *appenv.Environment, raw json.RawMessage) (string, error) {
-	return runShellWithPolicy(parent, environment, permissions.Default(), raw)
-}
-
 func runShellWithPolicy(parent context.Context, environment *appenv.Environment, policy permissions.Policy, raw json.RawMessage) (string, error) {
 	policy = policy.Normalize()
 	if policy.IsReadOnly() {

@@ -114,13 +114,6 @@ func weixinImageName(messageID int64, data []byte) string {
 	return fmt.Sprintf("weixin-image-%d%s", messageID, extension)
 }
 
-func joinWeixinText(left, right string) string {
-	if strings.TrimSpace(left) == "" {
-		return strings.TrimSpace(right)
-	}
-	return strings.TrimSpace(left) + "\n" + strings.TrimSpace(right)
-}
-
 func defaultWeixinMediaPrompt(attachments []store.Attachment) string {
 	for _, attachment := range attachments {
 		switch attachment.Kind {

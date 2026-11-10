@@ -78,10 +78,6 @@ func (value *researchHTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d", value.StatusCode)
 }
 
-func defaultResearchAdapters() []researchAdapter {
-	return researchAdapters(ResearchConfigFromEnvironment())
-}
-
 func researchAdapters(config ResearchConfig) []researchAdapter {
 	client := safeResearchHTTPClient(12 * time.Second)
 	token := strings.TrimSpace(config.Provider(ResearchProviderGitHub).Secret)

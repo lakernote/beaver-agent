@@ -36,10 +36,6 @@ type researchResolver interface {
 	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
 }
 
-func newResearchFetcher() *researchFetcher {
-	return newResearchFetcherWithConfig(ResearchConfigFromEnvironment())
-}
-
 func newResearchFetcherWithConfig(config ResearchConfig) *researchFetcher {
 	reader := config.Provider(ResearchProviderReader)
 	firecrawl := config.Provider(ResearchProviderFirecrawl)

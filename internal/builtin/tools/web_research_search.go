@@ -47,10 +47,6 @@ type tavilySearchProvider struct {
 	endpoint string
 }
 
-func defaultResearchSearchProviders() []researchSearchProvider {
-	return researchSearchProviders(ResearchConfigFromEnvironment())
-}
-
 func researchSearchProviders(config ResearchConfig) []researchSearchProvider {
 	client := &http.Client{Timeout: 12 * time.Second}
 	providers := make([]researchSearchProvider, 0, 6)
