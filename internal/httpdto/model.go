@@ -1,6 +1,6 @@
 package httpdto
 
-import "github.com/lakernote/easy-agent/internal/store"
+import "github.com/lakernote/beaver-agent/internal/store"
 
 // ModelSettings is the public model profile representation. Credentials and
 // legacy environment-variable selectors are intentionally not part of it.

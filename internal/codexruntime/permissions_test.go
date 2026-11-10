@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 func TestPermissionPolicyMapsToAppServer(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 )
 
 func TestListSessionsUsesCursorWindow(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestListSessionsUsesCursorWindow(t *testing.T) {
 }
 
 func TestOpenProtectsDatabaseFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "private", "easyagent.db")
+	path := filepath.Join(t.TempDir(), "private", "beaver.db")
 	database, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func TestOpenProtectsDatabaseFile(t *testing.T) {
 }
 
 func TestMCPOAuthCredentialIsSeparateAndCascadesWithMCP(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,18 +79,25 @@ func TestMCPOAuthCredentialIsSeparateAndCascadesWithMCP(t *testing.T) {
 }
 
 func TestDefaultAdminCanRotatePassword(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if valid, err := database.Authenticate("admin", "admin"); err != nil || !valid {
-		t.Fatalf("默认管理员认证失败: valid=%v err=%v", valid, err)
-	}
-	if err := database.ChangePassword("admin", "admin", "new-admin-password"); err != nil {
-		t.Fatal(err)
+	initial := database.InitialAdminPassword()
+	if len(initial) < 16 {
+		t.Fatalf("初始密码应为随机强密码: %q", initial)
 	}
 	if valid, err := database.Authenticate("admin", "admin"); err != nil || valid {
+		t.Fatalf("不应存在 admin/admin 默认密码: valid=%v err=%v", valid, err)
+	}
+	if valid, err := database.Authenticate("admin", initial); err != nil || !valid {
+		t.Fatalf("默认管理员认证失败: valid=%v err=%v", valid, err)
+	}
+	if err := database.ChangePassword("admin", initial, "new-admin-password"); err != nil {
+		t.Fatal(err)
+	}
+	if valid, err := database.Authenticate("admin", initial); err != nil || valid {
 		t.Fatalf("旧密码不应继续有效: valid=%v err=%v", valid, err)
 	}
 	if valid, err := database.Authenticate("admin", "new-admin-password"); err != nil || !valid {
@@ -138,7 +145,7 @@ func TestOpenMigratesLegacyCompactionSchema(t *testing.T) {
 }
 
 func TestSessionMessagesAndTraceUseSeparateRows(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +173,7 @@ func TestSessionMessagesAndTraceUseSeparateRows(t *testing.T) {
 }
 
 func TestStructuredToolResultRoundTripsWithoutFlattening(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +195,7 @@ func TestStructuredToolResultRoundTripsWithoutFlattening(t *testing.T) {
 }
 
 func TestSessionWindowBoundsMessagesAndEvents(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +242,7 @@ func TestSessionWindowBoundsMessagesAndEvents(t *testing.T) {
 }
 
 func TestRuntimeSessionLoadsOnlyMessagesAfterLatestCompaction(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +278,7 @@ func TestRuntimeSessionLoadsOnlyMessagesAfterLatestCompaction(t *testing.T) {
 }
 
 func TestAppendMessagesCommitsToolStepTogether(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +302,7 @@ func TestAppendMessagesCommitsToolStepTogether(t *testing.T) {
 }
 
 func TestMessageAttachmentsStayInSQLite(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +329,7 @@ func TestMessageAttachmentsStayInSQLite(t *testing.T) {
 }
 
 func TestCompactionSplitTurnRoundTripsInSQLite(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +350,7 @@ func TestCompactionSplitTurnRoundTripsInSQLite(t *testing.T) {
 }
 
 func TestSessionQueueRunAndCancelStates(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +390,7 @@ func TestSessionQueueRunAndCancelStates(t *testing.T) {
 }
 
 func TestRecoverRunningKeepsQueuedTasks(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +424,7 @@ func TestRecoverRunningKeepsQueuedTasks(t *testing.T) {
 }
 
 func TestPauseAndResumeQueuedSession(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +458,7 @@ func TestPauseAndResumeQueuedSession(t *testing.T) {
 }
 
 func TestRuntimeSettingsDefaultsAndNormalization(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +478,7 @@ func TestRuntimeSettingsDefaultsAndNormalization(t *testing.T) {
 }
 
 func TestPurgeExpiredSessionsCascadesHistoryButKeepsActiveSessions(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +527,7 @@ func TestPurgeExpiredSessionsCascadesHistoryButKeepsActiveSessions(t *testing.T)
 }
 
 func TestResearchSettingsDefaultsPersistenceAndNormalization(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +551,7 @@ func TestResearchSettingsDefaultsPersistenceAndNormalization(t *testing.T) {
 }
 
 func TestCountOtherSessionsUsingWorkspace(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -566,7 +573,7 @@ func TestCountOtherSessionsUsingWorkspace(t *testing.T) {
 }
 
 func TestEnqueueTurnCommitsStateAndMessageAtomically(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -601,7 +608,7 @@ func TestEnqueueTurnCommitsStateAndMessageAtomically(t *testing.T) {
 }
 
 func TestQueuedTurnKeepsImmutableModelSnapshot(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,7 +642,7 @@ func TestQueuedTurnKeepsImmutableModelSnapshot(t *testing.T) {
 }
 
 func TestFinishSessionDoesNotOverwriteCancellation(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,14 +669,14 @@ func TestFinishSessionDoesNotOverwriteCancellation(t *testing.T) {
 	}
 }
 
-func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
-	value, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+func TestRecoverRunningMarksBeaverAndCodexToolsUnknown(t *testing.T) {
+	value, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer value.Close()
 	now := time.Now()
-	for _, runtime := range []Runtime{RuntimeEasyAgent, RuntimeCodex} {
+	for _, runtime := range []Runtime{RuntimeBeaver, RuntimeCodex} {
 		id := "session-" + string(runtime)
 		if _, err := value.CreateSession(CreateSessionParams{ID: id, Title: string(runtime), Runtime: runtime, Model: "fixture", CreatedAt: now}); err != nil {
 			t.Fatal(err)
@@ -690,11 +697,11 @@ func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
 	if err := value.RecoverRunning(now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	for _, runtime := range []Runtime{RuntimeEasyAgent, RuntimeCodex} {
+	for _, runtime := range []Runtime{RuntimeBeaver, RuntimeCodex} {
 		id := "session-" + string(runtime)
 		operations, err := value.ListToolOperations(id)
 		expectedGuarantee := ToolGuaranteeObserved
-		if runtime == RuntimeEasyAgent {
+		if runtime == RuntimeBeaver {
 			expectedGuarantee = ToolGuaranteePreEffect
 		}
 		if err != nil || len(operations) != 1 || operations[0].Status != ToolOperationUnknown || operations[0].Guarantee != expectedGuarantee {
@@ -704,5 +711,24 @@ func TestRecoverRunningMarksEasyAgentAndCodexToolsUnknown(t *testing.T) {
 		if err != nil || len(events) != 1 || events[0].Kind != "tool_unknown" || events[0].Status != string(ToolOperationUnknown) {
 			t.Fatalf("%s 缺少可见 unknown Trace: events=%+v err=%v", runtime, events, err)
 		}
+	}
+}
+
+func TestResetAdminPassword(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	initial := database.InitialAdminPassword()
+	reset, err := database.ResetAdminPassword()
+	if err != nil || reset == initial {
+		t.Fatalf("重置应生成新密码: %v", err)
+	}
+	if valid, _ := database.Authenticate("admin", reset); !valid {
+		t.Fatal("新密码应有效")
+	}
+	if valid, _ := database.Authenticate("admin", initial); valid {
+		t.Fatal("旧密码应失效")
 	}
 }

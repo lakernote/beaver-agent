@@ -1,6 +1,6 @@
 package httpdto
 
-import "github.com/lakernote/easy-agent/internal/store"
+import "github.com/lakernote/beaver-agent/internal/store"
 
 // MCPConfig deliberately excludes token and password fields. Secret-bearing
 // args, headers, and environment values must be redacted before conversion.

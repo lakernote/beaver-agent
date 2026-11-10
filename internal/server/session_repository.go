@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // sessionRepository is the application-facing persistence boundary for

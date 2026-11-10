@@ -1,4 +1,4 @@
-// Package appenv 管理 EasyAgent 自己的数据目录、工作区和命令运行环境。
+// Package appenv 管理 Beaver 自己的数据目录、工作区和命令运行环境。
 //
 // 服务进程可能由 systemd、launchd 或 Docker 启动，此时进程 CWD 和 PATH 都不可靠。
 // 这个包在启动时把这些隐式状态解析成明确的绝对路径，后续 Tool、MCP 和依赖安装
@@ -40,7 +40,7 @@ type Environment struct {
 	commandCache map[string]string
 }
 
-// Open 解析目录、创建 EasyAgent 自己需要的目录，并生成确定性的 PATH。
+// Open 解析目录、创建 Beaver 自己需要的目录，并生成确定性的 PATH。
 func Open(config Config) (*Environment, error) {
 	home, err := configuredHome(config.Home)
 	if err != nil {
@@ -54,10 +54,10 @@ func Open(config Config) (*Environment, error) {
 	binDirectory := filepath.Join(runtimeDirectory, "bin")
 	mcpDirectory := filepath.Join(runtimeDirectory, "mcp")
 	for _, directory := range []string{home, workspace, runtimeDirectory, binDirectory, mcpDirectory} {
-		// EasyAgent Home、运行时和默认工作区可能包含凭证、数据库及工具输出，
+		// Beaver Home、运行时和默认工作区可能包含凭证、数据库及工具输出，
 		// 新建目录默认只允许当前用户访问；已有用户工作区不强行改权限。
 		if err := os.MkdirAll(directory, 0o700); err != nil {
-			return nil, fmt.Errorf("创建 EasyAgent 目录 %s: %w", directory, err)
+			return nil, fmt.Errorf("创建 Beaver 目录 %s: %w", directory, err)
 		}
 	}
 	privateDirectories := []string{home, runtimeDirectory, binDirectory, mcpDirectory}
@@ -66,7 +66,7 @@ func Open(config Config) (*Environment, error) {
 	}
 	for _, directory := range privateDirectories {
 		if err := os.Chmod(directory, 0o700); err != nil {
-			return nil, fmt.Errorf("保护 EasyAgent 目录 %s: %w", directory, err)
+			return nil, fmt.Errorf("保护 Beaver 目录 %s: %w", directory, err)
 		}
 	}
 
@@ -87,7 +87,7 @@ func configuredHome(value string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("读取用户目录: %w", err)
 		}
-		value = filepath.Join(userHome, ".easyagent")
+		value = filepath.Join(userHome, ".beaver")
 	}
 	return cleanAbsolute(value)
 }
@@ -175,7 +175,7 @@ func (environment *Environment) Runtime() string { return environment.runtime }
 func (environment *Environment) Bin() string     { return environment.bin }
 func (environment *Environment) Path() string    { return environment.path }
 
-// WithWorkspace 为一次会话选择工作区。空值表示使用 EasyAgent 的默认工作区；
+// WithWorkspace 为一次会话选择工作区。空值表示使用 Beaver 的默认工作区；
 // 用户提供的目录必须已经存在且必须是目录。返回新 Environment，避免并发会话
 // 修改进程级状态，也避免一个会话的工作区泄漏到另一个会话。
 func (environment *Environment) WithWorkspace(value string) (*Environment, error) {
@@ -284,7 +284,7 @@ func (environment *Environment) ResolveWorkspacePath(value string) (string, erro
 	return "", errors.New("路径必须位于当前项目的源文件夹中")
 }
 
-// ResolveCommand 只根据 EasyAgent 的 PATH 查找命令；不会依赖进程当前目录。
+// ResolveCommand 只根据 Beaver 的 PATH 查找命令；不会依赖进程当前目录。
 func (environment *Environment) ResolveCommand(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {

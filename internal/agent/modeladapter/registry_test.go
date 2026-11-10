@@ -3,7 +3,7 @@ package modeladapter
 import (
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func TestBuiltInRegistryExposesNativeAndCompatibleProtocols(t *testing.T) {

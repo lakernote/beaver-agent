@@ -1,4 +1,4 @@
-// Package httpdto defines the stable JSON contract exposed by EasyAgent's
+// Package httpdto defines the stable JSON contract exposed by Beaver's
 // HTTP API. Persistence structs are converted here instead of being serialized
 // directly, so database changes do not silently alter the public API.
 package httpdto
@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type Session struct {

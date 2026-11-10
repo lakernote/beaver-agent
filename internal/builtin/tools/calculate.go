@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
 // calculateTool 使用 Go 标准库解析表达式，不依赖 Python、Node、bc 等外部运行时。

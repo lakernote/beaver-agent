@@ -1,6 +1,6 @@
 // Package permissions contains the runtime-independent permission contract.
 //
-// EasyAgent and Codex have different execution engines, but users should not
+// Beaver and Codex have different execution engines, but users should not
 // have to learn two permission vocabularies. The adapters translate this
 // policy into their native tool/sandbox controls.
 package permissions
@@ -94,7 +94,7 @@ func (policy Policy) IsReadOnly() bool { return policy.Normalize().Mode == ModeR
 
 func (policy Policy) IsFullAccess() bool { return policy.Normalize().Mode == ModeFullAccess }
 
-// EffectiveWritableRoots returns the roots that the EasyAgent adapter should
+// EffectiveWritableRoots returns the roots that the Beaver adapter should
 // enforce for a session. A caller supplies workspace-derived defaults so a
 // global policy remains valid for per-session worktrees.
 func (policy Policy) EffectiveWritableRoots(defaults []string) []string {

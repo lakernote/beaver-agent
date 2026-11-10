@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 const (
@@ -299,7 +299,7 @@ func refreshStructuredTruncation(raw json.RawMessage, metadata *agent.ToolResult
 	if json.Unmarshal(raw, &value) != nil {
 		return raw
 	}
-	value["_easyagent_truncation"] = metadata
+	value["_beaver_truncation"] = metadata
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return raw
@@ -333,17 +333,17 @@ func compactStructuredResult(raw json.RawMessage, target int, metadata *agent.To
 	var value any
 	if json.Unmarshal(raw, &value) != nil {
 		preview := compactTextToTokens(string(raw), max(16, target/2), " … ")
-		encoded, _ := json.Marshal(map[string]any{"_easyagent_truncation": metadata, "preview": preview})
+		encoded, _ := json.Marshal(map[string]any{"_beaver_truncation": metadata, "preview": preview})
 		return encoded, 0
 	}
-	budget := max(16, target-estimateTextTokens(`{"_easyagent_truncation":{}}`)-24)
+	budget := max(16, target-estimateTextTokens(`{"_beaver_truncation":{}}`)-24)
 	summary, omitted := summarizeJSON(value, budget, 0)
-	encoded, _ := json.Marshal(map[string]any{"_easyagent_truncation": metadata, "value": summary})
+	encoded, _ := json.Marshal(map[string]any{"_beaver_truncation": metadata, "value": summary})
 	if estimateTextTokens(string(encoded)) <= target {
 		return encoded, omitted
 	}
 	preview := compactTextToTokens(string(raw), max(16, target/2), " … ")
-	encoded, _ = json.Marshal(map[string]any{"_easyagent_truncation": metadata, "preview": preview})
+	encoded, _ = json.Marshal(map[string]any{"_beaver_truncation": metadata, "preview": preview})
 	return encoded, max(omitted, 1)
 }
 

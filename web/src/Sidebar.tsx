@@ -1,3 +1,4 @@
+import type { TaskNotifications } from './notifications'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
@@ -8,7 +9,7 @@ import { ChevronIcon, Icon, Logo, MoreIcon, ProjectIcon, WeixinIcon } from './ui
 import { ConfirmDialog, ProjectDialog, RenameSessionDialog } from './dialogs'
 
 type Project = Bootstrap['projects'][number]
-const collapsedProjectsKey = 'easyagent.sidebar.collapsed-projects'
+const collapsedProjectsKey = 'beaver.sidebar.collapsed-projects'
 
 function initialCollapsedProjects() {
   try {
@@ -17,7 +18,7 @@ function initialCollapsedProjects() {
   } catch { return new Set<string>() }
 }
 
-export function Sidebar({ page, data, session, onPage, onOpen, onNew, onSession, onFork, onRefresh, onLoadOlder, onError }: { page: Page; data: Bootstrap; session: Session | null; onPage: (page: Page) => void; onOpen: (id: string) => void; onNew: () => void; onSession: (value: Session) => void; onFork: (value: Session) => void; onRefresh: () => Promise<Bootstrap>; onLoadOlder: (beforeUpdatedAt: string, beforeID: string) => Promise<void>; onError: (value: string) => void }) {
+export function Sidebar({ page, data, session, onPage, onOpen, onNew, onSession, onFork, onRefresh, onLoadOlder, onError, notifications }: { page: Page; data: Bootstrap; session: Session | null; onPage: (page: Page) => void; onOpen: (id: string) => void; onNew: () => void; onSession: (value: Session) => void; onFork: (value: Session) => void; onRefresh: () => Promise<Bootstrap>; onLoadOlder: (beforeUpdatedAt: string, beforeID: string) => Promise<void>; onError: (value: string) => void; notifications?: TaskNotifications }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
   const [managing, setManaging] = useState(false)
@@ -150,14 +151,14 @@ export function Sidebar({ page, data, session, onPage, onOpen, onNew, onSession,
     const canFork = item.runtime === 'codex' && !isActive(item.status) && item.status !== 'paused'
     return <div key={item.id} className={`session-row ${session?.id === item.id ? 'active' : ''} ${automation ? 'automation-session' : ''} ${managing ? 'managing' : ''} ${openSessionMenu === item.id ? 'menu-open' : ''}`}>
       {managing && <label className="session-select" title={isActive(item.status) ? '运行中的会话不能删除' : '选择会话'}><input type="checkbox" checked={selectedIds.has(item.id)} disabled={isActive(item.status)} onChange={() => toggleSelected(item.id)} aria-label={`选择会话 ${title}`} /></label>}
-      <button className="session-open" onClick={() => { closeSessionMenu(); onOpen(item.id) }} aria-current={session?.id === item.id ? 'page' : undefined} title={title}>{automation ? <span className={`session-type-icon automation ${item.status}`} aria-label="定时任务"><Icon name="automation" /></span> : weixin ? <span className={`session-type-icon weixin ${item.status}`} aria-label="微信会话"><WeixinIcon /></span> : <span className={`status ${item.status}`} />}<span className="session-copy"><strong>{title}</strong><small>{formatTime(item.updatedAt)} · {isActive(item.status) ? item.runProgress || '运行中' : `${statusLabel(item.status)} · ${item.runtime === 'codex' ? 'Codex' : 'EasyAgent'}${item.model ? ` · ${item.model}` : ''}`}</small></span></button>
+      <button className="session-open" onClick={() => { closeSessionMenu(); onOpen(item.id) }} aria-current={session?.id === item.id ? 'page' : undefined} title={title}>{automation ? <span className={`session-type-icon automation ${item.status}`} aria-label="定时任务"><Icon name="automation" /></span> : weixin ? <span className={`session-type-icon weixin ${item.status}`} aria-label="微信会话"><WeixinIcon /></span> : <span className={`status ${item.status}`} />}<span className="session-copy"><strong>{title}</strong><small>{formatTime(item.updatedAt)} · {isActive(item.status) ? item.runProgress || '运行中' : `${statusLabel(item.status)} · ${item.runtime === 'codex' ? 'Codex' : 'Beaver'}${item.model ? ` · ${item.model}` : ''}`}</small></span></button>
       {!managing && <><button className="session-more" aria-label={`会话操作 ${title}`} aria-expanded={openSessionMenu === item.id} aria-haspopup="menu" title="会话操作" onClick={(event) => { event.stopPropagation(); if (openSessionMenu === item.id) { closeSessionMenu(); return }; const rect = event.currentTarget.getBoundingClientRect(); const menuWidth = 142; const menuHeight = canFork ? 122 : 82; const preferredTop = rect.bottom + 4; const top = preferredTop + menuHeight <= window.innerHeight - 8 ? preferredTop : Math.max(8, rect.top - menuHeight - 4); const left = Math.min(Math.max(8, rect.right - menuWidth), Math.max(8, window.innerWidth - menuWidth - 8)); setOpenSessionMenu(item.id); setSessionMenuPosition({ top, left }) }}><MoreIcon /></button>{openSessionMenu === item.id && sessionMenuPosition && createPortal(<div className="session-action-menu" role="menu" aria-label={`${title} 的会话操作`} style={{ top: sessionMenuPosition.top, left: sessionMenuPosition.left }} onClick={(event) => event.stopPropagation()}><button type="button" role="menuitem" onClick={() => { closeSessionMenu(); setEditingSession(item) }}>编辑会话</button>{canFork && <button type="button" role="menuitem" onClick={() => { closeSessionMenu(); onFork(item) }}>创建对话分支</button>}<button className="danger" type="button" role="menuitem" disabled={isActive(item.status)} onClick={() => { closeSessionMenu(); requestRemove(item) }}>删除会话</button></div>, document.body)}</>}
     </div>
   }
 
   const leaveManaging = () => { setManaging(false); setSelectedIds(new Set()) }
   return <aside className="sidebar">
-    <div className="brand"><div className="brand-mark"><Logo /></div><strong>EasyAgent</strong></div>
+    <div className="brand"><div className="brand-mark"><Logo /></div><span className="brand-copy"><strong>Beaver</strong><small>自托管 Agent 工作台</small></span></div>
     <div className="sidebar-quick-actions" aria-label="快捷操作">
       <button className="new-chat" onClick={onNew}><span aria-hidden="true">＋</span><strong>新会话</strong></button>
       <button className={`automation-nav ${page === 'automations' ? 'active' : ''}`} type="button" aria-current={page === 'automations' ? 'page' : undefined} onClick={() => onPage('automations')}><Icon name="automation" /><span><strong>定时任务</strong></span></button>
@@ -179,10 +180,11 @@ export function Sidebar({ page, data, session, onPage, onOpen, onNew, onSession,
     </div>
     <button className={`sidebar-settings ${page !== 'chat' && page !== 'automations' ? 'active' : ''}`} type="button" aria-label="设置" aria-current={page !== 'chat' && page !== 'automations' ? 'page' : undefined} onClick={() => onPage('settings')}><Icon name="settings" /><span>设置</span></button>
     <div className="sidebar-feedback" aria-live="polite">{feedback}</div>
-    <div className="sidebar-foot"><a href="https://github.com/lakernote/easy-agent" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 打开 EasyAgent 仓库"><strong>EasyAgent</strong><span aria-hidden="true">↗</span></a><small>{displayVersion}</small></div>
+    {notifications?.permission === 'default' && <button className="sidebar-notify" type="button" onClick={notifications.enable}>🔔 任务完成时通知我</button>}
+    <div className="sidebar-foot"><a href="https://github.com/lakernote/beaver-agent" target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 打开 Beaver 仓库"><strong>Beaver</strong><span aria-hidden="true">↗</span></a><small>{displayVersion}</small></div>
     {editingSession && <RenameSessionDialog session={editingSession} projects={data.projects} busy={savingMetadata} onCancel={() => setEditingSession(null)} onSave={(title, projectId) => void saveSessionTitle(title, projectId)} onDelete={() => { const value = editingSession; setEditingSession(null); requestRemove(value) }} />}
     {projectDialogOpen && <ProjectDialog project={editingProject} projectCount={data.projects.length} busy={savingMetadata} onCancel={() => { setProjectDialogOpen(false); setEditingProject(null) }} onSave={(value) => void saveProject(value)} onDelete={() => editingProject && setPendingProjectDelete(editingProject)} />}
     {pendingDelete.length > 0 && <ConfirmDialog title={pendingDelete.length === 1 ? '删除这个会话？' : `删除选中的 ${pendingDelete.length} 个会话？`} description="会话消息和对应的 Agent Trace 将一起删除，删除后无法恢复。" subject={pendingDelete.length === 1 ? pendingDelete[0].title : pendingDelete.map((item) => item.title).join('、')} confirmLabel={pendingDelete.length === 1 ? '删除会话' : `删除 ${pendingDelete.length} 个会话`} busy={deleting} onCancel={() => setPendingDelete([])} onConfirm={confirmRemove} />}
-    {pendingProjectDelete && <ConfirmDialog title="移除这个本地项目？" description="只移除 EasyAgent 中的项目配置，不会删除服务器上的源文件夹；已有会话仍会保留。" subject={pendingProjectDelete.name} confirmLabel="移除项目" busy={savingMetadata} onCancel={() => setPendingProjectDelete(null)} onConfirm={() => void confirmProjectDelete()} />}
+    {pendingProjectDelete && <ConfirmDialog title="移除这个本地项目？" description="只移除 Beaver 中的项目配置，不会删除服务器上的源文件夹；已有会话仍会保留。" subject={pendingProjectDelete.name} confirmLabel="移除项目" busy={savingMetadata} onCancel={() => setPendingProjectDelete(null)} onConfirm={() => void confirmProjectDelete()} />}
   </aside>
 }

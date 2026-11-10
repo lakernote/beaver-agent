@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 const (

@@ -228,7 +228,7 @@ func defaultModelProfileName(value ModelSettings) string {
 	if value.Runtime == RuntimeCodex {
 		return "Codex 默认配置"
 	}
-	return "EasyAgent 默认配置"
+	return "Beaver 默认配置"
 }
 
 func filteredModelSettings(profiles []ModelProfile, activeID string) ModelSettings {

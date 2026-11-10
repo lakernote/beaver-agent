@@ -3,9 +3,9 @@ package server
 import (
 	"sort"
 
-	builtinskills "github.com/lakernote/easy-agent/internal/builtin/skills"
-	builtintools "github.com/lakernote/easy-agent/internal/builtin/tools"
-	"github.com/lakernote/easy-agent/internal/store"
+	builtinskills "github.com/lakernote/beaver-agent/internal/builtin/skills"
+	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 var coreSkillOrder = map[string]int{

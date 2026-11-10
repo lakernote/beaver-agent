@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // taskManager 只负责进程内任务状态，不参与 SQLite 持久化。

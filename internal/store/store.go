@@ -14,7 +14,8 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db                   *sql.DB
+	initialAdminPassword string
 }
 
 func Open(path string) (*Store, error) {

@@ -8,7 +8,7 @@ import { Metric } from './chat/Metrics'
 
 type TraceMode = 'timeline' | 'stats' | 'raw'
 type TraceFilter = 'all' | 'input' | 'llm' | 'tool' | 'usage' | 'status' | 'error'
-type RawTraceSource = 'session' | 'app-server' | 'easyagent'
+type RawTraceSource = 'session' | 'app-server' | 'beaver'
 
 export function TracePanel({ session, onLoadOlder, onError, onClose }: { session: Session; onLoadOlder: (id: string, kind: 'messages' | 'events', before: number) => Promise<void>; onError: (value: string) => void; onClose: () => void }) {
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -32,7 +32,7 @@ export function TracePanel({ session, onLoadOlder, onError, onClose }: { session
     })
   }, [events, filter])
   const groups = useMemo(() => groupEventsByTurn(visibleEvents), [visibleEvents])
-  const runtimeName = isCodexRuntime ? 'Codex app-server' : 'EasyAgent Runtime'
+  const runtimeName = isCodexRuntime ? 'Codex app-server' : 'Beaver Runtime'
   const activeModel = session.model || persistedModel || (isCodexRuntime ? 'Codex 默认模型' : 'Runtime 默认模型')
   const rounds = useMemo(() => new Set(events.map((event) => event.turn).filter(Boolean)).size, [events])
   useEffect(() => {
@@ -65,7 +65,7 @@ export function TracePanel({ session, onLoadOlder, onError, onClose }: { session
 }
 
 function TraceHistoryControls({ session, loading, onLoadOlder }: { session: Session; loading: boolean; onLoadOlder: () => Promise<void> }) {
-  return <>{session.eventsTruncated && <div className="trace-history-note">当前展示最近的运行记录，更早记录仍保存在 EasyAgent SQLite 中。</div>}{session.eventsHasMore && session.events.length > 0 && <button className="history-load-more" onClick={() => void onLoadOlder()} disabled={loading}>{loading ? '加载中…' : '加载更早记录'}</button>}</>
+  return <>{session.eventsTruncated && <div className="trace-history-note">当前展示最近的运行记录，更早记录仍保存在 Beaver SQLite 中。</div>}{session.eventsHasMore && session.events.length > 0 && <button className="history-load-more" onClick={() => void onLoadOlder()} disabled={loading}>{loading ? '加载中…' : '加载更早记录'}</button>}</>
 }
 
 function TraceTurn({ label, events, fallbackModel }: { label: string; events: TraceEvent[]; fallbackModel: string }) {
@@ -146,7 +146,7 @@ function TraceStatistics({ session, events }: { session: Session; events: TraceE
   const cacheRate = session.usage.cacheReported && session.usage.cacheInputTokens > 0 ? `${Math.round(session.usage.cachedTokens / session.usage.cacheInputTokens * 100)}%` : '未上报'
   const calls = useMemo(() => aggregateTraceCalls(events), [events])
   return <div className="trace-stats-view">
-    <section className="trace-stats-section"><header><div><span>本次会话</span><h3>用量与耗时</h3></div><small>来自 EasyAgent 保存的运行事件</small></header><div className="trace-stat-grid"><Metric label="总 Token" value={formatTokenCount(session.usage.totalTokens)} className="metric-primary" /><Metric label="输入 Token" value={formatTokenCount(session.usage.inputTokens)} /><Metric label="输出 Token" value={formatTokenCount(session.usage.outputTokens)} /><Metric label="缓存率" value={cacheRate} /><Metric label="模型耗时" value={formatDuration(session.usage.modelDurationMs)} /><Metric label="工具耗时" value={formatDuration(session.usage.toolDurationMs)} /></div></section>
+    <section className="trace-stats-section"><header><div><span>本次会话</span><h3>用量与耗时</h3></div><small>来自 Beaver 保存的运行事件</small></header><div className="trace-stat-grid"><Metric label="总 Token" value={formatTokenCount(session.usage.totalTokens)} className="metric-primary" /><Metric label="输入 Token" value={formatTokenCount(session.usage.inputTokens)} /><Metric label="输出 Token" value={formatTokenCount(session.usage.outputTokens)} /><Metric label="缓存率" value={cacheRate} /><Metric label="模型耗时" value={formatDuration(session.usage.modelDurationMs)} /><Metric label="工具耗时" value={formatDuration(session.usage.toolDurationMs)} /></div></section>
     <section className="trace-stats-section"><header><div><span>调用明细</span><h3>按能力聚合</h3></div><small>{calls.length} 类调用</small></header>{calls.length === 0 ? <div className="trace-empty">还没有可统计的调用</div> : <div className="trace-call-table"><div className="trace-call-table-head"><span>调用</span><span>次数</span><span>失败</span><span>耗时</span></div>{calls.map((call) => <div className="trace-call-table-row" key={call.key}><div><span className={`trace-kind ${call.category}`}>{traceCategoryLabel(call.category)}</span><strong>{call.label}</strong></div><b>{call.count}</b><b className={call.failed ? 'failed' : ''}>{call.failed}</b><code>{call.duration > 0 ? formatDuration(call.duration) : '未上报'}</code></div>)}</div>}</section>
   </div>
 }
@@ -169,12 +169,12 @@ function aggregateTraceCalls(events: TraceEvent[]) {
 
 function RawTraceRecords({ session, events }: { session: Session; events: TraceEvent[] }) {
   const runtime = session.runtime
-  const [source, setSource] = useState<RawTraceSource>(runtime === 'codex' ? 'session' : 'easyagent')
+  const [source, setSource] = useState<RawTraceSource>(runtime === 'codex' ? 'session' : 'beaver')
   const [sessionLog, setSessionLog] = useState<CodexSessionLogPage | null>(null)
   const [sessionLogLoading, setSessionLogLoading] = useState(false)
   const [sessionLogError, setSessionLogError] = useState('')
-  const effectiveSource = runtime === 'codex' ? source : 'easyagent'
-  const records = useMemo(() => events.filter((event) => effectiveSource === 'easyagent' || isAppServerEvent(event)), [events, effectiveSource])
+  const effectiveSource = runtime === 'codex' ? source : 'beaver'
+  const records = useMemo(() => events.filter((event) => effectiveSource === 'beaver' || isAppServerEvent(event)), [events, effectiveSource])
   const loadSessionLog = async (cursor = 0, append = false) => {
     if (sessionLogLoading || runtime !== 'codex') return
     setSessionLogLoading(true)
@@ -189,7 +189,7 @@ function RawTraceRecords({ session, events }: { session: Session; events: TraceE
     }
   }
   useEffect(() => {
-    setSource(runtime === 'codex' ? 'session' : 'easyagent')
+    setSource(runtime === 'codex' ? 'session' : 'beaver')
     setSessionLog(null)
     setSessionLogError('')
   }, [runtime, session.id])
@@ -197,8 +197,8 @@ function RawTraceRecords({ session, events }: { session: Session; events: TraceE
     if (effectiveSource === 'session' && !sessionLog && !sessionLogLoading && !sessionLogError) void loadSessionLog()
   }, [effectiveSource, sessionLog, sessionLogLoading, sessionLogError])
   return <div className="trace-raw-view">
-    <div className="trace-source-tabs" role="tablist" aria-label="原始记录来源">{runtime === 'codex' && <button type="button" role="tab" aria-selected={effectiveSource === 'session'} className={effectiveSource === 'session' ? 'active' : ''} onClick={() => setSource('session')}>Session</button>}<button type="button" role="tab" aria-selected={effectiveSource === 'app-server'} className={effectiveSource === 'app-server' ? 'active' : ''} onClick={() => setSource('app-server')} disabled={runtime !== 'codex'}>App Server</button><button type="button" role="tab" aria-selected={effectiveSource === 'easyagent'} className={effectiveSource === 'easyagent' ? 'active' : ''} onClick={() => setSource('easyagent')}>EasyAgent</button></div>
-    {effectiveSource === 'session' ? <CodexSessionLogRecords page={sessionLog} loading={sessionLogLoading} error={sessionLogError} onRefresh={() => { setSessionLog(null); setSessionLogError('') }} onLoadMore={() => void loadSessionLog(sessionLog?.nextCursor || 0, true)} /> : <><p className="trace-raw-note">{effectiveSource === 'app-server' ? 'Codex app-server 的 JSON-RPC 请求与事件；这些原始消息已由 EasyAgent 实时采集并保存在 SQLite。' : 'EasyAgent 的完整运行事件；没有原始协议包的记录会显示规范化后的事件 JSON。'}</p><div className="trace-raw-list">{records.length === 0 ? <div className="trace-empty">还没有原始记录</div> : records.map((event) => <RawTraceRow event={event} key={event.id} />)}</div></>}
+    <div className="trace-source-tabs" role="tablist" aria-label="原始记录来源">{runtime === 'codex' && <button type="button" role="tab" aria-selected={effectiveSource === 'session'} className={effectiveSource === 'session' ? 'active' : ''} onClick={() => setSource('session')}>Session</button>}<button type="button" role="tab" aria-selected={effectiveSource === 'app-server'} className={effectiveSource === 'app-server' ? 'active' : ''} onClick={() => setSource('app-server')} disabled={runtime !== 'codex'}>App Server</button><button type="button" role="tab" aria-selected={effectiveSource === 'beaver'} className={effectiveSource === 'beaver' ? 'active' : ''} onClick={() => setSource('beaver')}>Beaver</button></div>
+    {effectiveSource === 'session' ? <CodexSessionLogRecords page={sessionLog} loading={sessionLogLoading} error={sessionLogError} onRefresh={() => { setSessionLog(null); setSessionLogError('') }} onLoadMore={() => void loadSessionLog(sessionLog?.nextCursor || 0, true)} /> : <><p className="trace-raw-note">{effectiveSource === 'app-server' ? 'Codex app-server 的 JSON-RPC 请求与事件；这些原始消息已由 Beaver 实时采集并保存在 SQLite。' : 'Beaver 的完整运行事件；没有原始协议包的记录会显示规范化后的事件 JSON。'}</p><div className="trace-raw-list">{records.length === 0 ? <div className="trace-empty">还没有原始记录</div> : records.map((event) => <RawTraceRow event={event} key={event.id} />)}</div></>}
   </div>
 }
 
@@ -206,7 +206,7 @@ function CodexSessionLogRecords({ page, loading, error, onRefresh, onLoadMore }:
   if (!page && loading) return <div className="trace-session-loading"><span className="spinner" />正在读取 Codex 持久化会话…</div>
   if (!page && error) return <div className="trace-session-state error"><strong>Session JSONL 读取失败</strong><span>{error}</span><button type="button" onClick={onRefresh}>重试</button></div>
   if (!page) return null
-  if (!page.available) return <div className="trace-session-state"><strong>没有可读取的 Session JSONL</strong><span>{page.message || '当前会话只有 EasyAgent 保存的运行事件。'}</span><button type="button" onClick={onRefresh}>重新检测</button></div>
+  if (!page.available) return <div className="trace-session-state"><strong>没有可读取的 Session JSONL</strong><span>{page.message || '当前会话只有 Beaver 保存的运行事件。'}</span><button type="button" onClick={onRefresh}>重新检测</button></div>
   return <>
     <div className="trace-session-summary"><div><strong>Codex Session JSONL</strong><span>{page.path}</span></div><div>{page.model && <span>模型 <b>{page.model}</b></span>}{page.source && <span>来源 <b>{page.source}</b></span>}<button type="button" onClick={onRefresh} disabled={loading}>{loading ? '刷新中…' : '刷新'}</button></div></div>
     <p className="trace-raw-note">Codex 持久化的完整会话日志，服务重启后仍可读取。内容按行解析并隐藏凭证字段；L 表示原文件行号。</p>

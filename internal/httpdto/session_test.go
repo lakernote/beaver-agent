@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestSessionFromStoreOmitsPersistenceOnlyData(t *testing.T) {
 	value := store.Session{
-		ID: "session", Status: store.SessionRunning, Runtime: store.RuntimeEasyAgent,
+		ID: "session", Status: store.SessionRunning, Runtime: store.RuntimeBeaver,
 		PendingModel: json.RawMessage(`{"apiKey":"SECRET_PENDING"}`),
 		ProviderKey:  "SECRET_PROVIDER", ResponseID: "SECRET_RESPONSE",
 		Messages: []store.Message{{
@@ -35,7 +35,7 @@ func TestSessionFromStoreOmitsPersistenceOnlyData(t *testing.T) {
 
 func TestModelSettingsFromStoreExposesOnlySecretPresence(t *testing.T) {
 	encoded, err := json.Marshal(ModelSettingsFromStore(store.ModelSettings{
-		Runtime: store.RuntimeEasyAgent, Provider: "fixture", APIKey: "SECRET_API_KEY", APIKeyEnv: "SECRET_ENV_NAME",
+		Runtime: store.RuntimeBeaver, Provider: "fixture", APIKey: "SECRET_API_KEY", APIKeyEnv: "SECRET_ENV_NAME",
 	}))
 	if err != nil {
 		t.Fatal(err)

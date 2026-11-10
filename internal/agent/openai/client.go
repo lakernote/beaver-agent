@@ -1,5 +1,5 @@
 // Package openai 提供 OpenAI Chat Completions 与 Responses 两种协议适配器。
-// 兼容服务只要实现其中一种 HTTP 协议，就能接入 EasyAgent 的同一个运行时。
+// 兼容服务只要实现其中一种 HTTP 协议，就能接入 Beaver 的同一个运行时。
 package openai
 
 import (
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 type Protocol string

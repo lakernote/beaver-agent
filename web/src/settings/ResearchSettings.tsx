@@ -30,7 +30,7 @@ function providerHelper(provider: ResearchProvider) {
   if (provider.secretSource === 'saved') return '密钥已保存在本机数据库中；输入新值可替换，原值不会回显。'
   if (provider.secretSource === 'environment') return `密钥由服务环境提供${variables ? `（${variables}）` : ''}；输入新值可在页面覆盖。`
   if (provider.endpointSource === 'environment') return `地址由服务环境提供：${provider.effectiveEndpoint}`
-  return variables ? `也可通过服务环境配置：${variables}` : '配置只保存在当前 EasyAgent 实例。'
+  return variables ? `也可通过服务环境配置：${variables}` : '配置只保存在当前 Beaver 实例。'
 }
 
 export function ResearchSettings({ data, onRefresh, onError }: { data: Bootstrap; onRefresh: () => Promise<Bootstrap>; onError: (value: string) => void }) {
@@ -86,7 +86,7 @@ export function ResearchSettings({ data, onRefresh, onError }: { data: Bootstrap
   const primaryReady = providers.filter((provider) => provider.primarySearch && provider.ready).length
   return <section className="section-block research-settings" aria-labelledby="research-settings-title">
     <div className="section-heading research-settings-head">
-      <div><p className="eyebrow">EasyAgent Runtime</p><h2 id="research-settings-title">Web Research</h2><p>模型只看到一个高层工具；这里配置候选搜索、正文读取和精确数据连接。密钥不会进入 Prompt、Tool 参数或 Trace。</p></div>
+      <div><p className="eyebrow">Beaver Runtime</p><h2 id="research-settings-title">Web Research</h2><p>模型只看到一个高层工具；这里配置候选搜索、正文读取和精确数据连接。密钥不会进入 Prompt、Tool 参数或 Trace。</p></div>
       <div className="research-health" aria-label={`${primaryReady} 个生产搜索源已就绪`}><strong>{primaryReady}</strong><span>生产搜索源</span></div>
     </div>
     <div className="research-architecture-note">

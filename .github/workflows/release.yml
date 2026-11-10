@@ -95,17 +95,17 @@ jobs:
           )
           for target in "${targets[@]}"; do
             read -r os arch <<< "${target}"
-            package="easyagent_${VERSION}_${os}_${arch}"
+            package="beaver_${VERSION}_${os}_${arch}"
             package_dir="staging/${package}"
             mkdir -p "${package_dir}"
-            binary="easyagent"
+            binary="beaver"
             if [[ "${os}" == "windows" ]]; then
-              binary="easyagent.exe"
+              binary="beaver.exe"
             fi
             CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" go build \
               -trimpath \
               -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
-              -o "${package_dir}/${binary}" ./cmd/easyagent
+              -o "${package_dir}/${binary}" ./cmd/beaver
             cp README.md LICENSE "${package_dir}/"
             find "${package_dir}" -exec touch -d "@${source_date_epoch}" {} +
             if [[ "${os}" == "windows" ]]; then
@@ -114,8 +114,8 @@ jobs:
               tar --sort=name --mtime="@${source_date_epoch}" --owner=0 --group=0 --numeric-owner -C staging -czf "release/${package}.tar.gz" "${package}"
             fi
           done
-          "staging/easyagent_${VERSION}_linux_amd64/easyagent" -version | grep -F "easyagent ${VERSION} (${COMMIT})"
-          (cd release && sha256sum easyagent_* > checksums.txt)
+          "staging/beaver_${VERSION}_linux_amd64/beaver" -version | grep -F "beaver ${VERSION} (${COMMIT})"
+          (cd release && sha256sum beaver_* > checksums.txt)
 
       - name: Attest release archives
         uses: actions/attest@v4
@@ -130,7 +130,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          release_flags=(--generate-notes --title "EasyAgent ${TAG}")
+          release_flags=(--generate-notes --title "Beaver ${TAG}")
           if [[ "${VERSION}" == *-* ]]; then
             release_flags+=(--prerelease)
           fi

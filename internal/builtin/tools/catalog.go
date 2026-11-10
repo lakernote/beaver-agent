@@ -1,4 +1,4 @@
-// Package tools 提供 EasyAgent 无需安装即可使用的最小工具集。
+// Package tools 提供 Beaver 无需安装即可使用的最小工具集。
 // 每个工具是普通 Go 函数；MCP 工具会在运行时追加到同一个 []agent.Tool。
 package tools
 
@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 type SkillSource interface {

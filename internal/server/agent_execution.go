@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func (server *Server) executeSessionTurn(ctx context.Context, id string, settings store.ModelSettings, usage *store.Usage) error {

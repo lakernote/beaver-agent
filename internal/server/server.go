@@ -1,4 +1,4 @@
-// Package server 组装 EasyAgent 的 HTTP API、单 Agent 运行时和静态页面。
+// Package server 组装 Beaver 的 HTTP API、单 Agent 运行时和静态页面。
 //
 // 这里是应用层，不是 Agent 核心。它负责 SQLite、配置和进程生命周期；核心循环
 // 位于 internal/agent，内置能力位于 internal/builtin，彼此通过很小的接口连接。
@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/weixin"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 type Server struct {
@@ -58,7 +58,7 @@ type Server struct {
 	externalCapabilitySync bool
 }
 
-const authCookieName = "easyagent_session"
+const authCookieName = "beaver_session"
 const authenticationRequiredCode = "authentication_required"
 
 type authSession struct {
@@ -179,7 +179,7 @@ func (server *Server) requiresAuthentication(request *http.Request) bool {
 	if request.URL.Path == "/api/v1/auth/login" || request.URL.Path == "/api/v1/auth/logout" || request.URL.Path == "/api/v1/auth/me" || request.URL.Path == "/api/v1/health" {
 		return false
 	}
-	// OAuth providers redirect the browser here without the EasyAgent session
+	// OAuth providers redirect the browser here without the Beaver session
 	// cookie in some flows (notably cross-site POST). The one-time OAuth state
 	// is the authorization gate for this callback, not the UI session cookie.
 	if strings.Contains(request.URL.Path, "/oauth/callback") {

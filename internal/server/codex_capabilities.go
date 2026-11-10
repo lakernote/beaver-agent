@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
-// syncCodexCapabilities materializes the shared EasyAgent capability catalog in
-// formats Codex understands. EasyAgent Runtime continues to read the same SQLite
+// syncCodexCapabilities materializes the shared Beaver capability catalog in
+// formats Codex understands. Beaver Runtime continues to read the same SQLite
 // records directly, making the database the single source of truth.
 func (server *Server) syncCodexCapabilities() ([]codexruntime.SkillRef, map[string]string, error) {
 	catalog, err := loadSkillCatalog(server.store)
@@ -34,7 +34,7 @@ func (server *Server) syncCodexCapabilities() ([]codexruntime.SkillRef, map[stri
 	for _, skill := range catalog.All() {
 		link := ""
 		if discoveryRoot != "" {
-			link = filepath.Join(discoveryRoot, "easyagent-"+skill.Name)
+			link = filepath.Join(discoveryRoot, "beaver-"+skill.Name)
 		}
 		if !skill.Enabled {
 			if link != "" {
@@ -64,7 +64,7 @@ func (server *Server) syncCodexCapabilities() ([]codexruntime.SkillRef, map[stri
 		entries, _ := os.ReadDir(discoveryRoot)
 		for _, entry := range entries {
 			link := filepath.Join(discoveryRoot, entry.Name())
-			if !strings.HasPrefix(entry.Name(), "easyagent-") {
+			if !strings.HasPrefix(entry.Name(), "beaver-") {
 				continue
 			}
 			if _, wanted := desiredLinks[link]; wanted {

@@ -3,8 +3,8 @@ package server
 import (
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/mcpclient"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // mcpClientConfig 把持久化层配置转换成连接层配置，隔离 SQLite 数据模型和 MCP

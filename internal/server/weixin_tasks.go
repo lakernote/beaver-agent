@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/weixin"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 func (manager *weixinManager) handleCommand(account store.WeixinAccount, message weixin.Message, text string) bool {
@@ -317,7 +317,7 @@ func weixinRuntimeLabel(runtime store.Runtime) string {
 	if runtime == store.RuntimeCodex {
 		return "Codex Runtime"
 	}
-	return "EasyAgent Runtime"
+	return "Beaver Runtime"
 }
 
 func splitText(value string, limit int) []string {

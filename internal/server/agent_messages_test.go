@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestToolResultBinaryIsExternalizedAndRehydratedOnlyForRuntime(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,7 +20,7 @@ import (
 const (
 	defaultProvider = "groq"
 	defaultEnvKey   = "GROQ_API_KEY"
-	secretsFile     = "easyagent-secrets.json"
+	secretsFile     = "beaver-secrets.json"
 )
 
 var (
@@ -48,7 +48,7 @@ type MCPServerConfig struct {
 	OAuthScopes       []string
 }
 
-// ProviderConfig 是 EasyAgent 能够管理的 Codex provider 配置。API Key 永远
+// ProviderConfig 是 Beaver 能够管理的 Codex provider 配置。API Key 永远
 // 不放在这个结构体里返回；它只在 SaveProviderConfig 的入参中短暂出现。
 type ProviderConfig struct {
 	ConfigPath       string           `json:"configPath"`
@@ -190,7 +190,7 @@ func providerOptions(document configDocument, secrets map[string]string) []Provi
 	return result
 }
 
-// LoadManagedEnvironment 读取 EasyAgent 自己保存的 Codex 密钥。文件只允许当前
+// LoadManagedEnvironment 读取 Beaver 自己保存的 Codex 密钥。文件只允许当前
 // 用户访问，且内容按 JSON 解析，不执行 shell，避免把配置内容当成命令运行。
 func LoadManagedEnvironment() (map[string]string, error) {
 	_, secretsPath, err := configPaths()
@@ -329,8 +329,8 @@ func providerEnvKeyInUse(providers map[string]any, envKey string) bool {
 	return false
 }
 
-// SyncMCPServers mirrors EasyAgent's enabled MCP catalog into a namespaced part
-// of Codex config.toml. Existing MCP entries not owned by EasyAgent are kept.
+// SyncMCPServers mirrors Beaver's enabled MCP catalog into a namespaced part
+// of Codex config.toml. Existing MCP entries not owned by Beaver are kept.
 // Secrets are returned as environment variables and never written to TOML.
 func SyncMCPServers(configs []MCPServerConfig) (map[string]string, error) {
 	configWriteMu.Lock()
@@ -356,7 +356,7 @@ func SyncMCPServers(configs []MCPServerConfig) (map[string]string, error) {
 func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) map[string]string {
 	servers := providerDocumentMap(document, "mcp_servers")
 	for id := range servers {
-		if strings.HasPrefix(id, "easyagent_") {
+		if strings.HasPrefix(id, "beaver_") {
 			delete(servers, id)
 		}
 	}
@@ -418,9 +418,9 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 				environment[envName] = value
 				envHeaders[header] = envName
 			}
-			// EasyAgent historically accepted both names for the same MCP
+			// Beaver historically accepted both names for the same MCP
 			// authentication mode. Normalize them here too, otherwise an MCP
-			// that works in EasyAgent Runtime loses its token in Codex Runtime.
+			// that works in Beaver Runtime loses its token in Codex Runtime.
 			if (strings.EqualFold(config.AuthType, "bearer") || strings.EqualFold(config.AuthType, "token")) && strings.TrimSpace(config.Token) != "" {
 				envName := managedMCPEnv(id, "token")
 				environment[envName] = config.Token
@@ -456,7 +456,7 @@ func providerDocumentMap(document configDocument, key string) map[string]any {
 
 func managedMCPID(value string) string {
 	var result strings.Builder
-	result.WriteString("easyagent_")
+	result.WriteString("beaver_")
 	for _, char := range strings.ToLower(value) {
 		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || char == '_' || char == '-' {
 			result.WriteRune(char)
@@ -600,11 +600,11 @@ func readSecrets(path string) (map[string]string, error) {
 		return map[string]string{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("读取 EasyAgent Codex 密钥: %w", err)
+		return nil, fmt.Errorf("读取 Beaver Codex 密钥: %w", err)
 	}
 	values := map[string]string{}
 	if err := json.Unmarshal(data, &values); err != nil {
-		return nil, fmt.Errorf("解析 EasyAgent Codex 密钥: %w", err)
+		return nil, fmt.Errorf("解析 Beaver Codex 密钥: %w", err)
 	}
 	return values, nil
 }
@@ -612,14 +612,14 @@ func readSecrets(path string) (map[string]string, error) {
 func writeSecrets(path string, values map[string]string) error {
 	data, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
-		return fmt.Errorf("编码 EasyAgent Codex 密钥: %w", err)
+		return fmt.Errorf("编码 Beaver Codex 密钥: %w", err)
 	}
 	return atomicWrite(path, append(data, '\n'), 0o600)
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	directory := filepath.Dir(path)
-	temporary, err := os.CreateTemp(directory, ".easyagent-codex-*")
+	temporary, err := os.CreateTemp(directory, ".beaver-codex-*")
 	if err != nil {
 		return fmt.Errorf("创建临时配置文件: %w", err)
 	}

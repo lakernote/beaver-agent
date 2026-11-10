@@ -16,8 +16,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 const (
@@ -631,7 +631,7 @@ func atomicWrite(path string, content []byte) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	temporary, err := os.CreateTemp(filepath.Dir(path), ".easyagent-edit-*")
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".beaver-edit-*")
 	if err != nil {
 		return err
 	}

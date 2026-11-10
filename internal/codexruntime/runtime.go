@@ -1,4 +1,4 @@
-// Package codexruntime 是 EasyAgent 对 Codex app-server 的窄适配层。
+// Package codexruntime 是 Beaver 对 Codex app-server 的窄适配层。
 // 工具、Skill、沙箱和会话历史由 Codex 自己管理，避免两套 Runtime 重复注入
 // 巨大的工具 Schema。
 package codexruntime
@@ -21,15 +21,15 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/permissions"
-	"github.com/lakernote/easy-agent/internal/tracevalue"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/tracevalue"
 )
 
 const installDocsURL = "https://developers.openai.com/codex/cli"
 const installScriptURL = "https://chatgpt.com/codex/install.sh"
 const installCommand = "curl -fsSL " + installScriptURL + " | sh"
-const codexPathEnvironment = "EASYAGENT_CODEX_PATH"
+const codexPathEnvironment = "BEAVER_CODEX_PATH"
 const detectCommandTimeout = 5 * time.Second
 
 type Status struct {
@@ -48,7 +48,7 @@ type Status struct {
 }
 
 // Detect 只做本机文件、app-server 子命令和登录状态检查，不启动 app-server，
-// 也不修改用户环境。Codex 的账号归属当前 EasyAgent 进程用户及其 HOME/CODEX_HOME，
+// 也不修改用户环境。Codex 的账号归属当前 Beaver 进程用户及其 HOME/CODEX_HOME，
 // 不由找到的 CLI 文件路径决定。
 func Detect(environment *appenv.Environment) Status {
 	return DetectContext(context.Background(), environment)
@@ -138,7 +138,7 @@ func DetectContext(ctx context.Context, environment *appenv.Environment) Status 
 	if best.Installed {
 		return best
 	}
-	status.Message = "未检测到 Codex CLI；请在服务器终端手动安装，EasyAgent 不会代为下载安装"
+	status.Message = "未检测到 Codex CLI；请在服务器终端手动安装，Beaver 不会代为下载安装"
 	return status
 }
 
@@ -272,7 +272,7 @@ type Config struct {
 }
 
 // ThreadInfo records the effective runtime selection returned by app-server.
-// Model and provider may come from config.toml even when EasyAgent did not send
+// Model and provider may come from config.toml even when Beaver did not send
 // an explicit override, so this response is the authoritative display value.
 type ThreadInfo struct {
 	ID       string
@@ -280,7 +280,7 @@ type ThreadInfo struct {
 	Provider string
 }
 
-// Attachment is the narrow media contract between EasyAgent storage and the
+// Attachment is the narrow media contract between Beaver storage and the
 // Codex app-server input types. Data is materialized only for the lifetime of
 // one turn and is never included in JSON trace output.
 type Attachment struct {
@@ -408,7 +408,7 @@ func (b *synchronizedBuffer) Snapshot() string {
 }
 
 // RunMessage 启动一个短生命周期 app-server 连接，并通过 thread/resume 保持会话。
-// app-server 本身把 thread 持久化到 Codex Home，因此 EasyAgent 只需保存 thread id。
+// app-server 本身把 thread 持久化到 Codex Home，因此 Beaver 只需保存 thread id。
 func RunMessage(ctx context.Context, config Config, userMessage string) (Result, error) {
 	if strings.TrimSpace(config.Path) == "" {
 		return Result{}, errors.New("Codex Runtime 未安装")
@@ -553,7 +553,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	}
 	handleServerRequest := func(message rpcMessage) error {
 		if config.OnServerRequest == nil {
-			return sendResponse(message.ID, nil, fmt.Errorf("EasyAgent 未实现 app-server 方法: %s", message.Method))
+			return sendResponse(message.ID, nil, fmt.Errorf("Beaver 未实现 app-server 方法: %s", message.Method))
 		}
 		result, requestErr := config.OnServerRequest(ServerRequest{ID: message.ID, Method: message.Method, Params: message.Params})
 		return sendResponse(message.ID, result, requestErr)
@@ -581,7 +581,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 			requestEnvelope := marshalItemValue(map[string]any{"method": method, "id": id, "params": params})
 			config.OnEvent(Event{
 				Kind: "codex_rpc", Name: method, ProtocolMethod: method, RawPayload: requestEnvelope,
-				Status: status, Detail: "EasyAgent -> Codex app-server", Input: input, Output: output,
+				Status: status, Detail: "Beaver -> Codex app-server", Input: input, Output: output,
 				ActivityID: fmt.Sprintf("rpc-%d", id), ActivityKind: "protocol", ActivitySource: "codex",
 				DisplayName: method, Duration: time.Since(startedAt),
 			})
@@ -620,7 +620,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	}
 
 	startedAt := time.Now()
-	if _, err := request("initialize", 1, map[string]any{"clientInfo": map[string]string{"name": "easyagent", "title": "EasyAgent", "version": "0.1.0"}}); err != nil {
+	if _, err := request("initialize", 1, map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}); err != nil {
 		return Result{}, err
 	}
 	if err := send("initialized", 0, map[string]any{}); err != nil {
@@ -631,7 +631,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	threadParams := map[string]any{
 		"cwd": config.Workspace, "approvalPolicy": string(policy.Approval),
 		// thread/start 和 thread/resume 使用 SandboxMode 字符串；只有
-		// turn/start 使用 sandboxPolicy 对象。EasyAgent 的 Codex Runtime
+		// turn/start 使用 sandboxPolicy 对象。Beaver 的 Codex Runtime
 		// 默认按产品约定使用完全访问模式。
 		"sandbox": codexSandboxMode(policy),
 	}
@@ -796,7 +796,7 @@ func codexTurnInput(userMessage string, config Config) ([]map[string]any, func()
 		}
 		if temporaryDirectory == "" {
 			var err error
-			temporaryDirectory, err = os.MkdirTemp("", "easyagent-codex-attachment-")
+			temporaryDirectory, err = os.MkdirTemp("", "beaver-codex-attachment-")
 			if err != nil {
 				return nil, func() {}, fmt.Errorf("准备 Codex 附件目录: %w", err)
 			}
@@ -826,12 +826,12 @@ func codexCapabilityText(value string, directories ...string) string {
 		if strings.EqualFold(match[1], "skill") {
 			return "$" + match[2]
 		}
-		return "[优先使用 MCP server easyagent_" + strings.ReplaceAll(match[2], ".", "_") + "]"
+		return "[优先使用 MCP server beaver_" + strings.ReplaceAll(match[2], ".", "_") + "]"
 	}))
 	if len(directories) == 0 {
 		return value
 	}
-	return "<easyagent_project_sources>\nAdditional source folders in this project; keep cwd unchanged and use absolute paths when needed:\n- " + strings.Join(directories, "\n- ") + "\n</easyagent_project_sources>\n\n" + value
+	return "<beaver_project_sources>\nAdditional source folders in this project; keep cwd unchanged and use absolute paths when needed:\n- " + strings.Join(directories, "\n- ") + "\n</beaver_project_sources>\n\n" + value
 }
 
 func consumeNotificationWithAnswer(message rpcMessage, config Config, answer *strings.Builder, timers *eventTimers, latestUsage *Usage) {
@@ -922,7 +922,7 @@ func consumeNotificationWithAnswer(message rpcMessage, config Config, answer *st
 
 // progressEvent maps high-volume app-server notifications into bounded Trace
 // rows. Keeping the protocol name in Name makes new Codex notifications
-// observable even before EasyAgent gets a dedicated UI renderer for them.
+// observable even before Beaver gets a dedicated UI renderer for them.
 func progressEvent(message rpcMessage) (Event, bool) {
 	progressNames := map[string]string{
 		"turn/plan/updated":                 "plan",

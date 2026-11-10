@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
-// PI 的默认 coding tools 只有 read/bash/edit/write。EasyAgent 保留同样的小核心，
+// PI 的默认 coding tools 只有 read/bash/edit/write。Beaver 保留同样的小核心，
 // 再直接暴露 load_skill，避免“先加载 Skill 工具、再加载 Skill 内容”的两次模型
 // 往返。时间、计算、搜索和额外文件检索继续通过 load_tools 渐进加载。
 var codingCoreToolNames = []string{"read", "shell", "edit", "write", "load_skill"}

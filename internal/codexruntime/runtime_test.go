@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/appenv"
 )
 
 func TestDetectFindsCodexOnEnvironmentPath(t *testing.T) {
@@ -37,7 +37,7 @@ func TestRunMessageUsesAppServerThreadAndStreamsAnswer(t *testing.T) {
 	bin := t.TempDir()
 	path := filepath.Join(bin, "codex")
 	script := `#!/bin/sh
-printf '%s\n' "$@" > "$EASYAGENT_ARGS_FILE"
+printf '%s\n' "$@" > "$BEAVER_ARGS_FILE"
 while IFS= read -r line; do
   case "$line" in
     *'"method":"initialize"'*) echo '{"id":1,"result":{"userAgent":"fake","codexHome":"/tmp","platformFamily":"unix","platformOs":"macos"}}' ;;
@@ -52,7 +52,7 @@ done
 	}
 	workspace := t.TempDir()
 	argsFile := filepath.Join(t.TempDir(), "args")
-	t.Setenv("EASYAGENT_ARGS_FILE", argsFile)
+	t.Setenv("BEAVER_ARGS_FILE", argsFile)
 	var delta string
 	var events []Event
 	result, err := RunMessage(context.Background(), Config{Path: path, Workspace: workspace, DeveloperInstructions: "使用用户的语言回答。", Timeout: time.Second, Skills: []SkillRef{{Name: "weather", Path: "/tmp/weather/SKILL.md"}}, OnDelta: func(value string) { delta += value }, OnEvent: func(event Event) { events = append(events, event) }}, "say hello")
@@ -87,7 +87,7 @@ done
 	}
 	threadRequest := methods["thread/start"]
 	if !strings.Contains(threadRequest.Input, `"developerInstructions":"使用用户的语言回答。"`) {
-		t.Fatalf("thread/start should include EasyAgent developer instructions: %s", threadRequest.Input)
+		t.Fatalf("thread/start should include Beaver developer instructions: %s", threadRequest.Input)
 	}
 	resumed, err := RunMessage(context.Background(), Config{Path: path, Workspace: workspace, ThreadID: result.ThreadID, Timeout: time.Second}, "continue")
 	if err != nil {
@@ -143,14 +143,14 @@ while IFS= read -r line; do
   case "$line" in
     *'"method":"initialize"'*) echo '{"id":1,"result":{}}' ;;
     *'"method":"thread/start"'*)
-      printf '%s' "$line" > "$EASYAGENT_THREAD_REQUEST_FILE"
+      printf '%s' "$line" > "$BEAVER_THREAD_REQUEST_FILE"
       echo '{"method":"item/tool/requestUserInput","id":99,"params":{"threadId":"thread-test"}}'
       IFS= read -r response
-      printf '%s' "$response" > "$EASYAGENT_RESPONSE_FILE"
+      printf '%s' "$response" > "$BEAVER_RESPONSE_FILE"
       echo '{"id":2,"result":{"thread":{"id":"thread-test"}}}'
       ;;
     *'"method":"turn/start"'*)
-      printf '%s' "$line" > "$EASYAGENT_TURN_REQUEST_FILE"
+      printf '%s' "$line" > "$BEAVER_TURN_REQUEST_FILE"
       echo '{"id":3,"result":{"turn":{"id":"turn-test","status":"inProgress"}}}'
       echo '{"method":"item/agentMessage/delta","params":{"delta":"continued"}}'
       echo '{"method":"turn/completed","params":{"turn":{"status":"completed","error":null}}}'
@@ -167,7 +167,7 @@ done
 	workspace := t.TempDir()
 	result, err := RunMessage(context.Background(), Config{
 		Path: path, Workspace: workspace, Timeout: time.Second,
-		Env: append(os.Environ(), "EASYAGENT_RESPONSE_FILE="+responseFile, "EASYAGENT_THREAD_REQUEST_FILE="+threadRequestFile, "EASYAGENT_TURN_REQUEST_FILE="+turnRequestFile),
+		Env: append(os.Environ(), "BEAVER_RESPONSE_FILE="+responseFile, "BEAVER_THREAD_REQUEST_FILE="+threadRequestFile, "BEAVER_TURN_REQUEST_FILE="+turnRequestFile),
 	}, "continue")
 	if err != nil {
 		t.Fatal(err)
@@ -318,14 +318,14 @@ func TestMarshalItemValueRedactsJSONLBeforeTruncation(t *testing.T) {
 
 func TestCodexCapabilityTextUsesNativeSkillAndManagedMCPNames(t *testing.T) {
 	got := codexCapabilityText("@skill:review-code 检查并使用 @mcp:openai.docs")
-	if got != "$review-code 检查并使用 [优先使用 MCP server easyagent_openai_docs]" {
+	if got != "$review-code 检查并使用 [优先使用 MCP server beaver_openai_docs]" {
 		t.Fatalf("Codex 能力引用转换错误: %q", got)
 	}
 }
 
 func TestCodexCapabilityTextIncludesAdditionalProjectSources(t *testing.T) {
 	got := codexCapabilityText("检查两个仓库", "/srv/api", "/srv/web")
-	for _, expected := range []string{"<easyagent_project_sources>", "/srv/api", "/srv/web", "keep cwd unchanged", "检查两个仓库"} {
+	for _, expected := range []string{"<beaver_project_sources>", "/srv/api", "/srv/web", "keep cwd unchanged", "检查两个仓库"} {
 		if !strings.Contains(got, expected) {
 			t.Fatalf("Codex 项目源文件夹上下文缺少 %q: %s", expected, got)
 		}

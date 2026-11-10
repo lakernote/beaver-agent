@@ -61,7 +61,6 @@ button { touch-action: manipulation; }
   background: #2563eb;
   box-shadow: 0 0 0 3px #dbeafe;
 }
-.settings-side-nav button strong { font-size: 13px; }
 .settings-side-nav button small,
 .settings-side-note,
 .settings-hub-header > div > p:last-child,
@@ -128,7 +127,7 @@ button { touch-action: manipulation; }
 .composer-select-field > span,
 .composer-model > span,
 .composer-project-select .composer-field-label,
-.composer-fixed-field > span { font-size: 10px; }
+.composer-fixed-field > span { font-size: 12px; }
 .composer-select-field select,
 .composer-project-select strong,
 .session-context .composer-model > strong,
@@ -242,7 +241,7 @@ button { touch-action: manipulation; }
 
 /* Large histories render cheaply while keeping native scrolling and semantics. */
 .session-row { content-visibility: auto; contain-intrinsic-size: 60px; }
-.session-copy small { font-size: 10px; }
+.session-copy small { font-size: 12px; }
 .session-label button { min-width: 36px; min-height: 36px; }
 .capability-options > button { min-height: 58px; }
 .capability-options strong,
@@ -397,6 +396,7 @@ button { touch-action: manipulation; }
   .composer-select-field { position: relative; min-height: 55px; padding-top: 10px; }
   .composer-select-field > span { position: absolute; z-index: 1; top: 7px; left: 11px; pointer-events: none; }
   .composer-select-field select { height: var(--control-touch); padding-top: 9px; }
+  .composer-permission-select, .composer-model-select { min-width: 0; }
   .attach-button, .capability-button { min-height: var(--control-touch); }
   .trace-filters {
     padding-bottom: 8px;
@@ -407,3 +407,49 @@ button { touch-action: manipulation; }
   .trace-filters::-webkit-scrollbar-track { background: #edf2f8; }
   .trace-filters::-webkit-scrollbar-thumb { border-radius: 999px; background: #9db0ca; }
 }
+
+/* Keyboard focus baseline: controls without a bespoke focus style still get a visible ring. */
+:where(a, button, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+
+.error-boundary { flex-direction: column; gap: 10px; min-height: 100vh; padding: 24px; text-align: center; }
+.error-boundary h1 { margin: 0; font-size: 22px; }
+.error-boundary p { max-width: 460px; margin: 0; color: #667085; }
+.error-boundary .primary-button { margin-top: 8px; }
+
+.brand-copy { display: grid; gap: 2px; min-width: 0; }
+.brand-copy small { color: #8390a4; font-size: 12.5px; line-height: 1.2; letter-spacing: .02em; }
+
+/* 首次使用引导 */
+.onboarding { width: min(100%, 760px); margin: 8px auto 20px; padding: 18px; text-align: left; border: 1px solid #cfe0ff; border-radius: 16px; background: linear-gradient(180deg, #f5f9ff, #fff); }
+.onboarding-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.onboarding-step { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--green); color: #fff; font-size: 13px; font-weight: 600; }
+.onboarding-head h2 { margin: 0 0 2px; font-size: 17px; }
+.onboarding-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.onboarding-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.onboarding-option { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; text-align: left; cursor: pointer; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.onboarding-option:hover { border-color: var(--green); box-shadow: 0 6px 18px rgba(37, 99, 235, .12); transform: translateY(-1px); }
+.onboarding-option.ready { border-color: #2dd4bf; }
+.onboarding-option strong { font-size: 15px; }
+.onboarding-option small { color: var(--muted); font-size: 13px; line-height: 1.5; flex: 1; }
+.onboarding-option em { color: var(--green); font-style: normal; font-size: 13px; font-weight: 600; }
+.onboarding-badge { padding: 2px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 12.5px; font-weight: 600; }
+.onboarding-option.ready .onboarding-badge { background: #d1faf4; color: #0f766e; }
+@media (max-width: 720px) { .onboarding-options { grid-template-columns: 1fr; } }
+
+.sidebar-notify { margin: 0 12px 8px; padding: 8px 10px; border: 1px dashed #b6ccf5; border-radius: 10px; background: #f5f9ff; color: var(--green); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; }
+.sidebar-notify:hover { background: var(--green-soft); }
+@media (max-width: 860px) { .sidebar-notify { display: none; } }
+
+/* 中文标签不使用等宽字体 */
+.eyebrow, .settings-count, .runtime-state, .usage-updated { font-family: inherit; letter-spacing: .02em; }
+@media (max-width: 700px) { .composer-readiness.blocked { display: none; } }
+
+/* 设置中心顶部已有页面标题，用量页不再重复一级标题 */
+.settings-hub-content > .usage-page > .page-intro .eyebrow, .settings-hub-content > .usage-page > .page-intro h1 { display: none; }
+.settings-hub-content > .usage-page > .page-intro { margin-bottom: 18px; }

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func TestNativeChatPreservesToolsResultsAndUsage(t *testing.T) {

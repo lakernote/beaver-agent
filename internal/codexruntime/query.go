@@ -109,7 +109,7 @@ func Call(ctx context.Context, config Config, method string, params any) (json.R
 		return write(struct {
 			ID    json.RawMessage `json:"id"`
 			Error map[string]any  `json:"error"`
-		}{ID: message.ID, Error: map[string]any{"code": -32000, "message": "EasyAgent 只允许通过 UI 处理该 app-server 请求"}})
+		}{ID: message.ID, Error: map[string]any{"code": -32000, "message": "Beaver 只允许通过 UI 处理该 app-server 请求"}})
 	}
 	request := func(id int, name string, value any) (json.RawMessage, error) {
 		if err := write(struct {
@@ -139,7 +139,7 @@ func Call(ctx context.Context, config Config, method string, params any) (json.R
 			return message.Result, nil
 		}
 	}
-	if _, err := request(1, "initialize", map[string]any{"clientInfo": map[string]string{"name": "easyagent", "title": "EasyAgent", "version": "0.1.0"}}); err != nil {
+	if _, err := request(1, "initialize", map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}); err != nil {
 		return nil, err
 	}
 	if err := write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {

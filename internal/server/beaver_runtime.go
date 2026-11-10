@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/builtin/prompt"
-	builtintools "github.com/lakernote/easy-agent/internal/builtin/tools"
-	"github.com/lakernote/easy-agent/internal/mcpclient"
-	"github.com/lakernote/easy-agent/internal/permissions"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/builtin/prompt"
+	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
+	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
-func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session store.Session, settings store.ModelSettings, runEnvironment *appenv.Environment, usage *store.Usage) error {
+func (server *Server) runBeaverTurn(ctx context.Context, id string, session store.Session, settings store.ModelSettings, runEnvironment *appenv.Environment, usage *store.Usage) error {
 	runtimeSettings, err := server.store.GetRuntimeSettings()
 	if err != nil {
 		return err
@@ -154,17 +154,17 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 			return server.prepareRuntimeRequest(ctx, id, settings, systemPrompt, turn, usage, client, runner, request, force)
 		},
 		OnToolApproval: func(ctx context.Context, call agent.ToolCall) error {
-			if policy.Approval != permissions.ApprovalOnRequest || !easyAgentToolNeedsApproval(call.Name) {
+			if policy.Approval != permissions.ApprovalOnRequest || !beaverToolNeedsApproval(call.Name) {
 				return nil
 			}
-			return server.awaitEasyAgentApproval(ctx, id, call, runEnvironment.Workspace())
+			return server.awaitBeaverApproval(ctx, id, call, runEnvironment.Workspace())
 		},
 		OnToolLifecycle: func(event agent.Event) error {
 			if event.ToolCall == nil {
 				return nil
 			}
 			operation := store.ToolOperation{
-				Runtime: store.RuntimeEasyAgent, Turn: turn, Step: event.Step,
+				Runtime: store.RuntimeBeaver, Turn: turn, Step: event.Step,
 				Guarantee:  store.ToolGuaranteePreEffect,
 				ActivityID: event.ToolCall.ID, Name: event.ToolCall.Name,
 				ActivityKind: event.ToolCall.ActivityKind, ActivitySource: event.ToolCall.ActivitySource,
@@ -200,7 +200,7 @@ func (server *Server) runEasyAgentTurn(ctx context.Context, id string, session s
 	return server.sessionsRepository().FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
 }
 
-func easyAgentToolNeedsApproval(name string) bool {
+func beaverToolNeedsApproval(name string) bool {
 	return name == "shell" || name == "edit" || name == "write" || strings.HasPrefix(name, "mcp__")
 }
 
@@ -280,7 +280,7 @@ func protocolSafeStoredMessages(messages []store.Message) []store.Message {
 // 真正是否命中仍由请求前缀决定，并以 Provider 返回的 cached_tokens 为准。
 func promptCacheKey(settings store.ModelSettings) string {
 	if settings.IsOfficialOpenAI() {
-		return "easyagent-core-v1"
+		return "beaver-core-v1"
 	}
 	return ""
 }

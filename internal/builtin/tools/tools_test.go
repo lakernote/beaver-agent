@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 type emptySkillSource struct{}

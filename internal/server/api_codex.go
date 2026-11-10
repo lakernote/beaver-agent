@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
 )
 
 func (server *Server) getCodex(response http.ResponseWriter, request *http.Request) {
@@ -90,7 +90,7 @@ func (server *Server) getCodexThreads(response http.ResponseWriter, request *htt
 		limit = value
 	}
 	// app-server 在 sourceKinds 缺省时只返回 CLI/VS Code 的交互线程；这里显式
-	// 包含 appServer 和自动化来源，才能让 EasyAgent 自己创建的线程出现在历史中。
+	// 包含 appServer 和自动化来源，才能让 Beaver 自己创建的线程出现在历史中。
 	params := map[string]any{"limit": limit, "archived": false, "sortKey": "updated_at", "sortDirection": "desc", "sourceKinds": []string{
 		"cli", "vscode", "exec", "appServer", "subAgent", "subAgentReview", "subAgentCompact", "subAgentThreadSpawn", "subAgentOther", "unknown",
 	}}

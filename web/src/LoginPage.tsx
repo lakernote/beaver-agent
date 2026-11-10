@@ -27,15 +27,15 @@ export function LoginPage({ onLogin, initialError = '' }: LoginPageProps) {
 
   return <main className="login-page">
     <section className="login-panel" aria-labelledby="login-title">
-      <div className="login-brand"><span className="login-logo"><Logo /></span><span><strong>EasyAgent</strong><small>SELF-HOSTED AGENT WORKBENCH</small></span></div>
-      <div className="login-copy"><p className="login-kicker">团队任务工作台</p><h1 id="login-title">登录 EasyAgent</h1><p>在自己的服务器运行研发、测试和运维任务，并保留完整执行记录。</p></div>
+      <div className="login-brand"><span className="login-logo"><Logo /></span><span><strong>Beaver</strong><small>SELF-HOSTED AGENT WORKBENCH</small></span></div>
+      <div className="login-copy"><p className="login-kicker">团队任务工作台</p><h1 id="login-title">登录 Beaver</h1><p>在自己的服务器运行研发、测试和运维任务，并保留完整执行记录。</p></div>
       <form onSubmit={submit} className="login-form">
         <label>用户名<input autoFocus name="username" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></label>
         <label>密码<input name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         {error && <p className="login-error" role="alert">{error}</p>}
         <button className="login-submit" type="submit" disabled={submitting || !username.trim() || !password}>{submitting ? '正在登录…' : '登录'}</button>
       </form>
-      <p className="login-hint">首次启动默认账号：<code>admin</code> / <code>admin</code>。登录后可在设置中修改密码。</p>
+      <p className="login-hint">首次登录：用户名 <code>admin</code>，初始密码见服务启动日志；忘记密码可运行 <code>beaver -reset-password</code>。</p>
     </section>
   </main>
 }

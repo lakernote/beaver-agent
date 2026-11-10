@@ -185,7 +185,7 @@ func OAuthLogin(ctx context.Context, config Config, name string, scopes []string
 		}
 	}
 	respond := func(message rpcMessage) error {
-		return write(map[string]any{"id": json.RawMessage(message.ID), "error": map[string]any{"code": -32000, "message": "EasyAgent 不处理此 Codex app-server 请求"}})
+		return write(map[string]any{"id": json.RawMessage(message.ID), "error": map[string]any{"code": -32000, "message": "Beaver 不处理此 Codex app-server 请求"}})
 	}
 	request := func(id int, method string, params any) (json.RawMessage, error) {
 		if err := write(map[string]any{"method": method, "id": id, "params": params}); err != nil {
@@ -211,7 +211,7 @@ func OAuthLogin(ctx context.Context, config Config, name string, scopes []string
 			return message.Result, nil
 		}
 	}
-	if _, err := request(1, "initialize", map[string]any{"clientInfo": map[string]string{"name": "easyagent", "title": "EasyAgent", "version": "0.1.0"}}); err != nil {
+	if _, err := request(1, "initialize", map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}); err != nil {
 		return err
 	}
 	if err := write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {

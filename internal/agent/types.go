@@ -1,4 +1,4 @@
-// Package agent 实现 EasyAgent 最小、与模型厂商无关的运行时。
+// Package agent 实现 Beaver 最小、与模型厂商无关的运行时。
 //
 // 这个包只认识消息、工具和模型三个概念。Git、MCP、Skill、网页以及具体业务
 // 都在外层组装，避免核心循环逐渐变成一个无法理解的“大控制器”。
@@ -275,7 +275,7 @@ type ToolSpec struct {
 	ActivityKind   string
 	ActivitySource string
 	DisplayName    string
-	// Group 和 GroupDescription 是 EasyAgent 渐进加载用的本地元数据。
+	// Group 和 GroupDescription 是 Beaver 渐进加载用的本地元数据。
 	// Provider 适配器只编码上面三个标准字段，因此它们不会污染 Function Schema。
 	Group            string
 	GroupDescription string
@@ -403,7 +403,7 @@ type Response struct {
 	IncompleteReason string
 }
 
-// Model 是 EasyAgent 依赖的唯一模型接口。不同厂商和协议只需要实现 Generate。
+// Model 是 Beaver 依赖的唯一模型接口。不同厂商和协议只需要实现 Generate。
 type Model interface {
 	Generate(context.Context, Request) (Response, error)
 }

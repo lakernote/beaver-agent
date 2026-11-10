@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 func TestSessionRuntimeIsPinnedAtCreation(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,14 +41,14 @@ func TestSessionRuntimeIsPinnedAtCreation(t *testing.T) {
 }
 
 func TestSessionPermissionsRoundTrip(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
 	writableRoot := filepath.Join(t.TempDir(), "workspace")
 	want := permissions.Policy{Mode: permissions.ModeCustom, Approval: permissions.ApprovalOnRequest, WritableRoots: []string{writableRoot}, NetworkAccess: false}
-	created, err := database.CreateSession(CreateSessionParams{ID: "permission-session", Title: "权限", Runtime: RuntimeEasyAgent, Model: "fixture", Permissions: want, CreatedAt: time.Now()})
+	created, err := database.CreateSession(CreateSessionParams{ID: "permission-session", Title: "权限", Runtime: RuntimeBeaver, Model: "fixture", Permissions: want, CreatedAt: time.Now()})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type modelTestResult struct {
@@ -48,7 +48,7 @@ func prepareModelInputWithRegistry(input, current store.ModelSettings, clearAPIK
 		input.CompressionThresholdPercent = 0
 	}
 	if input.Runtime != store.RuntimeCodex {
-		// EasyAgent 只使用 DB 中的 APIKey；环境变量入口仅为旧版本兼容
+		// Beaver 只使用 DB 中的 APIKey；环境变量入口仅为旧版本兼容
 		// 保留在结构体中，不再接受或读取。
 		input.APIKeyEnv = ""
 	}
@@ -70,8 +70,8 @@ func prepareModelInputWithRegistry(input, current store.ModelSettings, clearAPIK
 }
 
 // testModel 做一次完整但无副作用的最小 Agent 往返：
-// 模型发起原生 Function Call -> EasyAgent 返回工具结果 -> 模型给出最终文本。
-// 这比只请求一句“你好”更能判断模型是否真的适合 EasyAgent。
+// 模型发起原生 Function Call -> Beaver 返回工具结果 -> 模型给出最终文本。
+// 这比只请求一句“你好”更能判断模型是否真的适合 Beaver。
 func (server *Server) testModel(response http.ResponseWriter, request *http.Request) {
 	var payload modelSettingsInput
 	if !decodeJSON(response, request, &payload) {
@@ -150,7 +150,7 @@ func modelCapabilityFingerprint(settings store.ModelSettings) string {
 	return fmt.Sprintf("%x", fingerprint[:])
 }
 
-func (server *Server) requireVerifiedEasyAgent(settings store.ModelSettings) error {
+func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error {
 	if settings.Runtime == store.RuntimeCodex {
 		return nil
 	}
@@ -159,7 +159,7 @@ func (server *Server) requireVerifiedEasyAgent(settings store.ModelSettings) err
 		return fmt.Errorf("读取模型能力验证: %w", err)
 	}
 	if !verified {
-		return errors.New("当前模型配置尚未通过原生 Function Calling 能力测试；请先在设置中测试当前模型。EasyAgent 不会解析文本伪工具调用")
+		return errors.New("当前模型配置尚未通过原生 Function Calling 能力测试；请先在设置中测试当前模型。Beaver 不会解析文本伪工具调用")
 	}
 	return nil
 }

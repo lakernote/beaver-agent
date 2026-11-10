@@ -15,9 +15,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/weixin"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 type fakeWeixinGateway struct {
@@ -116,13 +116,13 @@ func TestUntranscribedWeixinVoiceRequestsTextWithoutDownload(t *testing.T) {
 	}
 }
 
-func TestEasyAgentUsesNativeVoiceTextWithoutBinaryAudio(t *testing.T) {
+func TestBeaverUsesNativeVoiceTextWithoutBinaryAudio(t *testing.T) {
 	message := toCoreMessage(store.Message{Role: "user", Content: "运行全部测试", Attachments: []store.Attachment{
 		{Name: "voice.wav", MIMEType: "audio/wav", Kind: "audio", Data: []byte("RIFF")},
 		{Name: "notes.txt", MIMEType: "text/plain", Kind: "text", Data: []byte("notes")},
 	}})
 	if message.Content != "运行全部测试" || len(message.Attachments) != 1 || message.Attachments[0].Kind != "text" {
-		t.Fatalf("EasyAgent voice mapping leaked binary audio: %+v", message)
+		t.Fatalf("Beaver voice mapping leaked binary audio: %+v", message)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestWeixinNaturalCommands(t *testing.T) {
 		"你支持哪些操作":                 "help",
 		"项目列表":                    "projects",
 		"当前项目":                    "current_project",
-		"切换项目 EasyAgent":          "project",
+		"切换项目 Beaver":             "project",
 		"帮我实现新会话按钮":               "",
 		"创建新会话是什么意思":              "",
 		"不要创建新会话":                 "",
@@ -200,12 +200,12 @@ func TestWeixinIntentParserReportsExplicitAndGrammarConfidence(t *testing.T) {
 	if unknown.Command != "" || unknown.Confidence != 0 {
 		t.Fatalf("普通对话不应被控制层拦截: %+v", unknown)
 	}
-	project := parser.Parse("切换项目 EasyAgent Web")
-	if project.Command != "project" || project.Argument != "easyagentweb" || project.Confidence < 90 {
+	project := parser.Parse("切换项目 Beaver Web")
+	if project.Command != "project" || project.Argument != "beaverweb" || project.Confidence < 90 {
 		t.Fatalf("项目切换意图解析错误: %+v", project)
 	}
-	explicitProject := parser.Parse("/project EasyAgent Web")
-	if explicitProject.Command != "project" || explicitProject.Argument != "EasyAgent Web" || !explicitProject.Explicit {
+	explicitProject := parser.Parse("/project Beaver Web")
+	if explicitProject.Command != "project" || explicitProject.Argument != "Beaver Web" || !explicitProject.Explicit {
 		t.Fatalf("明确项目命令解析错误: %+v", explicitProject)
 	}
 }
@@ -228,7 +228,7 @@ func TestWeixinDeliveryStatus(t *testing.T) {
 }
 
 func TestWeixinAPIBindsMultipleAccountsWithoutExposingSecrets(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestWeixinAPIBindsMultipleAccountsWithoutExposingSecrets(t *testing.T) {
 }
 
 func TestSavingEnabledWeixinChannelDoesNotSuppressPendingResult(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func TestSavingEnabledWeixinChannelDoesNotSuppressPendingResult(t *testing.T) {
 }
 
 func TestWeixinAPIShowsCurrentTaskAndRetriesDelivery(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

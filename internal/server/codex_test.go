@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestCodexActivityResolverDoesNotGuessBetweenConcurrentIdenticalCalls(t *testing.T) {

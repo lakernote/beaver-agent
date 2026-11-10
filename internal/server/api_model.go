@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type modelSettingsInput struct {
@@ -67,7 +67,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 	id := strings.TrimSpace(request.PathValue("id"))
 	settings, err := server.modelsRepository().GetModelSettingsByProfileID(id)
 	if err == nil {
-		err = server.requireVerifiedEasyAgent(settings)
+		err = server.requireVerifiedBeaver(settings)
 	}
 	if err != nil {
 		writeError(response, http.StatusConflict, err.Error())

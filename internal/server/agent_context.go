@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // decorateContext 将消息数、真实 Usage、压缩检查点和模型配置组合成页面账本。

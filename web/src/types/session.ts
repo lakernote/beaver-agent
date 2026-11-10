@@ -98,7 +98,7 @@ export type Session = {
   projectId?: string
   status: 'idle' | 'queued' | 'paused' | 'running' | 'failed' | 'canceled'
   error?: string
-  runtime: 'easyagent' | 'codex'
+  runtime: 'beaver' | 'codex'
   channel?: 'web' | 'weixin' | 'automation' | string
   model?: string
   reasoningEffort?: string

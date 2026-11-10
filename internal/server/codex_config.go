@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
 )
 
 func (server *Server) getCodexConfig(response http.ResponseWriter, request *http.Request) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
 type modelFunc func(context.Context, agent.Request) (agent.Response, error)
@@ -32,18 +32,18 @@ func TestRunVerifiesNativeToolRoundTripAndUsage(t *testing.T) {
 			t.Fatalf("second request = %+v", request)
 		}
 		request.OnTextDelta("EASY")
-		return agent.Response{Message: agent.Message{Content: "EASYAGENT_OK"}, Usage: agent.Usage{InputTokens: 16, OutputTokens: 2}}, nil
+		return agent.Response{Message: agent.Message{Content: "BEAVER_OK"}, Usage: agent.Usage{InputTokens: 16, OutputTokens: 2}}, nil
 	}), "fixture")
-	if err != nil || calls != 2 || result.ToolCall != ToolName || result.Answer != "EASYAGENT_OK" || result.InputTokens != 26 || result.OutputTokens != 5 || result.Duration <= 0 || result.FirstTokenDuration <= 0 {
+	if err != nil || calls != 2 || result.ToolCall != ToolName || result.Answer != "BEAVER_OK" || result.InputTokens != 26 || result.OutputTokens != 5 || result.Duration <= 0 || result.FirstTokenDuration <= 0 {
 		t.Fatalf("result=%+v calls=%d err=%v", result, calls, err)
 	}
 }
 
 func TestRunRejectsTextToolImitationAndKeepsPartialMetrics(t *testing.T) {
 	result, err := Run(context.Background(), modelFunc(func(_ context.Context, request agent.Request) (agent.Response, error) {
-		request.OnTextDelta(`{"name":"easyagent_diagnostic_echo"}`)
+		request.OnTextDelta(`{"name":"beaver_diagnostic_echo"}`)
 		return agent.Response{
-			Message: agent.Message{Content: `{"name":"easyagent_diagnostic_echo"}`},
+			Message: agent.Message{Content: `{"name":"beaver_diagnostic_echo"}`},
 			Usage:   agent.Usage{InputTokens: 7, OutputTokens: 4},
 		}, nil
 	}), "fixture")

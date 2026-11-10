@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func TestLoaderRegistersOnlySelectedTools(t *testing.T) {

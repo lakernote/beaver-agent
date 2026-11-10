@@ -13,8 +13,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/store"
 	"golang.org/x/oauth2"
 )
 
@@ -228,7 +228,7 @@ func TestSaveMCPInvalidatesOAuthCredentialWhenBindingChanges(t *testing.T) {
 
 func newMCPOAuthTestServer(t *testing.T) (*Server, *store.Store) {
 	t.Helper()
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

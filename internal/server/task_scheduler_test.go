@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestTaskSchedulerLimitsGlobalConcurrency(t *testing.T) {
@@ -31,7 +31,7 @@ func TestTaskSchedulerLimitsGlobalConcurrency(t *testing.T) {
 }
 
 func TestTaskConflictKeySerializesProjectsWithSharedSources(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,15 +86,15 @@ func TestTaskSchedulerSerializesAnySharedResource(t *testing.T) {
 	scheduler.release("workspace:a", "model:ollama:local")
 }
 
-func TestTaskResourceKeysAddOllamaEndpointOnlyForEasyAgent(t *testing.T) {
+func TestTaskResourceKeysAddOllamaEndpointOnlyForBeaver(t *testing.T) {
 	server := &Server{}
 	easy := server.taskResourceKeys(store.Session{Workspace: "/tmp/a"}, store.ModelSettings{Provider: "ollama", BaseURL: "HTTP://LOCALHOST:11434/"})
 	if len(easy) != 2 || easy[1] != "model:ollama:http://localhost:11434" {
-		t.Fatalf("EasyAgent Ollama 资源键错误: %+v", easy)
+		t.Fatalf("Beaver Ollama 资源键错误: %+v", easy)
 	}
 	codex := server.taskResourceKeys(store.Session{Workspace: "/tmp/b"}, store.ModelSettings{Runtime: store.RuntimeCodex, Provider: "ollama", BaseURL: "http://localhost:11434"})
 	if len(codex) != 1 {
-		t.Fatalf("Codex 不应套用 EasyAgent Ollama 串行键: %+v", codex)
+		t.Fatalf("Codex 不应套用 Beaver Ollama 串行键: %+v", codex)
 	}
 }
 

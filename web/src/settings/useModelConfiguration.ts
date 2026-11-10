@@ -63,7 +63,7 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     const common = {
       ...seed,
       profileId: `${runtime}-${Date.now()}`,
-      profileName: `${runtime === 'codex' ? 'Codex' : 'EasyAgent'} 新配置`,
+      profileName: `${runtime === 'codex' ? 'Codex' : 'Beaver'} 新配置`,
       runtime,
       apiKey: '',
       secretConfigured: false,
@@ -187,7 +187,7 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     setModel({ ...profile.settings, profileId: profile.id, profileName: profile.name })
     setSavingModel(true); setModelNotice(null); onError('')
     try {
-      if (profile.settings.runtime === 'easyagent') await api.testModel(profile.settings)
+      if (profile.settings.runtime === 'beaver') await api.testModel(profile.settings)
       await api.activateModelProfile(profile.id); await onRefresh()
     }
     catch (reason) { onError((reason as Error).message) }
@@ -195,9 +195,9 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
   }
 
   const activateOllamaModel = async (name: string) => {
-    const existing = data.modelProfiles.find((profile) => profile.settings.runtime === 'easyagent' && profile.settings.model === name)
+    const existing = data.modelProfiles.find((profile) => profile.settings.runtime === 'beaver' && profile.settings.model === name)
     if (existing) { await activateProfile(existing); return }
-    const next: ModelSettings = { ...data.model, profileId: `easyagent-${Date.now()}`, profileName: `Ollama · ${name}`, runtime: 'easyagent', provider: 'ollama', protocol: 'ollama_chat', baseUrl: data.ollama.baseUrl, model: name }
+    const next: ModelSettings = { ...data.model, profileId: `beaver-${Date.now()}`, profileName: `Ollama · ${name}`, runtime: 'beaver', provider: 'ollama', protocol: 'ollama_chat', baseUrl: data.ollama.baseUrl, model: name }
     setModel(next); setSavingModel(true); setModelNotice(null); onError('')
     try { await api.saveModel(next); await api.testModel(next); await api.activateModelProfile(next.profileId!); await onRefresh() }
     catch (reason) { onError((reason as Error).message) }

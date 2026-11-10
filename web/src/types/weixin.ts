@@ -13,7 +13,7 @@ export type WeixinAccount = {
     id: string
     title: string
     status: 'idle' | 'queued' | 'paused' | 'running' | 'failed' | 'canceled'
-    runtime: 'easyagent' | 'codex'
+    runtime: 'beaver' | 'codex'
     progress?: string
     updatedAt: string
   }

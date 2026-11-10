@@ -15,7 +15,7 @@ export type Usage = {
 
 export type UsageAggregate = {
   periodStart: string
-  runtime: 'easyagent' | 'codex'
+  runtime: 'beaver' | 'codex'
   model: string
   profileId?: string
   sessions: number

@@ -107,7 +107,7 @@ export function ExecutionProgress({ session }: { session: Session }) {
   const files = summarizeSessionFileChanges(events)
   const businessCalls = countBusinessCalls(events)
   const label = plan.length > 0 ? `第 ${currentIndex + 1}/${plan.length} 步` : agentStep > 0 ? `第 ${agentStep} 步` : session.runtime === 'codex' ? 'Codex 准备中' : 'Agent 准备中'
-  const detail = plan[currentIndex]?.step || session.runProgress?.replace(/^(Codex|EasyAgent)\s*·\s*/, '') || '正在处理任务'
+  const detail = plan[currentIndex]?.step || session.runProgress?.replace(/^(Codex|Beaver|Beaver)\s*·\s*/, '') || '正在处理任务'
   return <div className="execution-progress" role="status" aria-live="polite">
     <span className="execution-progress-spinner" aria-hidden="true" /><strong>{label}</strong><span>{detail}</span>
     {files.count > 0 ? <em><b>{files.count} 个文件</b><i>+{files.additions}</i><u>−{files.deletions}</u></em> : businessCalls > 0 ? <em><b>{businessCalls} 次能力调用</b></em> : null}
@@ -166,9 +166,9 @@ function countBusinessCalls(events: TraceEvent[]) {
   const ids = new Set<string>()
   let withoutID = 0
   for (const event of events) {
-    const easyAgentCall = event.kind === 'tool_end' && !['loader', 'skill', 'mcp_loader'].includes(event.activityKind || '') && !['load_tools', 'load_skill', 'search_mcp_tools'].includes(event.name || '')
+    const beaverCall = event.kind === 'tool_end' && !['loader', 'skill', 'mcp_loader'].includes(event.activityKind || '') && !['load_tools', 'load_skill', 'search_mcp_tools'].includes(event.name || '')
     const codexCall = event.kind === 'codex_item' && event.status !== 'started' && (event.activityKind === 'tool' || event.activityKind === 'mcp')
-    if (!easyAgentCall && !codexCall) continue
+    if (!beaverCall && !codexCall) continue
     if (event.activityId) ids.add(event.activityId)
     else withoutID++
   }

@@ -50,7 +50,7 @@ func normalizeToolGuarantee(value ToolOperation) ToolGuarantee {
 	case ToolGuaranteePreEffect, ToolGuaranteeObserved, ToolGuaranteeUncorrelated:
 		return value.Guarantee
 	}
-	if value.Runtime == RuntimeEasyAgent {
+	if value.Runtime == RuntimeBeaver {
 		return ToolGuaranteePreEffect
 	}
 	return ToolGuaranteeObserved
@@ -66,7 +66,7 @@ func validateToolOperationIdentity(sessionID string, value ToolOperation) error 
 	return nil
 }
 
-// BeginToolOperation 必须在 EasyAgent 真正调用工具前成功。重复 activity id
+// BeginToolOperation 必须在 Beaver 真正调用工具前成功。重复 activity id
 // 会直接失败，既不覆盖旧结论，也不允许第二次副作用绕过一一对应的账本。
 func (store *Store) BeginToolOperation(sessionID string, value ToolOperation) error {
 	if err := validateToolOperationIdentity(sessionID, value); err != nil {

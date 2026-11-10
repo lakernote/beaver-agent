@@ -5,19 +5,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/tracevalue"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/tracevalue"
 )
 
 func (server *Server) newTraceObserver(id string, turn int, usage *store.Usage, onTraceError func(error)) agent.Observer {
 	return func(event agent.Event) {
 		if event.Kind == agent.EventModelStart {
-			server.tasks.setProgress(id, "EasyAgent · 请求模型")
+			server.tasks.setProgress(id, "Beaver · 请求模型")
 		} else if event.Kind == agent.EventToolStart && event.ToolCall != nil {
-			server.tasks.setProgress(id, "EasyAgent · 执行工具 "+event.ToolCall.Name)
+			server.tasks.setProgress(id, "Beaver · 执行工具 "+event.ToolCall.Name)
 		} else if event.Kind == agent.EventModelEnd {
-			server.tasks.setProgress(id, "EasyAgent · 整理回答")
+			server.tasks.setProgress(id, "Beaver · 整理回答")
 		}
 		value := store.Event{Kind: string(event.Kind), Turn: turn, Step: event.Step, Attempt: event.Attempt, Status: "success", Name: event.Name, Detail: event.Detail, CreatedAt: time.Now(), DurationMS: event.Duration.Milliseconds()}
 		if event.ToolCall != nil {

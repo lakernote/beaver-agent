@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func (server *Server) saveRuntimeSettings(response http.ResponseWriter, request *http.Request) {

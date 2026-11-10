@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestCoreSkillsFollowDevelopmentWorkflow(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 )
 
 func TestStaticAssetsUseImmutableCacheAndGzip(t *testing.T) {
-	payload := []byte("console.log('easyagent');\n")
+	payload := []byte("console.log('beaver');\n")
 	for len(payload) < 2048 {
 		payload = append(payload, payload...)
 	}
@@ -40,7 +40,7 @@ func TestStaticAssetsUseImmutableCacheAndGzip(t *testing.T) {
 }
 
 func TestStaticHistoryFallbackDoesNotUseImmutableCache(t *testing.T) {
-	server := &Server{assets: fstest.MapFS{"index.html": {Data: []byte("<main>EasyAgent</main>")}}}
+	server := &Server{assets: fstest.MapFS{"index.html": {Data: []byte("<main>Beaver</main>")}}}
 	response := httptest.NewRecorder()
 
 	server.static(response, httptest.NewRequest("GET", "/settings/models", nil))
@@ -48,7 +48,7 @@ func TestStaticHistoryFallbackDoesNotUseImmutableCache(t *testing.T) {
 	if got := response.Header().Get("Cache-Control"); got != "no-cache" {
 		t.Fatalf("Cache-Control = %q", got)
 	}
-	if got := response.Body.String(); got != "<main>EasyAgent</main>" {
+	if got := response.Body.String(); got != "<main>Beaver</main>" {
 		t.Fatalf("body = %q", got)
 	}
 }

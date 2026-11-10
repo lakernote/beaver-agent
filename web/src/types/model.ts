@@ -1,7 +1,7 @@
 export type ModelSettings = {
   profileId?: string
   profileName?: string
-  runtime: 'easyagent' | 'codex'
+  runtime: 'beaver' | 'codex'
   provider: string
   protocol: 'chat_completions' | 'responses' | 'ollama_chat' | 'anthropic_messages' | 'app_server'
   baseUrl: string

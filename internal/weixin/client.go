@@ -1,6 +1,6 @@
 // Package weixin implements the HTTP/JSON transport used by Tencent's WeChat
 // ClawBot iLink channel. It is intentionally independent from either Agent
-// runtime so the server can route inbound messages to EasyAgent or Codex.
+// runtime so the server can route inbound messages to Beaver or Codex.
 package weixin
 
 import (
@@ -207,7 +207,7 @@ func (gateway *HTTPGateway) SendText(ctx context.Context, account Account, userI
 const maxDownloadedMediaBytes = 10 * 1024 * 1024
 
 // DownloadMedia follows Tencent's iLink CDN contract. Direct URLs are limited
-// to Tencent HTTPS hosts so a forged update cannot turn EasyAgent into an SSRF
+// to Tencent HTTPS hosts so a forged update cannot turn Beaver into an SSRF
 // proxy. The channel uses AES-128-ECB with PKCS#7 padding.
 func (gateway *HTTPGateway) DownloadMedia(ctx context.Context, media CDNMedia, aesKey string) ([]byte, error) {
 	downloadURL, err := mediaDownloadURL(media)
@@ -393,7 +393,7 @@ func resolveURL(baseURL, endpoint string) (string, error) {
 }
 
 func baseInfo() map[string]any {
-	return map[string]any{"channel_version": channelVersion, "bot_agent": "EasyAgent/1"}
+	return map[string]any{"channel_version": channelVersion, "bot_agent": "Beaver/1"}
 }
 
 func randomUIN() (string, error) {
@@ -410,5 +410,5 @@ func randomID() (string, error) {
 	if _, err := rand.Read(data); err != nil {
 		return "", err
 	}
-	return "easyagent-" + hex.EncodeToString(data), nil
+	return "beaver-" + hex.EncodeToString(data), nil
 }

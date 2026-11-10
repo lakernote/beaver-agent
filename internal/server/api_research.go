@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	builtintools "github.com/lakernote/easy-agent/internal/builtin/tools"
-	"github.com/lakernote/easy-agent/internal/store"
+	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type researchProviderSettingsInput struct {

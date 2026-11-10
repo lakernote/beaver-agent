@@ -1,10 +1,10 @@
 package codexruntime
 
-import "github.com/lakernote/easy-agent/internal/permissions"
+import "github.com/lakernote/beaver-agent/internal/permissions"
 
 // codexSandboxMode is the legacy thread/start value. turn/start uses the
 // object form below; keeping this translation here prevents protocol details
-// from leaking into the server and EasyAgent settings.
+// from leaking into the server and Beaver settings.
 func codexSandboxMode(policy permissions.Policy) string {
 	switch policy.Normalize().Mode {
 	case permissions.ModeReadOnly:

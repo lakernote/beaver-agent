@@ -18,7 +18,7 @@ const (
 	defaultToolTimeout = 5 * time.Minute
 )
 
-// Runner 是 EasyAgent 的核心。它只负责一个很小的循环：
+// Runner 是 Beaver 的核心。它只负责一个很小的循环：
 //
 //	模型 -> 工具调用 -> 工具结果 -> 模型 -> 最终回答
 //

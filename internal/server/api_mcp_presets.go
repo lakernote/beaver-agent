@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	mcppresets "github.com/lakernote/easy-agent/internal/mcp/presets"
-	"github.com/lakernote/easy-agent/internal/mcpclient"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	mcppresets "github.com/lakernote/beaver-agent/internal/mcp/presets"
+	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type mcpInstallResult struct {
@@ -55,11 +55,11 @@ func (server *Server) checkMCPPreset(response http.ResponseWriter, request *http
 		writeJSON(response, http.StatusOK, mcpPresetCheckResult{OK: true, Installed: true, Status: "installed", Message: "运行环境和私有 MCP 包均已就绪，可以测试连接或启用"})
 		return
 	}
-	writeJSON(response, http.StatusOK, mcpPresetCheckResult{OK: true, Status: "ready_to_install", Message: "运行环境满足要求；MCP 包尚未安装，安装只会写入 EasyAgent 私有目录"})
+	writeJSON(response, http.StatusOK, mcpPresetCheckResult{OK: true, Status: "ready_to_install", Message: "运行环境满足要求；MCP 包尚未安装，安装只会写入 Beaver 私有目录"})
 }
 
 // installMCPPreset 完成真正的一键流程：检查 Node.js、把固定版本安装到
-// EasyAgent 私有 runtime 目录、连接并读取工具清单，全部成功后才启用。
+// Beaver 私有 runtime 目录、连接并读取工具清单，全部成功后才启用。
 func (server *Server) installMCPPreset(response http.ResponseWriter, request *http.Request) {
 	preset, found := mcppresets.Find(request.PathValue("id"))
 	if !found {
@@ -115,7 +115,7 @@ func (server *Server) installMCPPreset(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, mcpInstallResult{Ready: true, Status: "ready", Message: "依赖检查、安装和连接测试均已通过", MCP: publicMCP(candidate), Tools: connection.Info})
 }
 
-// uninstallMCPPreset 删除预设安装在 EasyAgent 私有 Runtime 中的包和对应配置。
+// uninstallMCPPreset 删除预设安装在 Beaver 私有 Runtime 中的包和对应配置。
 // 宿主机 Node/npm、全局包以及工作区文件都不在删除范围内。
 func (server *Server) uninstallMCPPreset(response http.ResponseWriter, request *http.Request) {
 	preset, found := mcppresets.Find(request.PathValue("id"))
@@ -124,7 +124,7 @@ func (server *Server) uninstallMCPPreset(response http.ResponseWriter, request *
 		return
 	}
 	if preset.Action != "install" || preset.NPMPackage == "" {
-		writeError(response, http.StatusBadRequest, "该 MCP 没有 EasyAgent 私有安装包")
+		writeError(response, http.StatusBadRequest, "该 MCP 没有 Beaver 私有安装包")
 		return
 	}
 	if err := server.env.UninstallNPMPackage(preset.ID); err != nil {
@@ -161,7 +161,7 @@ func cloneMap(source map[string]string) map[string]string {
 func (server *Server) checkMCPPresetRuntime(parent context.Context, preset mcppresets.Preset) error {
 	for _, command := range preset.RequiredCommands {
 		if _, err := server.env.ResolveCommand(command); err != nil {
-			return errors.New("服务器 PATH 中找不到 " + command + "；" + preset.Requirement + "。EasyAgent 不执行系统级运行时安装")
+			return errors.New("服务器 PATH 中找不到 " + command + "；" + preset.Requirement + "。Beaver 不执行系统级运行时安装")
 		}
 	}
 	if preset.MinimumNodeMajor == 0 {

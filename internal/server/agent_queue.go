@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func (server *Server) enqueueTurn(id, userMessage string, attachments []store.Attachment, model store.ModelSettings) error {
 	if server.tasks.has(id) {
 		return errors.New("上一条任务正在结束，请稍后再发送")
 	}
-	if err := server.requireVerifiedEasyAgent(model); err != nil {
+	if err := server.requireVerifiedBeaver(model); err != nil {
 		return err
 	}
 	now := time.Now()
@@ -72,7 +72,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 			return
 		}
 		// 整轮上限属于两个 Runtime 共用的调度层。Codex 仍会把同一个上限传给
-		// app-server，以便它主动 interrupt；EasyAgent 则由这里取消整个循环。
+		// app-server，以便它主动 interrupt；Beaver 则由这里取消整个循环。
 		model.TurnTimeoutSeconds = runtimeSettings.TurnTimeoutSeconds
 		turnContext, turnCancel := context.WithTimeout(taskContext, time.Duration(runtimeSettings.TurnTimeoutSeconds)*time.Second)
 		defer turnCancel()
@@ -90,7 +90,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 			}
 			runtime := session.Runtime
 			if runtime == "" {
-				runtime = store.RuntimeEasyAgent
+				runtime = store.RuntimeBeaver
 			}
 			unknownReason := "本轮异常结束时工具没有返回确定终态；为避免重复副作用不会自动重放"
 			if ledgerErr := server.sessionsRepository().MarkUnfinishedToolOperationsUnknown(id, runtime, session.UserTurnCount, unknownReason, time.Now()); ledgerErr != nil {

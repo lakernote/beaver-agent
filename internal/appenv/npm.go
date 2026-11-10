@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// InstallNPMPackage 把 MCP 的 Node 包安装到 EasyAgent 私有 runtime/mcp 目录，
+// InstallNPMPackage 把 MCP 的 Node 包安装到 Beaver 私有 runtime/mcp 目录，
 // 不写全局 npm 目录，也不污染用户项目的 package.json/node_modules。
 func (environment *Environment) InstallNPMPackage(ctx context.Context, id, packageSpec, executable string) (string, error) {
 	packageSpec = strings.TrimSpace(packageSpec)
@@ -41,7 +41,7 @@ func (environment *Environment) InstallNPMPackage(ctx context.Context, id, packa
 	return reference, nil
 }
 
-// UninstallNPMPackage 只删除 EasyAgent 自己的 runtime/mcp/<id>。它不会执行 npm
+// UninstallNPMPackage 只删除 Beaver 自己的 runtime/mcp/<id>。它不会执行 npm
 // 全局卸载，也不会接触用户项目中的 package.json 或 node_modules。
 func (environment *Environment) UninstallNPMPackage(id string) error {
 	destination, err := environment.npmPackageDirectory(id)

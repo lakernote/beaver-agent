@@ -11,9 +11,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	mcppresets "github.com/lakernote/easy-agent/internal/mcp/presets"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	mcppresets "github.com/lakernote/beaver-agent/internal/mcp/presets"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestPublicMCPDoesNotExposeCredentialBearingFields(t *testing.T) {
@@ -36,19 +36,19 @@ func TestPublicMCPDoesNotExposeCredentialBearingFields(t *testing.T) {
 }
 
 func TestPresetRuntimeCheckReportsMissingCommand(t *testing.T) {
-	preset := mcppresets.Preset{Name: "fixture", Requirement: "fixture runtime", RequiredCommands: []string{"easyagent-command-that-does-not-exist"}}
+	preset := mcppresets.Preset{Name: "fixture", Requirement: "fixture runtime", RequiredCommands: []string{"beaver-command-that-does-not-exist"}}
 	environment, openErr := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
 	if openErr != nil {
 		t.Fatal(openErr)
 	}
 	err := (&Server{env: environment}).checkMCPPresetRuntime(context.Background(), preset)
-	if err == nil || !strings.Contains(err.Error(), "easyagent-command-that-does-not-exist") {
+	if err == nil || !strings.Contains(err.Error(), "beaver-command-that-does-not-exist") {
 		t.Fatalf("应返回明确的缺失依赖，实际为 %v", err)
 	}
 }
 
 func TestUninstallPresetRemovesOnlyPrivatePackageAndConfig(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

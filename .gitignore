@@ -3,7 +3,7 @@
 .vscode/
 
 bin/
-/easyagent
+/beaver
 *.pid
 web/dist/
 web/node_modules/

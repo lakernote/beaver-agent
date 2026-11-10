@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/weixin"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 var errWeixinVoiceNeedsText = errors.New("微信语音没有取得可用文字")

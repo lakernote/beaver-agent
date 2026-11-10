@@ -1,7 +1,7 @@
 // Package ollama adapts Ollama's native /api/chat protocol to the provider-
 // neutral agent runtime. It intentionally does not route through Ollama's
 // OpenAI compatibility endpoint, so native usage, tool and stop semantics stay
-// available to EasyAgent.
+// available to Beaver.
 package ollama
 
 import (
@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 const Protocol = "ollama_chat"
@@ -44,7 +44,7 @@ type Client struct {
 
 func New(config Config) (*Client, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
-	// The previous EasyAgent default pointed at Ollama's compatibility /v1.
+	// The previous Beaver default pointed at Ollama's compatibility /v1.
 	// Accept that saved value while switching the wire protocol to native chat.
 	baseURL = strings.TrimSuffix(baseURL, "/v1")
 	parsed, err := url.Parse(baseURL)

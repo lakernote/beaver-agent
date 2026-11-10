@@ -936,7 +936,7 @@ func (provider *searXNGSearchProvider) Search(ctx context.Context, input researc
 		return nil, err
 	}
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "EasyAgent/1.0")
+	request.Header.Set("User-Agent", "Beaver/1.0")
 	response, err := provider.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
@@ -980,7 +980,7 @@ func (provider *braveSearchProvider) Search(ctx context.Context, input researchS
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("X-Subscription-Token", provider.key)
-	request.Header.Set("User-Agent", "EasyAgent/1.0")
+	request.Header.Set("User-Agent", "Beaver/1.0")
 	response, err := provider.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
@@ -1036,7 +1036,7 @@ func (provider *firecrawlSearchProvider) Search(ctx context.Context, input resea
 	request.Header.Set("Authorization", "Bearer "+provider.key)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "EasyAgent/1.0")
+	request.Header.Set("User-Agent", "Beaver/1.0")
 	response, err := provider.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
@@ -1096,7 +1096,7 @@ func searchTarget(value string) string {
 }
 
 func setResearchSearchHeaders(request *http.Request) {
-	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; EasyAgent/1.0; +https://github.com/lakernote/easy-agent)")
+	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Beaver/1.0; +https://github.com/lakernote/beaver-agent)")
 	request.Header.Set("Accept", "text/html,application/xhtml+xml")
 	request.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
 }

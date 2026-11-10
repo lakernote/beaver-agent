@@ -4,9 +4,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/builtin/prompt"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/builtin/prompt"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 var capabilityMentionPattern = regexp.MustCompile(`(?i)@(skill|tool|mcp):([a-z0-9][a-z0-9._-]*)`)

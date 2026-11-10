@@ -95,7 +95,7 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
       </div>
       <div className="settings-hub-context">
         <span className="service-dot" />
-        <div><small>新会话默认</small><strong>{data.model.runtime === 'codex' ? 'Codex · 一套配置' : `EasyAgent · ${activeProfile?.name || '未命名配置'}`}</strong></div>
+        <div><small>新会话默认</small><strong>{data.model.runtime === 'codex' ? 'Codex · 一套配置' : `Beaver · ${activeProfile?.name || '未命名配置'}`}</strong></div>
         <button className="account-logout" type="button" onClick={() => void onLogout()}>退出</button>
       </div>
     </header>

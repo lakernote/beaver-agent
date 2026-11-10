@@ -14,15 +14,14 @@ import (
 
 const (
 	defaultAdminUsername = "admin"
-	defaultAdminPassword = "admin"
 	passwordSaltBytes    = 16
 	passwordHashBytes    = 32
 	passwordIterations   = 210_000
 )
 
-// EnsureAdmin creates the first local administrator exactly once. The default
-// password is intentionally only used during first-run initialization; it is
-// never stored or returned by the API.
+// EnsureAdmin creates the first local administrator exactly once with a random
+// password. The password is kept in memory only so the process can print it
+// once at startup; it is never stored in plaintext or returned by the API.
 func (store *Store) EnsureAdmin() error {
 	var count int
 	if err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_auth_users WHERE username=?`, defaultAdminUsername).Scan(&count); err != nil {
@@ -31,7 +30,53 @@ func (store *Store) EnsureAdmin() error {
 	if count > 0 {
 		return nil
 	}
-	return store.createUser(defaultAdminUsername, defaultAdminPassword, time.Now())
+	password, err := randomPassword()
+	if err != nil {
+		return err
+	}
+	if err := store.createUser(defaultAdminUsername, password, time.Now()); err != nil {
+		return err
+	}
+	store.initialAdminPassword = password
+	return nil
+}
+
+// InitialAdminPassword returns the generated password when this process created
+// the administrator account, or an empty string otherwise.
+func (store *Store) InitialAdminPassword() string { return store.initialAdminPassword }
+
+// ResetAdminPassword replaces the administrator password with a new random one.
+func (store *Store) ResetAdminPassword() (string, error) {
+	password, err := randomPassword()
+	if err != nil {
+		return "", err
+	}
+	salt := make([]byte, passwordSaltBytes)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("生成密码盐失败: %w", err)
+	}
+	hashValue := derivePassword(password, salt, passwordIterations)
+	result, err := store.db.Exec(`UPDATE ea_auth_users SET password_salt=?,password_hash=?,password_iterations=?,updated_at=? WHERE username=?`, salt, hashValue, passwordIterations, formatTime(time.Now()), defaultAdminUsername)
+	if err != nil {
+		return "", err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return "", errors.New("管理员账号不存在")
+	}
+	return password, nil
+}
+
+func randomPassword() (string, error) {
+	const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("生成随机密码失败: %w", err)
+	}
+	out := make([]byte, len(raw))
+	for i, value := range raw {
+		out[i] = alphabet[int(value)%len(alphabet)]
+	}
+	return string(out), nil
 }
 
 func (store *Store) createUser(username, password string, now time.Time) error {

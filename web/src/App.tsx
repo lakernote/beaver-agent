@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { APIError, api, onAuthenticationRequired } from './api'
 import type { Bootstrap, ModelSettings, Session } from './types'
+import { useTaskNotifications } from './notifications'
 import { isActive, mergeSessionHistory, mergeSessionSnapshot, sessionDisplayTitle, updateSessionSummary, type Page } from './sessionState'
 import { ForkDialog, WorktreeDialog, friendlyError, type ForkWorkspaceMode } from './dialogs'
 import { Logo, TraceIcon } from './ui'
@@ -149,6 +150,7 @@ export default function App() {
     return () => stream.close()
   }, [session?.id, session?.status, refresh, setCurrentSession])
 
+  const notifications = useTaskNotifications(data, session?.id, refresh)
   const newChat = () => { setSession(null); setPage('chat'); setTraceOpen(false); setForkOpen(false); setWorktreeOpen(false); setError('') }
   const stopSession = async () => {
     if (!session || updatingRunState || (!isActive(session.status) && session.status !== 'paused')) return
@@ -205,13 +207,13 @@ export default function App() {
     } catch (reason) { setError((reason as Error).message) }
   }
 
-  if (loading) return <div className="boot"><span className="spinner" />正在启动 EasyAgent…</div>
+  if (loading) return <div className="boot"><span className="spinner" />正在启动 Beaver…</div>
   if (!authenticated) return <LoginPage onLogin={afterLogin} initialError={authError} />
   if (!data) return <div className="boot error-page">无法读取服务：{error || '未知错误'}</div>
 
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">跳到主要内容</a>
-    <Sidebar page={page} data={data} session={session} onPage={(next) => { setSettingsModelRuntime(undefined); setPage(next) }} onOpen={openSession} onNew={newChat} onSession={setCurrentSession} onFork={(value) => { setCurrentSession(value); setForkOpen(true) }} onRefresh={refresh} onLoadOlder={loadOlderSessions} onError={setError} />
+    <Sidebar page={page} data={data} session={session} onPage={(next) => { setSettingsModelRuntime(undefined); setPage(next) }} onOpen={openSession} onNew={newChat} onSession={setCurrentSession} onFork={(value) => { setCurrentSession(value); setForkOpen(true) }} onRefresh={refresh} onLoadOlder={loadOlderSessions} onError={setError} notifications={notifications} />
     <main id="main-content" className={`main-canvas ${page === 'chat' ? 'chat-canvas' : 'settings-canvas'}`}>
       <header className="topbar">
         <button type="button" className="mobile-brand" aria-label="新会话" title="新会话" onClick={newChat}><Logo /></button>

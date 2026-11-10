@@ -3,12 +3,12 @@ package server
 import (
 	"net/http"
 
-	"github.com/lakernote/easy-agent/internal/builtin/prompt"
-	builtintools "github.com/lakernote/easy-agent/internal/builtin/tools"
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	mcppresets "github.com/lakernote/easy-agent/internal/mcp/presets"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/builtin/prompt"
+	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	mcppresets "github.com/lakernote/beaver-agent/internal/mcp/presets"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type bootstrapPayload struct {
@@ -87,7 +87,7 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// A fresh database starts with an EasyAgent profile, but Codex's official
+	// A fresh database starts with an Beaver profile, but Codex's official
 	// ChatGPT login is a valid runtime configuration even without a third-party
 	// provider entry. Expose a virtual profile so the chat composer can select
 	// Codex and create a session before the user adds a custom provider.

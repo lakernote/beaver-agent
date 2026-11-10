@@ -11,7 +11,7 @@ import (
 const researchSettingsKey = "research_settings"
 
 // ResearchProviderSettings stores only administrator overrides. Empty values
-// intentionally fall back to the EasyAgent service environment at runtime.
+// intentionally fall back to the Beaver service environment at runtime.
 // Secrets are redacted by the HTTP layer before settings reach the browser.
 type ResearchProviderSettings struct {
 	Endpoint string `json:"endpoint,omitempty"`

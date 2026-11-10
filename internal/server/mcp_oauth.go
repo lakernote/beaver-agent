@@ -15,17 +15,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/mcpclient"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"golang.org/x/oauth2"
 )
 
 const (
-	mcpOAuthRuntimeEasyAgent = "easyagent"
-	mcpOAuthTimeout          = 10 * time.Minute
+	mcpOAuthRuntimeBeaver = "beaver"
+	mcpOAuthTimeout       = 10 * time.Minute
 )
 
 type mcpOAuthCallback struct {
@@ -173,7 +173,7 @@ func (server *Server) completeMCPOAuth(response http.ResponseWriter, request *ht
 		writeOAuthCallbackPage(response, false, "OAuth 回调已过期或不匹配")
 		return
 	}
-	writeOAuthCallbackPage(response, callback.Err == "", "授权完成，可以返回 EasyAgent")
+	writeOAuthCallbackPage(response, callback.Err == "", "授权完成，可以返回 Beaver")
 }
 
 func writeOAuthCallbackPage(response http.ResponseWriter, success bool, message string) {
@@ -187,7 +187,7 @@ func writeOAuthCallbackPage(response http.ResponseWriter, success bool, message 
 		status = http.StatusBadRequest
 	}
 	response.WriteHeader(status)
-	_, _ = fmt.Fprintf(response, "<!doctype html><meta charset=utf-8><title>%s</title><p>%s</p><p>可以关闭此页面并返回 EasyAgent。</p>", html.EscapeString(title), html.EscapeString(message))
+	_, _ = fmt.Fprintf(response, "<!doctype html><meta charset=utf-8><title>%s</title><p>%s</p><p>可以关闭此页面并返回 Beaver。</p>", html.EscapeString(title), html.EscapeString(message))
 }
 
 func (manager *mcpOAuthManager) start(parent context.Context, request *http.Request, id string) (mcpOAuthStatus, error) {
@@ -219,7 +219,7 @@ func (manager *mcpOAuthManager) start(parent context.Context, request *http.Requ
 	manager.mu.Lock()
 	if existing := manager.active[id]; existing != nil {
 		existing.mu.Lock()
-		status := mcpOAuthStatus{Runtime: mcpOAuthRuntimeEasyAgent, Pending: true, AuthorizationURL: existing.authorizationURL, Message: "等待浏览器完成授权"}
+		status := mcpOAuthStatus{Runtime: mcpOAuthRuntimeBeaver, Pending: true, AuthorizationURL: existing.authorizationURL, Message: "等待浏览器完成授权"}
 		existing.mu.Unlock()
 		manager.mu.Unlock()
 		return status, nil
@@ -232,14 +232,14 @@ func (manager *mcpOAuthManager) start(parent context.Context, request *http.Requ
 	go manager.run(flow, *config)
 	select {
 	case authorizationURL := <-flow.urlCh:
-		return mcpOAuthStatus{Runtime: mcpOAuthRuntimeEasyAgent, Pending: true, AuthorizationURL: authorizationURL, Message: "请在浏览器中完成授权"}, nil
+		return mcpOAuthStatus{Runtime: mcpOAuthRuntimeBeaver, Pending: true, AuthorizationURL: authorizationURL, Message: "请在浏览器中完成授权"}, nil
 	case runErr := <-flow.doneCh:
 		if runErr != nil {
 			return mcpOAuthStatus{}, runErr
 		}
 		return manager.status(id)
 	case <-time.After(5 * time.Second):
-		return mcpOAuthStatus{Runtime: mcpOAuthRuntimeEasyAgent, Pending: true, Message: "授权流程已启动，正在等待 MCP 响应"}, nil
+		return mcpOAuthStatus{Runtime: mcpOAuthRuntimeBeaver, Pending: true, Message: "授权流程已启动，正在等待 MCP 响应"}, nil
 	case <-parent.Done():
 		return mcpOAuthStatus{}, parent.Err()
 	}
@@ -435,7 +435,7 @@ func (manager *mcpOAuthManager) newHandler(flow *mcpOAuthFlow, config store.MCPC
 		handlerConfig.DynamicClientRegistrationConfig = &auth.DynamicClientRegistrationConfig{Metadata: &oauthex.ClientRegistrationMetadata{
 			RedirectURIs: []string{flow.redirectURL}, TokenEndpointAuthMethod: "none",
 			GrantTypes: []string{"authorization_code", "refresh_token"}, ResponseTypes: []string{"code"},
-			ClientName: "EasyAgent", Scope: strings.Join(config.OAuthScopes, " "),
+			ClientName: "Beaver", Scope: strings.Join(config.OAuthScopes, " "),
 		}}
 	}
 	return auth.NewAuthorizationCodeHandler(handlerConfig)
@@ -617,7 +617,7 @@ func (manager *mcpOAuthManager) status(id string) (mcpOAuthStatus, error) {
 	if err != nil {
 		return mcpOAuthStatus{}, err
 	}
-	status := mcpOAuthStatus{Runtime: mcpOAuthRuntimeEasyAgent, Message: "尚未授权"}
+	status := mcpOAuthStatus{Runtime: mcpOAuthRuntimeBeaver, Message: "尚未授权"}
 	if credential != nil && config != nil && oauthCredentialMatchesConfig(*credential, *config) && (credential.AccessToken != "" || credential.RefreshToken != "") {
 		status.Authorized = true
 		status.Message = "OAuth 凭证已保存，运行时会在过期时自动刷新"

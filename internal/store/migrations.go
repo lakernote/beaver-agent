@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS ea_sessions (
 	  project_id TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL,
 	  error TEXT NOT NULL,
-	  runtime TEXT NOT NULL DEFAULT 'easyagent',
+	  runtime TEXT NOT NULL DEFAULT 'beaver',
 	  channel TEXT NOT NULL DEFAULT 'web',
   profile_id TEXT NOT NULL DEFAULT '',
   model TEXT NOT NULL,
@@ -265,7 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 		return err
 	}
 	if runtimeColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN runtime TEXT NOT NULL DEFAULT 'easyagent'`); err != nil {
+		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN runtime TEXT NOT NULL DEFAULT 'beaver'`); err != nil {
 			return fmt.Errorf("迁移 ea_sessions.runtime: %w", err)
 		}
 	}

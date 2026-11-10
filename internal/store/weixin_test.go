@@ -7,7 +7,7 @@ import (
 )
 
 func TestWeixinAccountsPersistSecretsAndSuppressPendingDelivery(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestWeixinAccountsPersistSecretsAndSuppressPendingDelivery(t *testing.T) {
 }
 
 func TestWeixinSettingsDefaultDisabledAndEnableTimestamp(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

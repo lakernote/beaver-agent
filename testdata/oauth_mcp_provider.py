@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal OAuth + Streamable HTTP MCP provider for EasyAgent/Codex E2E tests.
+"""Minimal OAuth + Streamable HTTP MCP provider for Beaver/Codex E2E tests.
 
 This is intentionally not a real OAuth implementation. It auto-approves every
 authorization request, keeps fake tokens in memory, and exposes one harmless
@@ -158,7 +158,7 @@ class Provider:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "easyagent-oauth-test/1.0"
+    server_version = "beaver-oauth-test/1.0"
 
     @property
     def provider(self) -> Provider:
@@ -261,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "protocolVersion": "2025-06-18",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "easyagent-oauth-test", "version": "1.0.0"},
+                    "serverInfo": {"name": "beaver-oauth-test", "version": "1.0.0"},
                 },
                 {"Mcp-Session-Id": "local-test-session"},
             )

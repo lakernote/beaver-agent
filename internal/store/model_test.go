@@ -30,7 +30,7 @@ func TestCodexModelGetsIndependentTurnTimeoutDefault(t *testing.T) {
 }
 
 func TestCodexDefaultProfileCanCreateSessionWithoutPersistedProfile(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestModelCapabilityDetectionUsesEndpoint(t *testing.T) {
 }
 
 func TestModelProfilesMigrateLegacyAndKeepActiveSelection(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestModelProfilesMigrateLegacyAndKeepActiveSelection(t *testing.T) {
 }
 
 func TestModelProfileCannotBeDeletedWhileSessionUsesIt(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestModelProfileCannotBeDeletedWhileSessionUsesIt(t *testing.T) {
 	if err := database.SaveModelSettings(model); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.CreateSession(CreateSessionParams{ID: "session-1", Title: "fixture", Runtime: RuntimeEasyAgent, ProfileID: model.ProfileID, Model: model.Model, Workspace: t.TempDir(), CreatedAt: time.Now()}); err != nil {
+	if _, err := database.CreateSession(CreateSessionParams{ID: "session-1", Title: "fixture", Runtime: RuntimeBeaver, ProfileID: model.ProfileID, Model: model.Model, Workspace: t.TempDir(), CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	if err := database.DeleteModelProfile(model.ProfileID); err == nil {
@@ -141,7 +141,7 @@ func TestModelProfileCannotBeDeletedWhileSessionUsesIt(t *testing.T) {
 }
 
 func TestClearCodexProviderFallsBackToOfficial(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

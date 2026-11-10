@@ -69,33 +69,33 @@ var researchProviderDefinitions = []ResearchProviderDefinition{
 		ID: ResearchProviderTavily, Name: "Tavily", Category: "主搜索源",
 		Description: "稳定的结构化 Search API，适合生产环境默认搜索。",
 		SecretLabel: "API Key", RequiresSecret: true, PrimarySearch: true,
-		EnvironmentVariables: []string{"EASYAGENT_TAVILY_API_KEY", "TAVILY_API_KEY"},
+		EnvironmentVariables: []string{"BEAVER_TAVILY_API_KEY", "TAVILY_API_KEY"},
 	},
 	{
 		ID: ResearchProviderSearXNG, Name: "SearXNG", Category: "主搜索源",
 		Description:   "可自托管的聚合搜索服务，适合内网和隐私部署。",
 		EndpointLabel: "SearXNG URL", EndpointPlaceholder: "https://search.example.com", RequiresEndpoint: true, PrimarySearch: true,
-		EnvironmentVariables: []string{"EASYAGENT_SEARXNG_URL"},
+		EnvironmentVariables: []string{"BEAVER_SEARXNG_URL"},
 	},
 	{
 		ID: ResearchProviderBrave, Name: "Brave Search", Category: "主搜索源",
 		Description: "独立的 Search API，可作为 Tavily 之外的第二个生产搜索源。",
 		SecretLabel: "API Key", RequiresSecret: true, PrimarySearch: true,
-		EnvironmentVariables: []string{"EASYAGENT_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY"},
+		EnvironmentVariables: []string{"BEAVER_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY"},
 	},
 	{
 		ID: ResearchProviderFirecrawl, Name: "Firecrawl", Category: "搜索与正文",
 		Description:   "Search API 加动态页面/PDF 正文提取；直连页面不可读时自动作为降级，不向模型暴露额外工具。",
 		EndpointLabel: "API Base URL", EndpointPlaceholder: "https://api.firecrawl.dev/v2",
 		SecretLabel: "API Key", RequiresSecret: true, PrimarySearch: true,
-		EnvironmentVariables: []string{"EASYAGENT_FIRECRAWL_URL", "EASYAGENT_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY"},
+		EnvironmentVariables: []string{"BEAVER_FIRECRAWL_URL", "BEAVER_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY"},
 	},
 	{
 		ID: ResearchProviderReader, Name: "Reader", Category: "正文读取",
 		Description:   "为 PDF、JavaScript 页面或静态提取失败页面提供正文降级。",
 		EndpointLabel: "Reader URL", EndpointPlaceholder: "https://reader.example.com/{url}", RequiresEndpoint: true,
 		SecretLabel:          "Bearer Token",
-		EnvironmentVariables: []string{"EASYAGENT_READER_URL", "EASYAGENT_READER_API_KEY"},
+		EnvironmentVariables: []string{"BEAVER_READER_URL", "BEAVER_READER_API_KEY"},
 	},
 	{
 		ID: ResearchProviderGitHub, Name: "GitHub", Category: "精确数据",
@@ -129,16 +129,16 @@ func ResearchProviderDefinitionByID(id string) (ResearchProviderDefinition, bool
 
 func ResearchConfigFromEnvironment() ResearchConfig {
 	return ResearchConfig{Providers: map[string]ResearchProviderConfig{
-		ResearchProviderTavily:  {Secret: firstEnvironmentValue("EASYAGENT_TAVILY_API_KEY", "TAVILY_API_KEY")},
-		ResearchProviderSearXNG: {Endpoint: firstEnvironmentValue("EASYAGENT_SEARXNG_URL")},
-		ResearchProviderBrave:   {Secret: firstEnvironmentValue("EASYAGENT_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY")},
+		ResearchProviderTavily:  {Secret: firstEnvironmentValue("BEAVER_TAVILY_API_KEY", "TAVILY_API_KEY")},
+		ResearchProviderSearXNG: {Endpoint: firstEnvironmentValue("BEAVER_SEARXNG_URL")},
+		ResearchProviderBrave:   {Secret: firstEnvironmentValue("BEAVER_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY")},
 		ResearchProviderFirecrawl: {
-			Endpoint: firstEnvironmentValue("EASYAGENT_FIRECRAWL_URL"),
-			Secret:   firstEnvironmentValue("EASYAGENT_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY"),
+			Endpoint: firstEnvironmentValue("BEAVER_FIRECRAWL_URL"),
+			Secret:   firstEnvironmentValue("BEAVER_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY"),
 		},
 		ResearchProviderReader: {
-			Endpoint: firstEnvironmentValue("EASYAGENT_READER_URL"),
-			Secret:   firstEnvironmentValue("EASYAGENT_READER_API_KEY"),
+			Endpoint: firstEnvironmentValue("BEAVER_READER_URL"),
+			Secret:   firstEnvironmentValue("BEAVER_READER_API_KEY"),
 		},
 		ResearchProviderGitHub: {Secret: firstEnvironmentValue("GITHUB_TOKEN", "GH_TOKEN")},
 	}}
@@ -223,7 +223,7 @@ func TestResearchProvider(ctx context.Context, config ResearchConfig, id string)
 		if selected == nil {
 			return ResearchProviderTestResult{}, fmt.Errorf("%s 没有加载", definition.Name)
 		}
-		values, err := selected.Search(ctx, researchSearchRequest{Query: "EasyAgent GitHub", Freshness: "any", Limit: 1})
+		values, err := selected.Search(ctx, researchSearchRequest{Query: "Beaver GitHub", Freshness: "any", Limit: 1})
 		if err != nil {
 			return ResearchProviderTestResult{}, fmt.Errorf("%s 连接失败: %w", definition.Name, err)
 		}

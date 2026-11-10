@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // modelRepository is the persistence surface required by model configuration

@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	builtinskills "github.com/lakernote/easy-agent/internal/builtin/skills"
-	"github.com/lakernote/easy-agent/internal/store"
+	builtinskills "github.com/lakernote/beaver-agent/internal/builtin/skills"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)

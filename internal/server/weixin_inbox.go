@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/weixin"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 func (manager *weixinManager) poll(ctx context.Context, id string) {

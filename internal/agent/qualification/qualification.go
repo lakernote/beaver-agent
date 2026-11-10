@@ -1,5 +1,5 @@
 // Package qualification implements the provider-independent minimum model
-// qualification used by both the EasyAgent server and the local eval command.
+// qualification used by both the Beaver server and the local eval command.
 package qualification
 
 import (
@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
-const ToolName = "easyagent_diagnostic_echo"
+const ToolName = "beaver_diagnostic_echo"
 
 type Result struct {
 	Model              string
@@ -25,7 +25,7 @@ type Result struct {
 	FirstTokenDuration time.Duration
 }
 
-// Run verifies the contract EasyAgent actually depends on: the model must emit
+// Run verifies the contract Beaver actually depends on: the model must emit
 // a protocol-native function call with schema-valid arguments, accept a typed
 // tool result, and then produce visible streamed text with tools disabled.
 func Run(ctx context.Context, model agent.Model, modelName string) (Result, error) {
@@ -45,7 +45,7 @@ func Run(ctx context.Context, model agent.Model, modelName string) (Result, erro
 
 	tool := agent.ToolSpec{
 		Name:        ToolName,
-		Description: "EasyAgent 模型能力测试工具；收到要求时必须调用。",
+		Description: "Beaver 模型能力测试工具；收到要求时必须调用。",
 		Parameters: map[string]any{
 			"type": "object", "additionalProperties": false,
 			"properties": map[string]any{"text": map[string]any{"type": "string"}},
@@ -53,7 +53,7 @@ func Run(ctx context.Context, model agent.Model, modelName string) (Result, erro
 		},
 	}
 	messages := []agent.Message{
-		{Role: agent.RoleSystem, Content: "这是 EasyAgent Function Calling 能力测试。必须先调用提供的工具，参数 text 必须为 ping；拿到工具结果后，只回答结果中的 answer。"},
+		{Role: agent.RoleSystem, Content: "这是 Beaver Function Calling 能力测试。必须先调用提供的工具，参数 text 必须为 ping；拿到工具结果后，只回答结果中的 answer。"},
 		{Role: agent.RoleUser, Content: "开始测试。"},
 	}
 	first, err := model.Generate(ctx, agent.Request{
@@ -70,7 +70,7 @@ func Run(ctx context.Context, model agent.Model, modelName string) (Result, erro
 		return finish(err)
 	}
 	if len(first.Message.ToolCalls) != 1 || first.Message.ToolCalls[0].Name != tool.Name {
-		return finish(fmt.Errorf("没有返回协议原生 Function Call，而是返回了普通文本 %q；EasyAgent 不会解析文本伪工具调用", strings.TrimSpace(first.Message.Content)))
+		return finish(fmt.Errorf("没有返回协议原生 Function Call，而是返回了普通文本 %q；Beaver 不会解析文本伪工具调用", strings.TrimSpace(first.Message.Content)))
 	}
 	var arguments struct {
 		Text string `json:"text"`
@@ -80,7 +80,7 @@ func Run(ctx context.Context, model agent.Model, modelName string) (Result, erro
 	}
 	call := first.Message.ToolCalls[0]
 	result.ToolCall = call.Name
-	toolResult := agent.NewToolResult(`{"answer":"EASYAGENT_OK"}`)
+	toolResult := agent.NewToolResult(`{"answer":"BEAVER_OK"}`)
 	messages = append(messages, first.Message, agent.Message{
 		Role: agent.RoleTool, Name: tool.Name, ToolCallID: call.ID, Content: toolResult.ModelText(), ToolResult: &toolResult,
 	})
@@ -98,7 +98,7 @@ func Run(ctx context.Context, model agent.Model, modelName string) (Result, erro
 		return finish(err)
 	}
 	result.Answer = strings.TrimSpace(second.Message.Content)
-	if !strings.Contains(result.Answer, "EASYAGENT_OK") {
+	if !strings.Contains(result.Answer, "BEAVER_OK") {
 		return finish(fmt.Errorf("模型没有正确使用工具结果：%q", result.Answer))
 	}
 	return finish(nil)

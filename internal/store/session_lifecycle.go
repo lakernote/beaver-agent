@@ -26,7 +26,7 @@ func (store *Store) QueueSession(id, model string, now time.Time) error {
 
 // EnqueueTurn 把会话状态与本轮用户消息放进同一个事务。服务即使在提交边界
 // 崩溃，也只会看到“旧状态+旧历史”或“queued+新消息”，不会让恢复队列拿
-// 上一轮用户消息再次执行。EasyAgent 与 Codex Runtime 共用这个入口。
+// 上一轮用户消息再次执行。Beaver 与 Codex Runtime 共用这个入口。
 func (store *Store) EnqueueTurn(id, model string, value Message, now time.Time) error {
 	return store.EnqueueTurnWithSettings(id, ModelSettings{Model: model}, value, now)
 }

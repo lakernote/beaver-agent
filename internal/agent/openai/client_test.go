@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func TestDisabledThinkingUsesOpenAIReasoningEffort(t *testing.T) {
@@ -296,7 +296,7 @@ func TestChatCompletionsEncodesAutoToolChoiceAndCacheKey(t *testing.T) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		if body["tool_choice"] != "auto" || body["prompt_cache_key"] != "easyagent-core-v1" {
+		if body["tool_choice"] != "auto" || body["prompt_cache_key"] != "beaver-core-v1" {
 			t.Fatalf("Chat 工具选择或缓存键错误: %+v", body)
 		}
 		tools, ok := body["tools"].([]any)
@@ -315,7 +315,7 @@ func TestChatCompletionsEncodesAutoToolChoiceAndCacheKey(t *testing.T) {
 	_, err = client.Generate(context.Background(), core.Request{
 		Model: "fixture", Messages: []core.Message{{Role: core.RoleUser, Content: "hi"}},
 		Tools:      []core.ToolSpec{{Name: "current_time", Parameters: map[string]any{"type": "object"}}},
-		ToolChoice: core.ToolChoice{Mode: core.ToolChoiceAuto}, PromptCacheKey: "easyagent-core-v1",
+		ToolChoice: core.ToolChoice{Mode: core.ToolChoiceAuto}, PromptCacheKey: "beaver-core-v1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -364,7 +364,7 @@ func TestResponsesUsesPreviousResponseAndFunctionOutput(t *testing.T) {
 		if body["instructions"] != "始终使用中文" {
 			t.Fatalf("Responses 续聊必须重新发送 instructions: %+v", body)
 		}
-		if body["tool_choice"] != "auto" || body["prompt_cache_key"] != "easyagent-core-v1" {
+		if body["tool_choice"] != "auto" || body["prompt_cache_key"] != "beaver-core-v1" {
 			t.Fatalf("Responses 工具选择或缓存键错误: %+v", body)
 		}
 		item := body["input"].([]any)[0].(map[string]any)
@@ -391,7 +391,7 @@ func TestResponsesUsesPreviousResponseAndFunctionOutput(t *testing.T) {
 		Model: "fixture", PreviousResponseID: "resp-1",
 		Messages:    []core.Message{{Role: core.RoleSystem, Content: "始终使用中文"}},
 		NewMessages: []core.Message{{Role: core.RoleTool, ToolCallID: "call-1", Content: "ok"}},
-		ToolChoice:  core.ToolChoice{Mode: core.ToolChoiceAuto}, PromptCacheKey: "easyagent-core-v1",
+		ToolChoice:  core.ToolChoice{Mode: core.ToolChoiceAuto}, PromptCacheKey: "beaver-core-v1",
 	})
 	if err != nil || response.ID != "resp-2" || response.Message.Content != "完成" {
 		t.Fatalf("unexpected response: %+v, %v", response, err)

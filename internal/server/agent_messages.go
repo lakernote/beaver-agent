@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func toCoreMessage(value store.Message) agent.Message {
@@ -34,7 +34,7 @@ func toCoreMessage(value store.Message) agent.Message {
 		if value.Role == string(agent.RoleTool) {
 			continue
 		}
-		// EasyAgent's OpenAI-compatible adapters currently have no portable
+		// Beaver's OpenAI-compatible adapters currently have no portable
 		// audio input shape. Keep legacy persisted audio out of model requests.
 		if attachment.Kind == "audio" {
 			continue

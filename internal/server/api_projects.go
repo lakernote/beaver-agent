@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type projectRequest struct {
@@ -32,7 +32,7 @@ type directoryBrowserResponse struct {
 	Directories []directoryEntry `json:"directories"`
 }
 
-// browseDirectories lists only directories on the EasyAgent server. The browser
+// browseDirectories lists only directories on the Beaver server. The browser
 // needs this instead of a native file picker because the project paths belong to
 // the server process, not to the computer that opened the web page.
 func (server *Server) browseDirectories(response http.ResponseWriter, request *http.Request) {

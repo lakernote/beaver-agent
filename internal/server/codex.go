@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type codexRuntimeStatus = codexruntime.Status
@@ -325,7 +325,7 @@ func (server *Server) awaitCodexRequest(ctx context.Context, sessionID string, r
 	}
 	defer server.tasks.clearPending(sessionID)
 	rawPayload, _ := json.Marshal(map[string]any{"id": request.ID, "method": request.Method, "params": request.Params})
-	_ = server.sessionsRepository().AppendEvent(sessionID, store.Event{Kind: "codex_request", ProtocolMethod: request.Method, RawPayload: redactTraceAttachmentData(string(rawPayload)), Status: "waiting", Name: request.Method, Detail: "Codex app-server -> EasyAgent UI，等待用户处理反向请求", Input: redactTraceAttachmentData(string(request.Params)), Protocol: "codex_app_server", CreatedAt: time.Now()})
+	_ = server.sessionsRepository().AppendEvent(sessionID, store.Event{Kind: "codex_request", ProtocolMethod: request.Method, RawPayload: redactTraceAttachmentData(string(rawPayload)), Status: "waiting", Name: request.Method, Detail: "Codex app-server -> Beaver UI，等待用户处理反向请求", Input: redactTraceAttachmentData(string(request.Params)), Protocol: "codex_app_server", CreatedAt: time.Now()})
 	select {
 	case response := <-pending.Response:
 		if response.Err != nil {
@@ -337,8 +337,8 @@ func (server *Server) awaitCodexRequest(ctx context.Context, sessionID string, r
 	}
 }
 
-func (server *Server) awaitEasyAgentApproval(ctx context.Context, sessionID string, call agent.ToolCall, workspace string) error {
-	requestID, _ := json.Marshal(fmt.Sprintf("easyagent-approval-%d", time.Now().UnixNano()))
+func (server *Server) awaitBeaverApproval(ctx context.Context, sessionID string, call agent.ToolCall, workspace string) error {
+	requestID, _ := json.Marshal(fmt.Sprintf("beaver-approval-%d", time.Now().UnixNano()))
 	params, _ := json.Marshal(map[string]any{
 		"sessionId": sessionID, "tool": call.Name, "command": string(call.Arguments), "cwd": workspace,
 	})

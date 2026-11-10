@@ -16,8 +16,8 @@ var ErrSessionNotRunning = errors.New("任务已不在运行状态")
 type Runtime string
 
 const (
-	RuntimeEasyAgent Runtime = "easyagent"
-	RuntimeCodex     Runtime = "codex"
+	RuntimeBeaver Runtime = "beaver"
+	RuntimeCodex  Runtime = "codex"
 )
 
 // Channel identifies the source that created a session.
@@ -91,7 +91,7 @@ type ModelSettings struct {
 	Thinking        string  `json:"thinking,omitempty"`
 	MaxOutputTokens int     `json:"maxOutputTokens,omitempty"`
 	MaxSteps        int     `json:"maxSteps,omitempty"`
-	// RequestTimeoutSeconds is the timeout for one provider request in EasyAgent.
+	// RequestTimeoutSeconds is the timeout for one provider request in Beaver.
 	// Codex uses its own TurnTimeoutSeconds because app-server owns the inner
 	// model/tool requests.
 	RequestTimeoutSeconds       int  `json:"requestTimeoutSeconds,omitempty"`
@@ -101,7 +101,7 @@ type ModelSettings struct {
 	SecretConfigured            bool `json:"secretConfigured,omitempty"`
 }
 
-// ModelProfile 是一套可复用的 Runtime 配置。Codex profile 只保存 EasyAgent
+// ModelProfile 是一套可复用的 Runtime 配置。Codex profile 只保存 Beaver
 // 传给 app-server 的 override/超时等参数，认证和 Provider 仍由 Codex 自己管理。
 type ModelProfile struct {
 	ID       string        `json:"id"`
@@ -141,8 +141,8 @@ func DefaultCodexModelSettings() ModelSettings {
 // 不替用户猜测模型名称、密钥或上下文窗口。
 func (value ModelSettings) WithDefaults() ModelSettings {
 	if value.Runtime != RuntimeCodex {
-		value.Runtime = RuntimeEasyAgent
-		// EasyAgent 的认证只保存在自己的模型配置 DB 中；旧版本留下的
+		value.Runtime = RuntimeBeaver
+		// Beaver 的认证只保存在自己的模型配置 DB 中；旧版本留下的
 		// APIKeyEnv 不再参与运行，避免环境变量和 DB 密钥产生歧义。
 		value.APIKeyEnv = ""
 	}

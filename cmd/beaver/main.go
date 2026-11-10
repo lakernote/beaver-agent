@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/server"
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/web"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/server"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/web"
 )
 
 const defaultListenAddress = "0.0.0.0:8080"
@@ -32,28 +32,43 @@ var (
 func main() {
 	// 解析启动参数
 	address := flag.String("listen", defaultListenAddress, "HTTP listen address")
-	databasePath := flag.String("db", "", "SQLite database file (default ~/.easyagent/easyagent.db)")
+	databasePath := flag.String("db", "", "SQLite database file (default ~/.beaver/beaver.db)")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	resetPassword := flag.Bool("reset-password", false, "reset the admin password to a new random one, print it and exit")
 	flag.Parse()
 	if *showVersion {
-		fmt.Printf("easyagent %s (%s)\n", version, commit)
+		fmt.Printf("beaver %s (%s)\n", version, commit)
 		return
 	}
 
-	// 初始化 ~/.easyagent 和 PATH
+	// 初始化 ~/.beaver 和 PATH
 	environment, err := appenv.Open(appenv.Config{})
 	if err != nil {
 		log.Fatalf("open runtime environment: %v", err)
 	}
 	if strings.TrimSpace(*databasePath) == "" {
-		*databasePath = filepath.Join(environment.Home(), "easyagent.db")
+		*databasePath = filepath.Join(environment.Home(), "beaver.db")
+	}
+
+	if *resetPassword {
+		database, err := store.Open(*databasePath)
+		if err != nil {
+			log.Fatalf("open store: %v", err)
+		}
+		defer database.Close()
+		password, err := database.ResetAdminPassword()
+		if err != nil {
+			log.Fatalf("reset password: %v", err)
+		}
+		fmt.Printf("admin 的新密码：%s\n", password)
+		return
 	}
 
 	// 先监听端口，避免第二个实例在端口冲突时触碰数据库。
 	listener, err := net.Listen(listenNetwork(*address), *address)
 	if err != nil {
 		if errors.Is(err, syscall.EADDRINUSE) {
-			log.Fatalf("listen %s: address already in use; stop the existing EasyAgent process or choose another port with -listen, for example -listen 0.0.0.0:8081", *address)
+			log.Fatalf("listen %s: address already in use; stop the existing Beaver process or choose another port with -listen, for example -listen 0.0.0.0:8081", *address)
 		}
 		log.Fatalf("listen %s: %v", *address, err)
 	}
@@ -64,6 +79,9 @@ func main() {
 		log.Fatalf("open store: %v", err)
 	}
 	defer database.Close()
+	if initial := database.InitialAdminPassword(); initial != "" {
+		log.Printf("首次启动：已创建管理员账号。用户名 admin，初始密码 %s（仅显示这一次，请登录后到 设置 → 账户安全 修改；忘记可运行 beaver -reset-password）", initial)
+	}
 
 	// 将上次异常退出时仍在运行的任务标记为中断。
 	if err := database.RecoverRunning(time.Now()); err != nil {
@@ -98,14 +116,14 @@ func main() {
 
 	listenErrors := make(chan error, 1)
 	go func() {
-		log.Printf("EasyAgent is running at http://%s (bound to %s)", displayAddress, boundAddress)
+		log.Printf("Beaver is running at http://%s (bound to %s)", displayAddress, boundAddress)
 		listenErrors <- httpServer.Serve(listener)
 	}()
 
 	// 等待退出信号或 HTTP 服务异常停止。
 	select {
 	case <-serviceContext.Done():
-		log.Printf("EasyAgent is shutting down")
+		log.Printf("Beaver is shutting down")
 	case err := <-listenErrors:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("HTTP server stopped: %v", err)

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // Keep short private aliases inside the HTTP application while the actual JSON

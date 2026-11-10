@@ -20,7 +20,7 @@ func TestCorePackageDoesNotImportApplicationOrAdapters(t *testing.T) {
 	if parsed == nil {
 		t.Fatal("agent package not found")
 	}
-	const internalPrefix = "github.com/lakernote/easy-agent/internal/"
+	const internalPrefix = "github.com/lakernote/beaver-agent/internal/"
 	for filename, file := range parsed.Files {
 		for _, spec := range file.Imports {
 			path, err := strconv.Unquote(spec.Path.Value)

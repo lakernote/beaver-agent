@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type messageRequest struct {

@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/store"
-	"github.com/lakernote/easy-agent/internal/tracevalue"
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/tracevalue"
 )
 
 const (
@@ -49,8 +49,8 @@ type codexSessionLogLine struct {
 }
 
 // getCodexSessionLog exposes the persisted Codex rollout that belongs to one
-// EasyAgent session. The browser never supplies a filesystem path: it supplies
-// an EasyAgent session ID, which is resolved to the saved Codex thread ID and
+// Beaver session. The browser never supplies a filesystem path: it supplies
+// an Beaver session ID, which is resolved to the saved Codex thread ID and
 // then to the path reported by thread/read.
 func (server *Server) getCodexSessionLog(response http.ResponseWriter, request *http.Request) {
 	session, err := server.sessionsRepository().LoadSessionWindow(request.PathValue("id"), 1, 1)

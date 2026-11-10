@@ -75,7 +75,7 @@ func (fetcher *researchFetcher) Fetch(ctx context.Context, candidate researchSea
 		source.Error = "创建来源请求失败"
 		return source
 	}
-	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; EasyAgent/1.0; +https://github.com/lakernote/easy-agent)")
+	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Beaver/1.0; +https://github.com/lakernote/beaver-agent)")
 	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/json,text/plain,application/xml,application/pdf;q=0.8,*/*;q=0.1")
 	request.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
 	response, err := fetcher.client.Do(request)
@@ -192,7 +192,7 @@ func (fetcher *researchFetcher) fetchViaReader(ctx context.Context, source resea
 		return source, err
 	}
 	request.Header.Set("Accept", "text/plain,text/markdown")
-	request.Header.Set("User-Agent", "EasyAgent/1.0")
+	request.Header.Set("User-Agent", "Beaver/1.0")
 	request.Header.Set("X-Return-Format", "markdown")
 	if fetcher.readerKey != "" {
 		request.Header.Set("Authorization", "Bearer "+fetcher.readerKey)
@@ -240,7 +240,7 @@ func (fetcher *researchFetcher) fetchViaFirecrawl(ctx context.Context, source re
 	request.Header.Set("Authorization", "Bearer "+fetcher.firecrawlKey)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "EasyAgent/1.0")
+	request.Header.Set("User-Agent", "Beaver/1.0")
 	response, err := fetcher.firecrawlClient.Do(request)
 	if err != nil {
 		return source, err

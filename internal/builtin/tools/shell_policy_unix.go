@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 func newPermissionedShellCommand(ctx context.Context, script string, policy permissions.Policy, roots []string) (*exec.Cmd, error) {
@@ -37,7 +37,7 @@ func newPermissionedShellCommand(ctx context.Context, script string, policy perm
 		profile := darwinSandboxProfile(policy, roots)
 		return exec.CommandContext(ctx, runtimeSandbox, "-p", profile, "/bin/sh", "-c", script), nil
 	}
-	return nil, fmt.Errorf("当前系统没有可用的 EasyAgent 工作区沙盒；请安装 bwrap，或选择“完全访问”")
+	return nil, fmt.Errorf("当前系统没有可用的 Beaver 工作区沙盒；请安装 bwrap，或选择“完全访问”")
 }
 
 func existingRoots(values []string) []string {

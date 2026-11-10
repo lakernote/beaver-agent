@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/mcpclient"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func (server *Server) saveMCP(response http.ResponseWriter, request *http.Request) {
@@ -31,7 +31,7 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 			input.OAuthCallbackURL = oauthRedirectURL(request, input)
 		}
 		// Codex app-server listens on this loopback port while the browser calls
-		// EasyAgent's LAN address. The callback handler reverse-proxies to it.
+		// Beaver's LAN address. The callback handler reverse-proxies to it.
 		if input.OAuthCallbackPort == 0 {
 			input.OAuthCallbackPort = 18765
 		}
@@ -96,7 +96,7 @@ func (server *Server) saveMCP(response http.ResponseWriter, request *http.Reques
 		}
 		if oauthBindingChanged(*previous, input) {
 			if err := server.mcpOAuth.logout(input.ID); err != nil {
-				writeError(response, http.StatusInternalServerError, "撤销旧 EasyAgent OAuth 凭证失败："+err.Error())
+				writeError(response, http.StatusInternalServerError, "撤销旧 Beaver OAuth 凭证失败："+err.Error())
 				return
 			}
 		}

@@ -10,19 +10,19 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestResearchSettingsAPIPersistsAndRedactsSecrets(t *testing.T) {
 	for _, name := range []string{
-		"EASYAGENT_TAVILY_API_KEY", "TAVILY_API_KEY", "EASYAGENT_SEARXNG_URL",
-		"EASYAGENT_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY", "EASYAGENT_READER_URL",
-		"EASYAGENT_FIRECRAWL_URL", "EASYAGENT_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY",
-		"EASYAGENT_READER_API_KEY", "GITHUB_TOKEN", "GH_TOKEN",
+		"BEAVER_TAVILY_API_KEY", "TAVILY_API_KEY", "BEAVER_SEARXNG_URL",
+		"BEAVER_BRAVE_SEARCH_API_KEY", "BRAVE_SEARCH_API_KEY", "BEAVER_READER_URL",
+		"BEAVER_FIRECRAWL_URL", "BEAVER_FIRECRAWL_API_KEY", "FIRECRAWL_API_KEY",
+		"BEAVER_READER_API_KEY", "GITHUB_TOKEN", "GH_TOKEN",
 	} {
 		t.Setenv(name, "")
 	}
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestResearchSettingsAPIPersistsAndRedactsSecrets(t *testing.T) {
 }
 
 func TestResearchSettingsAPIRejectsUnknownProviderAndSecretInURL(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,9 +122,9 @@ func TestResearchSettingsAPIRejectsUnknownProviderAndSecretInURL(t *testing.T) {
 }
 
 func TestResearchProviderTestClassifiesIncompleteConfigurationAsBadRequest(t *testing.T) {
-	t.Setenv("EASYAGENT_TAVILY_API_KEY", "")
+	t.Setenv("BEAVER_TAVILY_API_KEY", "")
 	t.Setenv("TAVILY_API_KEY", "")
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

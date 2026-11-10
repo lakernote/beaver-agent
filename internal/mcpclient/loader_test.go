@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

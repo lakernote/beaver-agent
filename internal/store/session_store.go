@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 const sessionSelectColumns = `id,title,project_id,status,error,runtime,channel,profile_id,model,reasoning_effort,pending_model_json,permissions_json,workspace,source_workspace,worktree_branch,workspace_notice,response_id,provider_key,input_tokens,output_tokens,cached_tokens,cache_write_tokens,total_tokens,model_duration_ms,tool_duration_ms,model_calls,tool_calls,created_at,updated_at`
@@ -26,7 +26,7 @@ type CreateSessionParams struct {
 
 func (store *Store) CreateSession(params CreateSessionParams) (Session, error) {
 	if params.Runtime != RuntimeCodex {
-		params.Runtime = RuntimeEasyAgent
+		params.Runtime = RuntimeBeaver
 	}
 	if params.Channel == "" {
 		params.Channel = ChannelWeb

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func currentTimeTool() agent.Tool {

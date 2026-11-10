@@ -1,4 +1,4 @@
-// Package mcpclient 把 MCP Server 暴露的远端工具转换成 EasyAgent 的普通工具。
+// Package mcpclient 把 MCP Server 暴露的远端工具转换成 Beaver 的普通工具。
 //
 // Agent 核心并不知道 MCP 的存在：对核心来说，内置工具和 MCP 工具都是
 // []agent.Tool。这一层只负责连接、协议转换和关闭连接。
@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -53,7 +53,7 @@ func Connect(ctx context.Context, environment *appenv.Environment, config Config
 	if err != nil {
 		return nil, err
 	}
-	client := mcp.NewClient(&mcp.Implementation{Name: "easyagent", Version: "0.1.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "beaver", Version: "0.1.0"}, nil)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, fmt.Errorf("连接 MCP %s: %w", config.Name, err)
@@ -117,7 +117,7 @@ func createTransport(environment *appenv.Environment, config Config) (mcp.Transp
 		}
 		resolved, err := environment.ResolveCommand(config.Command)
 		if err != nil {
-			return nil, fmt.Errorf("找不到 MCP 启动命令 %q（EasyAgent PATH=%s）: %w", config.Command, environment.Path(), err)
+			return nil, fmt.Errorf("找不到 MCP 启动命令 %q（Beaver PATH=%s）: %w", config.Command, environment.Path(), err)
 		}
 		command := exec.Command(resolved, config.Args...)
 		command.Dir = environment.Workspace()

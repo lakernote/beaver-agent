@@ -1,4 +1,4 @@
-module github.com/lakernote/easy-agent
+module github.com/lakernote/beaver-agent
 
 go 1.26.7
 

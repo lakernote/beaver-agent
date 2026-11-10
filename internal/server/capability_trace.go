@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // appendSelectedCapabilityEvents 记录用户在本轮明确选择的能力。Skill 会直接
@@ -14,7 +14,7 @@ func (server *Server) appendSelectedCapabilityEvents(sessionID string, turn int,
 	for _, name := range skills {
 		if err := server.sessionsRepository().AppendEvent(sessionID, store.Event{
 			Kind: "capability", Turn: turn, Status: "success", Name: name,
-			ActivityKind: "skill", ActivitySource: "easyagent", DisplayName: name,
+			ActivityKind: "skill", ActivitySource: "beaver", DisplayName: name,
 			Detail: "用户明确选择，Skill 说明已应用到本轮任务", CreatedAt: time.Now(),
 		}); err != nil {
 			return fmt.Errorf("保存 Skill 使用记录: %w", err)

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${1:-easyagent:test}"
+image="${1:-beaver:test}"
 suffix="$$"
-container="easyagent-smoke-${suffix}"
-volume="easyagent-smoke-data-${suffix}"
+container="beaver-smoke-${suffix}"
+volume="beaver-smoke-data-${suffix}"
 
 cleanup() {
   docker rm -f "${container}" >/dev/null 2>&1 || true
@@ -44,8 +44,8 @@ docker exec "${container}" sh -eu -c '
   test "$(id -u)" = "10001"
   test "${HOME}" = "/data"
   test -w /data
-  test -f /data/easyagent.db
-  test -d /data/.easyagent/workspaces/default
+  test -f /data/beaver.db
+  test -d /data/.beaver/workspaces/default
   printf persisted > /data/smoke-marker
 '
 
@@ -53,7 +53,7 @@ docker rm -f "${container}" >/dev/null
 start_container
 docker exec "${container}" sh -eu -c '
   test "$(cat /data/smoke-marker)" = "persisted"
-  test -f /data/easyagent.db
+  test -f /data/beaver.db
 '
 
 echo "Container smoke test passed for ${image}"

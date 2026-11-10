@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type sessionWorkspace struct {
@@ -87,7 +87,7 @@ func (server *Server) createGitWorktree(ctx context.Context, sessionID, base, or
 		return sessionWorkspace{}, fmt.Errorf("无法创建 worktree 目录：%v", err)
 	}
 	shortID := shortSessionID(sessionID)
-	branch := "easyagent/" + shortID
+	branch := "beaver/" + shortID
 	target := filepath.Join(parent, shortID)
 	worktreeContext, worktreeCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer worktreeCancel()
@@ -124,7 +124,7 @@ func (server *Server) discardPreparedWorkspace(workspace sessionWorkspace) {
 // cleanup button from discarding either uncommitted edits or unmerged commits.
 func (server *Server) cleanupSessionWorktree(ctx context.Context, session store.Session) (string, error) {
 	if strings.TrimSpace(session.WorktreeBranch) == "" {
-		return "", errors.New("当前会话没有 EasyAgent 管理的 worktree")
+		return "", errors.New("当前会话没有 Beaver 管理的 worktree")
 	}
 	git, err := server.env.ResolveCommand("git")
 	if err != nil {

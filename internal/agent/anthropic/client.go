@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 const Protocol = "anthropic_messages"

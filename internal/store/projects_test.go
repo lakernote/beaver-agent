@@ -7,7 +7,7 @@ import (
 )
 
 func TestProjectsPersistDirectoriesAndSessionAssignment(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -15,14 +15,14 @@ func TestProjectsPersistDirectoriesAndSessionAssignment(t *testing.T) {
 	now := time.Now().UTC()
 	first := filepath.Join(t.TempDir(), "api")
 	second := filepath.Join(t.TempDir(), "web")
-	project, err := database.CreateProject("project-1", "EasyAgent", []string{first, second}, true, now)
+	project, err := database.CreateProject("project-1", "Beaver", []string{first, second}, true, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !project.Default || len(project.Directories) != 2 || project.Directories[1] != second {
 		t.Fatalf("项目源文件夹没有按顺序保存: %+v", project)
 	}
-	session, err := database.CreateSession(CreateSessionParams{ID: "session-1", Title: "检查项目", Runtime: RuntimeEasyAgent, Model: "qwen", ProjectID: project.ID, Workspace: first, CreatedAt: now})
+	session, err := database.CreateSession(CreateSessionParams{ID: "session-1", Title: "检查项目", Runtime: RuntimeBeaver, Model: "qwen", ProjectID: project.ID, Workspace: first, CreatedAt: now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestProjectsPersistDirectoriesAndSessionAssignment(t *testing.T) {
 }
 
 func TestDeleteDefaultProjectPromotesReplacement(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,7 +20,7 @@ export function RuntimeOperationsSettings({ data, onRefresh, onError }: { data: 
   const dirty = JSON.stringify(settings) !== JSON.stringify(data.runtimeSettings)
   const turnHours = Number((settings.turnTimeoutSeconds / 3600).toFixed(2))
   return <div className="section-block runtime-operations task-settings-panel">
-    <div className="section-heading"><div><p className="eyebrow">共享调度层</p><h2>任务与恢复</h2><p>以下设置同时作用于 EasyAgent Runtime 和 Codex Runtime，不跟随模型配置重复保存。</p></div><span className="tag">全局</span></div>
+    <div className="section-heading"><div><p className="eyebrow">共享调度层</p><h2>任务与恢复</h2><p>以下设置同时作用于 Beaver Runtime 和 Codex Runtime，不跟随模型配置重复保存。</p></div><span className="tag">全局</span></div>
     <div className="task-settings-grid">
       <section>
         <div className="task-setting-heading"><span>01</span><div><strong>执行容量</strong><small>修改后立即影响排队任务，不中断已运行任务。</small></div></div>
@@ -44,7 +44,7 @@ export function RuntimeOperationsSettings({ data, onRefresh, onError }: { data: 
         </label>
       </section>
       <section className="task-setting-permissions">
-        <div className="task-setting-heading"><span>04</span><div><strong>Runtime 权限</strong><small>同时作用于 EasyAgent Runtime 和 Codex Runtime；新任务读取，已运行任务不改变。</small></div></div>
+        <div className="task-setting-heading"><span>04</span><div><strong>Runtime 权限</strong><small>同时作用于 Beaver Runtime 和 Codex Runtime；新任务读取，已运行任务不改变。</small></div></div>
         <label>执行权限
           <select value={settings.permissions.mode} onChange={(event) => { const mode = event.target.value as RuntimePermissionSettings['mode']; setSettings({ ...settings, permissions: { ...settings.permissions, mode, writableRoots: mode === 'read_only' ? [] : settings.permissions.writableRoots } }) }}>
             <option value="read_only">只读</option>
@@ -59,17 +59,17 @@ export function RuntimeOperationsSettings({ data, onRefresh, onError }: { data: 
             <option value="on-request">需要时询问</option>
             <option value="never">从不询问</option>
           </select>
-          <small>EasyAgent 的文件权限由工具和系统沙盒执行；审批策略由 Codex app-server 执行。</small>
+          <small>Beaver 的文件权限由工具和系统沙盒执行；审批策略由 Codex app-server 执行。</small>
         </label>
         {settings.permissions.mode === 'custom' && <label className="wide">可写目录（每行一个绝对路径）
           <textarea value={settings.permissions.writableRoots.join('\n')} onChange={(event) => setSettings({ ...settings, permissions: { ...settings.permissions, writableRoots: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) } })} placeholder="留空：使用当前会话工作区" />
-          <small>自定义模式在 EasyAgent 上需要宿主机提供 bwrap 或 sandbox-exec。</small>
+          <small>自定义模式在 Beaver 上需要宿主机提供 bwrap 或 sandbox-exec。</small>
         </label>}
         {settings.permissions.mode !== 'read_only' && <label className="task-toggle"><span><strong>允许命令联网</strong><small>只控制 Runtime 执行的命令；MCP、网页研究等连接仍有自己的配置。</small></span><input type="checkbox" checked={settings.permissions.networkAccess} onChange={(event) => setSettings({ ...settings, permissions: { ...settings.permissions, networkAccess: event.target.checked } })} /></label>}
       </section>
       <section>
         <div className="task-setting-heading"><span>05</span><div><strong>项目冲突控制</strong><small>让并发任务写入相互隔离的 Git 分支。</small></div></div>
-        <label className="task-toggle"><span><strong>自动创建 Git worktree</strong><small>Git 项目使用 <code>easyagent/…</code> 分支；非 Git 目录仍按原目录串行。</small></span><input type="checkbox" checked={settings.gitWorktrees} onChange={(event) => setSettings({ ...settings, gitWorktrees: event.target.checked })} /></label>
+        <label className="task-toggle"><span><strong>自动创建 Git worktree</strong><small>Git 项目使用 <code>beaver/…</code> 分支；非 Git 目录仍按原目录串行。</small></span><input type="checkbox" checked={settings.gitWorktrees} onChange={(event) => setSettings({ ...settings, gitWorktrees: event.target.checked })} /></label>
       </section>
       <section>
         <div className="task-setting-heading"><span>06</span><div><strong>历史数据保留</strong><small>自动清理过期会话及其消息、Trace 和附件。</small></div></div>
@@ -89,10 +89,10 @@ export function RuntimeOperationsSettings({ data, onRefresh, onError }: { data: 
 
 function permissionModeDescription(mode: RuntimePermissionSettings['mode']) {
   switch (mode) {
-    case 'read_only': return '只能读取和搜索；EasyAgent 禁用写文件和 Shell。'
+    case 'read_only': return '只能读取和搜索；Beaver 禁用写文件和 Shell。'
     case 'workspace_write': return '允许修改当前工作区；命令执行需要宿主机沙盒。'
     case 'custom': return '只允许写入指定目录；命令执行需要宿主机沙盒。'
-    default: return '关闭本地沙盒限制，保持现有 EasyAgent 默认行为。'
+    default: return '关闭本地沙盒限制，保持现有 Beaver 默认行为。'
   }
 }
 
@@ -114,7 +114,7 @@ export function CodexStatus({ data, onDetect }: CodexStatusProps) {
     ? `Codex CLI + app-server 已就绪${data.codex.version ? ` · ${data.codex.version}` : ''}`
     : data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !configuredProvider ? 'Codex 已安装，但当前用户未登录' : data.codex.installed ? '已找到 CLI，但 app-server 不可用' : '未检测到 Codex CLI'
   const detail = data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !configuredProvider
-    ? `请在运行 EasyAgent 的同一用户下执行 codex login${data.codex.home ? `；当前 Codex Home：${data.codex.home}` : ''}。如果使用第三方 Provider，请先完成 Provider 配置。`
+    ? `请在运行 Beaver 的同一用户下执行 codex login${data.codex.home ? `；当前 Codex Home：${data.codex.home}` : ''}。如果使用第三方 Provider，请先完成 Provider 配置。`
     : data.codex.installed ? [data.codex.path, data.codex.home ? `Codex Home：${data.codex.home}` : ''].filter(Boolean).join(' · ') : data.codex.message
   const inspect = async () => {
     setInspecting(true)
@@ -158,7 +158,7 @@ export function CodexStatus({ data, onDetect }: CodexStatusProps) {
         <button className="ghost-button" type="button" onClick={onDetect}>重新检测</button>
         {ready && <button className="ghost-button" type="button" disabled={inspecting} onClick={() => void inspect()}>{inspecting ? '读取中…' : '查看运行信息'}</button>}
       </div>
-      {!ready && (!data.codex.installed || !data.codex.appServerAvailable) && <div className="runtime-manual-install"><div><strong>{data.codex.installed ? '请在服务器终端手动更新 Codex CLI' : '请在服务器终端手动安装 Codex CLI'}</strong><small>EasyAgent 只展示官方命令，不会下载或执行安装脚本。请先核对官方说明，再使用运行 EasyAgent 的同一用户执行；完成后点击“重新检测”，系统会校验 CLI 版本和 app-server 子命令。</small></div><div className="runtime-install-command"><code>{data.codex.installCommand}</code><button className="ghost-button" type="button" onClick={() => void copyInstallCommand()}>{copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制命令'}</button></div></div>}
+      {!ready && (!data.codex.installed || !data.codex.appServerAvailable) && <div className="runtime-manual-install"><div><strong>{data.codex.installed ? '请在服务器终端手动更新 Codex CLI' : '请在服务器终端手动安装 Codex CLI'}</strong><small>Beaver 只展示官方命令，不会下载或执行安装脚本。请先核对官方说明，再使用运行 Beaver 的同一用户执行；完成后点击“重新检测”，系统会校验 CLI 版本和 app-server 子命令。</small></div><div className="runtime-install-command"><code>{data.codex.installCommand}</code><button className="ghost-button" type="button" onClick={() => void copyInstallCommand()}>{copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制命令'}</button></div></div>}
       {inspectionError && <div className="codex-inspection-error" role="alert">运行信息读取失败：{inspectionError}</div>}
       {inspection && <div className="codex-inspection">
         <div className="codex-inspection-summary"><section><span>账号</span><strong>{account.title}</strong><small>{account.detail}</small></section><section><span>模型</span><strong>{models.title}</strong><small>{models.detail}</small></section></div>
@@ -254,7 +254,7 @@ function textValue(value: unknown) {
 }
 
 function threadSourceLabel(value: string) {
-  const labels: Record<string, string> = { appServer: 'EasyAgent', cli: 'Codex CLI', vscode: 'Codex', exec: 'Codex Exec' }
+  const labels: Record<string, string> = { appServer: 'Beaver', cli: 'Codex CLI', vscode: 'Codex', exec: 'Codex Exec' }
   return labels[value] || value || 'Codex'
 }
 
@@ -300,7 +300,7 @@ type ApiKeyFieldsProps = {
 
 function ApiKeyFields({ apiKey, apiKeyConfigured, apiKeyEnv = '', apiKeyPlaceholder, apiKeyEnvPlaceholder = '', showEnvironment = true, clearApiKey, onApiKeyChange, onApiKeyEnvChange, onClearApiKeyChange }: ApiKeyFieldsProps) {
   return <div className="api-key-section wide">
-    <div className="api-key-section-head"><strong>认证（可选）</strong><small>{showEnvironment ? 'API Key 和环境变量二选一，不需要同时填写。' : 'API Key 会保存在 EasyAgent 的本地 DB 中。'}</small></div>
+    <div className="api-key-section-head"><strong>认证（可选）</strong><small>{showEnvironment ? 'API Key 和环境变量二选一，不需要同时填写。' : 'API Key 会保存在 Beaver 的本地 DB 中。'}</small></div>
     <label>API Key
       <input type="password" autoComplete="new-password" disabled={clearApiKey} value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder={apiKeyPlaceholder} />
       <small>密钥值会保持隐藏；无需认证的兼容服务可以留空。</small>
@@ -338,7 +338,7 @@ export function CodexSettings({ config, setConfig, notice, savingConfig, deletin
         </label>
         <label className="codex-env-key-field wide">env_key（服务器变量名）
           <input value={config.envKey} onChange={(event) => update({ envKey: event.target.value })} placeholder="例如 GROQ_API_KEY；这里不填真实 Key" />
-          <small>真实 Key 由运行 EasyAgent 的服务器进程提供；这里只写变量名。无需认证的 Provider 可留空。</small>
+          <small>真实 Key 由运行 Beaver 的服务器进程提供；这里只写变量名。无需认证的 Provider 可留空。</small>
         </label>
         <details className="model-advanced wide">
           <summary><span><strong>高级设置</strong><small>仅在 Provider 要求时修改推理强度</small></span><b aria-hidden="true">展开</b></summary>
@@ -360,7 +360,7 @@ export function CodexSettings({ config, setConfig, notice, savingConfig, deletin
   )
 }
 
-type EasyAgentSettingsProps = {
+type BeaverSettingsProps = {
   data: Bootstrap
   model: ModelSettings
   setModel: (value: ModelSettings) => void
@@ -372,16 +372,16 @@ type EasyAgentSettingsProps = {
   onActivateOllama: (name: string) => Promise<void>
 }
 
-export function EasyAgentSettings({ data, model, setModel, notice, testing, saving, onTest, onSave, onActivateOllama }: EasyAgentSettingsProps) {
+export function BeaverSettings({ data, model, setModel, notice, testing, saving, onTest, onSave, onActivateOllama }: BeaverSettingsProps) {
   const [clearAPIKey, setClearAPIKey] = useState(false)
   useEffect(() => setClearAPIKey(false), [model.profileId])
   const legacyOllamaProtocol = model.provider.trim().toLocaleLowerCase() === 'ollama' && model.protocol !== 'ollama_chat'
   const useNativeOllama = () => setModel({ ...model, protocol: 'ollama_chat', baseUrl: model.baseUrl.replace(/\/v1\/?$/, '') || data.ollama.baseUrl })
 
   return (
-    <div className="section-block easyagent-config">
+    <div className="section-block beaver-config">
       <div className="section-heading">
-        <div><h2>模型连接</h2><p>EasyAgent 支持原生 Ollama、Anthropic，以及 OpenAI Chat/Responses 兼容接口。</p></div>
+        <div><h2>模型连接</h2><p>Beaver 支持原生 Ollama、Anthropic，以及 OpenAI Chat/Responses 兼容接口。</p></div>
         <span className="tag">{model.protocol}</span>
       </div>
       {model.provider.trim().toLocaleLowerCase() === 'ollama' && <OllamaModelCatalog data={data} saving={saving} onActivate={onActivateOllama} />}
@@ -426,8 +426,8 @@ export function EasyAgentSettings({ data, model, setModel, notice, testing, savi
       </div>
       <ModelNotice notice={notice} />
       <div className="form-actions">
-        <button className="ghost-button" type="button" disabled={testing} onClick={onTest}>{testing ? '正在验证 Function Calling…' : '测试 EasyAgent 模型'}</button>
-        <button className="primary-button" type="button" disabled={saving} onClick={() => onSave(clearAPIKey)}>{saving ? '保存中…' : '保存 EasyAgent 配置'}</button>
+        <button className="ghost-button" type="button" disabled={testing} onClick={onTest}>{testing ? '正在验证 Function Calling…' : '测试 Beaver 模型'}</button>
+        <button className="primary-button" type="button" disabled={saving} onClick={() => onSave(clearAPIKey)}>{saving ? '保存中…' : '保存 Beaver 配置'}</button>
       </div>
     </div>
   )
@@ -448,7 +448,7 @@ export function OllamaModelCatalog({ data, saving, onActivate }: OllamaModelCata
       {data.ollama.models.length === 0
         ? <p className="ollama-empty">Ollama 已连接，但还没有下载模型。</p>
         : <div className="ollama-model-list">{data.ollama.models.map((item) => {
-          const profile = data.modelProfiles.find((candidate) => candidate.settings.runtime === 'easyagent' && candidate.settings.model === item.name)
+          const profile = data.modelProfiles.find((candidate) => candidate.settings.runtime === 'beaver' && candidate.settings.model === item.name)
           const active = profile?.id === data.activeModelProfileId
           return <div className="ollama-model-row" key={item.name}><div><code>{item.name}</code><small>{profile ? `已保存为“${profile.name}”` : '尚未建立模型配置'}</small></div><span className={active ? 'active' : profile ? 'configured' : ''}>{active ? '当前默认' : profile ? '已配置' : '可用'}</span><button className="ghost-button" type="button" disabled={saving} onClick={() => void onActivate(item.name)}>{active ? '当前默认' : profile ? '设为默认' : '创建并启用'}</button></div>
         })}</div>}
@@ -477,9 +477,9 @@ export function MCPSettings({ data, mcpNotice, installingPreset, checkingPreset,
 
   return (
     <div className="section-block">
-      <div className="section-heading"><div><h2>MCP 连接</h2><p>一处配置，同时同步给 EasyAgent Runtime 和 Codex app-server。</p></div><button className="ghost-button" type="button" onClick={onCreate}>＋ 自定义</button></div>
-      <div className="mcp-overview"><div><p className="eyebrow">连接数</p><strong>{data.mcps.length} 个 MCP</strong><span>配置保存在 EasyAgent 私有目录</span></div><div><p className="eyebrow">已就绪</p><strong>{enabledMCPCount} 个</strong><span>已验证并暴露给 Agent</span></div><div><p className="eyebrow">加载方式</p><strong>按需</strong><span>任务需要时才读取工具清单</span></div></div>
-      <div className="capability-note"><strong>共享方式</strong><span>EasyAgent 直接连接 MCP；Codex 使用同一配置生成标准 <code>mcp_servers</code>，密钥只通过环境变量传递。</span></div>
+      <div className="section-heading"><div><h2>MCP 连接</h2><p>一处配置，同时同步给 Beaver Runtime 和 Codex app-server。</p></div><button className="ghost-button" type="button" onClick={onCreate}>＋ 自定义</button></div>
+      <div className="mcp-overview"><div><p className="eyebrow">连接数</p><strong>{data.mcps.length} 个 MCP</strong><span>配置保存在 Beaver 私有目录</span></div><div><p className="eyebrow">已就绪</p><strong>{enabledMCPCount} 个</strong><span>已验证并暴露给 Agent</span></div><div><p className="eyebrow">加载方式</p><strong>按需</strong><span>任务需要时才读取工具清单</span></div></div>
+      <div className="capability-note"><strong>共享方式</strong><span>Beaver 直接连接 MCP；Codex 使用同一配置生成标准 <code>mcp_servers</code>，密钥只通过环境变量传递。</span></div>
       <div className="mcp-flow-guide" aria-label="MCP OAuth 流程"><div><span>OAuth 流程</span><strong>保存配置</strong><i>→</i><strong>浏览器授权</strong><i>→</i><strong>回调保存凭证</strong><i>→</i><strong>测试连接</strong></div><small>授权页会在新标签页打开；完成后回到编辑窗口刷新状态，再测试连接。</small></div>
       {mcpNotice && <MCPNotice notice={mcpNotice} onClose={onCloseNotice} />}
       <MCPList data={data} dataPresets={dataPresets} installingPreset={installingPreset} checkingPreset={checkingPreset} togglingMCP={togglingMCP} onInstall={onInstall} onCheck={onCheck} onTest={onTest} onToggle={onToggle} onCreate={onCreate} onEdit={onEdit} />
@@ -509,5 +509,5 @@ type MCPPresetsProps = Pick<MCPSettingsProps, 'data' | 'dataPresets' | 'installi
 
 function MCPPresets({ data, dataPresets, installingPreset, checkingPreset, onInstall, onCheck }: MCPPresetsProps) {
   const available = dataPresets.filter((preset) => !data.mcps.some((item) => item.id === preset.id))
-  return <div className="presets"><span>MCP 预设 · 检测不会修改系统；安装操作只写入 EasyAgent 私有 Runtime</span>{available.map((preset) => <div className="preset-card" key={preset.id}><strong>{preset.name}</strong><small>{preset.description}</small><em>{preset.requirement}</em><div className="preset-actions">{preset.action === 'install' && <button type="button" disabled={!!installingPreset || !!checkingPreset} onClick={() => onCheck(preset)}>{checkingPreset === preset.id ? '检测中…' : '检测环境'}</button>}<button type="button" disabled={!!installingPreset || !!checkingPreset} onClick={() => onInstall(preset)}>{installingPreset === preset.id ? '安装中…' : preset.action === 'install' ? '安装并启用' : '配置连接'}</button></div></div>)}</div>
+  return <div className="presets"><span>MCP 预设 · 检测不会修改系统；安装操作只写入 Beaver 私有 Runtime</span>{available.map((preset) => <div className="preset-card" key={preset.id}><strong>{preset.name}</strong><small>{preset.description}</small><em>{preset.requirement}</em><div className="preset-actions">{preset.action === 'install' && <button type="button" disabled={!!installingPreset || !!checkingPreset} onClick={() => onCheck(preset)}>{checkingPreset === preset.id ? '检测中…' : '检测环境'}</button>}<button type="button" disabled={!!installingPreset || !!checkingPreset} onClick={() => onInstall(preset)}>{installingPreset === preset.id ? '安装中…' : preset.action === 'install' ? '安装并启用' : '配置连接'}</button></div></div>)}</div>
 }

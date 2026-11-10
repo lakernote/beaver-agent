@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 // runtimeTurnRequest 是应用层交给 Runtime 的统一输入。
@@ -29,14 +29,14 @@ type runtimeRegistry struct {
 
 func newRuntimeRegistry(server *Server) *runtimeRegistry {
 	return &runtimeRegistry{executors: map[store.Runtime]runtimeExecutor{
-		store.RuntimeEasyAgent: easyAgentExecutor{server: server},
-		store.RuntimeCodex:     codexExecutor{server: server},
+		store.RuntimeBeaver: beaverExecutor{server: server},
+		store.RuntimeCodex:  codexExecutor{server: server},
 	}}
 }
 
 func (registry *runtimeRegistry) resolve(name store.Runtime) (runtimeExecutor, error) {
 	if name == "" {
-		name = store.RuntimeEasyAgent
+		name = store.RuntimeBeaver
 	}
 	executor, ok := registry.executors[name]
 	if !ok {
@@ -45,10 +45,10 @@ func (registry *runtimeRegistry) resolve(name store.Runtime) (runtimeExecutor, e
 	return executor, nil
 }
 
-type easyAgentExecutor struct{ server *Server }
+type beaverExecutor struct{ server *Server }
 
-func (executor easyAgentExecutor) Run(request runtimeTurnRequest) error {
-	return executor.server.runEasyAgentTurn(request.Context, request.SessionID, request.Session, request.Settings, request.Environment, request.Usage)
+func (executor beaverExecutor) Run(request runtimeTurnRequest) error {
+	return executor.server.runBeaverTurn(request.Context, request.SessionID, request.Session, request.Settings, request.Environment, request.Usage)
 }
 
 type codexExecutor struct{ server *Server }

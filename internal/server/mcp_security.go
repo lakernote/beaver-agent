@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/httpdto"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/httpdto"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func publicMCPs(values []store.MCPConfig) []httpdto.MCPConfig {
@@ -27,7 +27,7 @@ func publicMCP(value store.MCPConfig) httpdto.MCPConfig {
 	return httpdto.MCPConfigFromStore(value)
 }
 
-const redactedMCPValue = "__EASYAGENT_REDACTED__"
+const redactedMCPValue = "__BEAVER_REDACTED__"
 
 func isSensitiveMCPKey(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))

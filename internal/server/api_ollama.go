@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 type ollamaModel struct {
@@ -63,7 +63,7 @@ func (server *Server) detectOllama(parent context.Context) ollamaStatus {
 // 默认仍是本机，不要求用户增加配置；路径统一在这里处理，避免 API 各处
 // 写死 127.0.0.1。
 func ollamaServerURL() string {
-	value := strings.TrimSpace(os.Getenv("EASYAGENT_OLLAMA_URL"))
+	value := strings.TrimSpace(os.Getenv("BEAVER_OLLAMA_URL"))
 	if value == "" {
 		value = store.DefaultOllamaBaseURL
 	}

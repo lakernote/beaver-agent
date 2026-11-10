@@ -1,4 +1,4 @@
-// Package skills 管理随 EasyAgent 二进制发布的内置 Skills。
+// Package skills 管理随 Beaver 二进制发布的内置 Skills。
 // 每个 Skill 都是独立 SKILL.md，页面覆盖不会修改编译进二进制的原始版本。
 package skills
 

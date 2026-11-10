@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/agent/qualification"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/agent/qualification"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
-// newModelAdapter is the only server-level construction point for EasyAgent
+// newModelAdapter is the only server-level construction point for Beaver
 // models. Runtime orchestration depends on agent.Model and model capabilities,
 // never on a provider client concrete type.
 func (server *Server) newModelAdapter(settings store.ModelSettings) (agent.Model, error) {
@@ -26,10 +26,10 @@ func (server *Server) newModelAdapter(settings store.ModelSettings) (agent.Model
 	}
 	capabilities := agent.CapabilitiesOf(model)
 	if !capabilities.NativeTools {
-		return nil, fmt.Errorf("模型协议 %s 不支持原生 Function Calling，EasyAgent 不会解析文本伪工具调用", settings.Protocol)
+		return nil, fmt.Errorf("模型协议 %s 不支持原生 Function Calling，Beaver 不会解析文本伪工具调用", settings.Protocol)
 	}
 	if !capabilities.Streaming {
-		return nil, fmt.Errorf("模型协议 %s 没有实现流式 API，不能用于 EasyAgent", settings.Protocol)
+		return nil, fmt.Errorf("模型协议 %s 没有实现流式 API，不能用于 Beaver", settings.Protocol)
 	}
 	return model, nil
 }

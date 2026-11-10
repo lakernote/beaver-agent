@@ -14,8 +14,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestPrepareSessionWorkspaceCreatesGitWorktree(t *testing.T) {
@@ -27,7 +27,7 @@ func TestPrepareSessionWorkspaceCreatesGitWorktree(t *testing.T) {
 	application := &Server{env: environment}
 	plan := application.prepareSessionWorkspace(context.Background(), "12345678-1234-1234-1234-123456789abc", repository, store.RuntimeSettings{MaxConcurrentTasks: 2, GitWorktrees: true})
 	resolvedRepository, _ := filepath.EvalSymlinks(repository)
-	if plan.Execution == resolvedRepository || plan.Source != resolvedRepository || plan.Branch != "easyagent/123456781234" {
+	if plan.Execution == resolvedRepository || plan.Source != resolvedRepository || plan.Branch != "beaver/123456781234" {
 		t.Fatalf("Git 项目应创建独立 worktree: %+v", plan)
 	}
 	if data, err := os.ReadFile(filepath.Join(plan.Execution, "README.md")); err != nil || string(data) != "test\n" {
@@ -60,7 +60,7 @@ func TestCreateSessionDiscardsPreparedWorktreeWhenShutdownRejectsTask(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestCreateSessionDiscardsPreparedWorktreeWhenShutdownRejectsTask(t *testing
 	} else if err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
-	command := exec.Command(git, "-C", repository, "branch", "--list", "easyagent/*")
+	command := exec.Command(git, "-C", repository, "branch", "--list", "beaver/*")
 	if output, err := command.Output(); err != nil || strings.TrimSpace(string(output)) != "" {
 		t.Fatalf("被拒绝的新任务遗留分支: output=%q err=%v", output, err)
 	}
@@ -165,7 +165,7 @@ func newTestGitRepository(t *testing.T) (string, string) {
 		t.Helper()
 		command := exec.Command(git, arguments...)
 		command.Dir = repository
-		command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=EasyAgent Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=EasyAgent Test", "GIT_COMMITTER_EMAIL=test@example.com")
+		command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Beaver Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=Beaver Test", "GIT_COMMITTER_EMAIL=test@example.com")
 		if output, runErr := command.CombinedOutput(); runErr != nil {
 			t.Fatalf("git %s: %v\n%s", strings.Join(arguments, " "), runErr, output)
 		}

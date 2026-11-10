@@ -12,7 +12,7 @@ func TestUsageAggregatesByPeriodAndModel(t *testing.T) {
 	}
 	defer database.Close()
 	now := time.Now().Truncate(time.Second)
-	if _, err := database.CreateSession(CreateSessionParams{ID: "s1", Title: "一", Runtime: RuntimeEasyAgent, ProfileID: "p1", Model: "qwen", CreatedAt: now.Add(-2 * time.Hour)}); err != nil {
+	if _, err := database.CreateSession(CreateSessionParams{ID: "s1", Title: "一", Runtime: RuntimeBeaver, ProfileID: "p1", Model: "qwen", CreatedAt: now.Add(-2 * time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := database.CreateSession(CreateSessionParams{ID: "s2", Title: "二", Runtime: RuntimeCodex, ProfileID: "p2", Model: "gpt-5", CreatedAt: now.Add(-time.Hour)}); err != nil {
@@ -48,7 +48,7 @@ func TestUsageAggregatesByPeriodAndModel(t *testing.T) {
 		byModel[value.Model] = value
 	}
 	if byModel["qwen"].InputTokens != 100 || byModel["qwen"].ToolCalls != 1 || byModel["qwen"].Sessions != 1 {
-		t.Fatalf("unexpected EasyAgent aggregate: %+v", byModel["qwen"])
+		t.Fatalf("unexpected Beaver aggregate: %+v", byModel["qwen"])
 	}
 	if byModel["gpt-5"].TotalTokens != 340 || byModel["gpt-5"].ModelCalls != 1 || byModel["gpt-5"].ToolCalls != 1 || byModel["gpt-5"].ModelDurationMS != 125 || byModel["gpt-5"].ToolDurationMS != 20 || !byModel["gpt-5"].CacheReported {
 		t.Fatalf("unexpected Codex aggregate: %+v", byModel["gpt-5"])

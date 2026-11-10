@@ -760,7 +760,7 @@ func TestParseResearchArgumentsRejectsInvalidDomain(t *testing.T) {
 }
 
 func TestParseResearchArgumentsAllowsOneSourceForExactFact(t *testing.T) {
-	arguments, err := parseResearchArguments(json.RawMessage(`{"query":"lakernote/easy-agent stars","depth":"quick","max_sources":1}`))
+	arguments, err := parseResearchArguments(json.RawMessage(`{"query":"lakernote/beaver-agent stars","depth":"quick","max_sources":1}`))
 	if err != nil || arguments.MaxSources != 1 {
 		t.Fatalf("单一实时事实应允许一个来源: arguments=%+v err=%v", arguments, err)
 	}
@@ -805,8 +805,8 @@ func TestStructuredAdaptersUseModelDataTypeBeforeLexicalFallback(t *testing.T) {
 }
 
 func TestResearchConfigUsesSavedValuesOverEnvironment(t *testing.T) {
-	t.Setenv("EASYAGENT_TAVILY_API_KEY", "environment-tavily")
-	t.Setenv("EASYAGENT_SEARXNG_URL", "https://environment.example.com")
+	t.Setenv("BEAVER_TAVILY_API_KEY", "environment-tavily")
+	t.Setenv("BEAVER_SEARXNG_URL", "https://environment.example.com")
 	config := MergeResearchConfig(ResearchConfigFromEnvironment(), ResearchConfig{Providers: map[string]ResearchProviderConfig{
 		ResearchProviderTavily:  {Secret: "saved-tavily"},
 		ResearchProviderSearXNG: {Endpoint: "https://saved.example.com"},
@@ -881,8 +881,8 @@ func TestDomainsAreEnforcedAfterRedirectedFetch(t *testing.T) {
 }
 
 func TestWebResearchLiveScenarios(t *testing.T) {
-	if os.Getenv("EASYAGENT_LIVE_RESEARCH") != "1" {
-		t.Skip("set EASYAGENT_LIVE_RESEARCH=1 to run external research checks")
+	if os.Getenv("BEAVER_LIVE_RESEARCH") != "1" {
+		t.Skip("set BEAVER_LIVE_RESEARCH=1 to run external research checks")
 	}
 	tests := []struct {
 		name        string

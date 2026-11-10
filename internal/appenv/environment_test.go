@@ -81,8 +81,8 @@ func TestEnvironOwnsPathAndKeepsExtraValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	values := strings.Join(environment.Environ(map[string]string{"EASYAGENT_TEST": "yes", "PATH": "ignored"}), "\n")
-	if !strings.Contains(values, "EASYAGENT_TEST=yes") {
+	values := strings.Join(environment.Environ(map[string]string{"BEAVER_TEST": "yes", "PATH": "ignored"}), "\n")
+	if !strings.Contains(values, "BEAVER_TEST=yes") {
 		t.Fatalf("extra environment missing: %s", values)
 	}
 	if !strings.Contains(values, "PATH="+environment.Bin()+string(os.PathListSeparator)+extras) {

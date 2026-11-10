@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 type chatRequest struct {
@@ -123,7 +123,7 @@ type chatStreamChunk struct {
 	Usage chatUsage `json:"usage"`
 }
 
-// chatStreamTrace 是写入 Trace 的流式响应快照。final_response 是 EasyAgent
+// chatStreamTrace 是写入 Trace 的流式响应快照。final_response 是 Beaver
 // 将各个 SSE event 聚合后的最终事实；raw_events 保留 Provider 原始事件，
 // 方便需要时逐段审计，而不是强迫页面只展示零散 Delta。
 type chatStreamTrace struct {

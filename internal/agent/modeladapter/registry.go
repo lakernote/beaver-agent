@@ -1,4 +1,4 @@
-// Package modeladapter is the transport boundary for EasyAgent models. The
+// Package modeladapter is the transport boundary for Beaver models. The
 // server selects a protocol by name; the core runner never imports a provider.
 package modeladapter
 
@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/agent/anthropic"
-	"github.com/lakernote/easy-agent/internal/agent/ollama"
-	"github.com/lakernote/easy-agent/internal/agent/openai"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent/anthropic"
+	"github.com/lakernote/beaver-agent/internal/agent/ollama"
+	"github.com/lakernote/beaver-agent/internal/agent/openai"
 )
 
 const (
@@ -45,7 +45,7 @@ type Registry struct {
 	factories map[string]Factory
 }
 
-// NewRegistry returns a registry containing EasyAgent's built-in adapters.
+// NewRegistry returns a registry containing Beaver's built-in adapters.
 func NewRegistry() *Registry {
 	registry := &Registry{factories: make(map[string]Factory)}
 	registry.factories[ProtocolChatCompletions] = func(config Config) (agent.Model, error) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	core "github.com/lakernote/easy-agent/internal/agent"
+	core "github.com/lakernote/beaver-agent/internal/agent"
 )
 
 func TestMessagesAPIUsesNativeToolBlocks(t *testing.T) {

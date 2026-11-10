@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 	maxShellOutputBytes = 64 * 1024
 )
 
-// shellTool 是 EasyAgent 的通用本地执行底座。模型可以用它运行构建、测试、
+// shellTool 是 Beaver 的通用本地执行底座。模型可以用它运行构建、测试、
 // 项目脚本和系统已有的 CLI。每次调用的命令、结果、耗时都会由 Runner 写入 Trace。
 func shellTool(environment *appenv.Environment) agent.Tool {
 	return shellToolWithPolicy(environment, permissions.Default())
@@ -31,11 +31,11 @@ func shellToolWithPolicy(environment *appenv.Environment, policy permissions.Pol
 	return agent.Tool{
 		Spec: agent.ToolSpec{
 			Name:        "shell",
-			Description: "在 EasyAgent 工作区执行确实需要运行的构建、测试、Git、脚本、CLI 或安装命令，并返回真实退出码与输出。不要用于普通问答或仅生成命令示例；文件读取、搜索和小范围修改优先使用专用文件工具。",
+			Description: "在 Beaver 工作区执行确实需要运行的构建、测试、Git、脚本、CLI 或安装命令，并返回真实退出码与输出。不要用于普通问答或仅生成命令示例；文件读取、搜索和小范围修改优先使用专用文件工具。",
 			Parameters: objectSchema(map[string]any{
 				"command": stringSchema("必填，要执行的完整 Shell 命令"),
 				"working_directory": map[string]any{
-					"type": "string", "description": "可选工作目录；相对路径以 EasyAgent 工作区为基准",
+					"type": "string", "description": "可选工作目录；相对路径以 Beaver 工作区为基准",
 				},
 				"timeout_seconds": map[string]any{
 					"type": "integer", "description": "可选超时秒数，默认 60，最大 300", "minimum": 1, "maximum": 300,
@@ -55,7 +55,7 @@ func runShell(parent context.Context, environment *appenv.Environment, raw json.
 func runShellWithPolicy(parent context.Context, environment *appenv.Environment, policy permissions.Policy, raw json.RawMessage) (string, error) {
 	policy = policy.Normalize()
 	if policy.IsReadOnly() {
-		return "", errors.New("当前权限模式为只读，EasyAgent 已禁用 Shell")
+		return "", errors.New("当前权限模式为只读，Beaver 已禁用 Shell")
 	}
 	var arguments struct {
 		Command          string `json:"command"`
@@ -198,6 +198,6 @@ func (capture *outputCapture) String() string {
 	if capture.total <= int64(capture.limit) {
 		return string(append(append([]byte{}, capture.head...), capture.tail...))
 	}
-	marker := fmt.Sprintf("\n\n... EasyAgent 已截断 %d 字节输出 ...\n\n", capture.total-int64(capture.limit))
+	marker := fmt.Sprintf("\n\n... Beaver 已截断 %d 字节输出 ...\n\n", capture.total-int64(capture.limit))
 	return string(capture.head) + marker + string(capture.tail)
 }

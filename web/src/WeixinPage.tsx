@@ -119,6 +119,6 @@ export function WeixinPage({ onError, onOpenSession }: Props) {
     </section>
 
     <aside className="weixin-commands"><div><strong>微信快捷指令</strong><span>直接发送中文即可，也兼容斜杠命令。</span></div><div><code>新会话</code><span>开始独立任务</span><small>/new</small></div><div><code>状态</code><span>查看当前进度</span><small>/status</small></div><div><code>停止</code><span>中断当前任务</span><small>/stop</small></div><div><code>项目列表</code><span>查看与切换项目</span><small>/projects</small></div></aside>
-    {deleting && <ConfirmDialog title="移除微信绑定？" description="移除后该成员不能再通过微信控制 EasyAgent，需要重新扫码才能恢复。已有 Web 会话不会删除。" subject={deleting.label} confirmLabel="移除绑定" busy={busy === `delete-${deleting.id}`} onCancel={() => setDeleting(null)} onConfirm={() => void removeAccount()} />}
+    {deleting && <ConfirmDialog title="移除微信绑定？" description="移除后该成员不能再通过微信控制 Beaver，需要重新扫码才能恢复。已有 Web 会话不会删除。" subject={deleting.label} confirmLabel="移除绑定" busy={busy === `delete-${deleting.id}`} onCancel={() => setDeleting(null)} onConfirm={() => void removeAccount()} />}
   </section>
 }

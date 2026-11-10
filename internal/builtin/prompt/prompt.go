@@ -1,4 +1,4 @@
-// Package prompt 管理 EasyAgent 唯一的基础 System Prompt。
+// Package prompt 管理 Beaver 唯一的基础 System Prompt。
 //
 // 基础行为放在 Markdown，而不是散落在 Go 字符串中；Go 代码只负责注入工作区、
 // Skill 和 MCP 元数据。日期与时间属于实时事实，由 current_time 工具提供，避免

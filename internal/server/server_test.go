@@ -20,10 +20,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/appenv"
-	"github.com/lakernote/easy-agent/internal/codexruntime"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestTraceOmitsAttachmentBase64(t *testing.T) {
@@ -35,7 +35,7 @@ func TestTraceOmitsAttachmentBase64(t *testing.T) {
 }
 
 func TestTraceObserverPublishesLiveUsageAndSeparatesLoaders(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,11 +101,15 @@ func TestCompletedCodexBusinessActivity(t *testing.T) {
 }
 
 func TestHTTPAuthenticationAndPasswordRotation(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
+	initialPassword := database.InitialAdminPassword()
+	if initialPassword == "" {
+		t.Fatal("首次启动应生成随机初始密码")
+	}
 	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
 	if err != nil {
 		t.Fatal(err)
@@ -138,7 +142,7 @@ func TestHTTPAuthenticationAndPasswordRotation(t *testing.T) {
 			t.Fatalf("未登录 API 应返回可识别的认证错误: %+v", payload)
 		}
 	}
-	loginBody := bytes.NewBufferString(`{"username":"admin","password":"admin"}`)
+	loginBody := bytes.NewBufferString(`{"username":"admin","password":"` + initialPassword + `"}`)
 	login, err := client.Post(httpServer.URL+"/api/v1/auth/login", "application/json", loginBody)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +175,7 @@ func TestHTTPAuthenticationAndPasswordRotation(t *testing.T) {
 	if wrongPassword.StatusCode != http.StatusUnauthorized || wrongPasswordPayload["code"] != "" {
 		t.Fatalf("密码错误不应被标记为登录过期: HTTP=%d payload=%+v", wrongPassword.StatusCode, wrongPasswordPayload)
 	}
-	changeBody := bytes.NewBufferString(`{"currentPassword":"admin","newPassword":"new-admin-password"}`)
+	changeBody := bytes.NewBufferString(`{"currentPassword":"` + initialPassword + `","newPassword":"new-admin-password"}`)
 	request, _ := http.NewRequest(http.MethodPut, httpServer.URL+"/api/v1/auth/password", changeBody)
 	request.Header.Set("Content-Type", "application/json")
 	changed, err := client.Do(request)
@@ -190,7 +194,7 @@ func TestHTTPAuthenticationAndPasswordRotation(t *testing.T) {
 	if logout.StatusCode != http.StatusNoContent {
 		t.Fatalf("退出登录应为幂等操作: %d", logout.StatusCode)
 	}
-	oldLogin, err := client.Post(httpServer.URL+"/api/v1/auth/login", "application/json", bytes.NewBufferString(`{"username":"admin","password":"admin"}`))
+	oldLogin, err := client.Post(httpServer.URL+"/api/v1/auth/login", "application/json", bytes.NewBufferString(`{"username":"admin","password":"`+initialPassword+`"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +205,7 @@ func TestHTTPAuthenticationAndPasswordRotation(t *testing.T) {
 }
 
 func TestCodexInstallEndpointIsNotExposed(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +222,7 @@ func TestCodexInstallEndpointIsNotExposed(t *testing.T) {
 }
 
 func TestCreateSessionRejectsInvalidModelBeforePersisting(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +247,7 @@ func TestCreateSessionRejectsInvalidModelBeforePersisting(t *testing.T) {
 }
 
 func TestNewServerRejectsInvalidRuntimeSettings(t *testing.T) {
-	databasePath := filepath.Join(t.TempDir(), "easyagent.db")
+	databasePath := filepath.Join(t.TempDir(), "beaver.db")
 	database, err := store.Open(databasePath)
 	if err != nil {
 		t.Fatal(err)
@@ -266,15 +270,15 @@ func TestNewServerDefersInvalidCodexSecretsErrorUntilCodexUse(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(home, ".codex", "easyagent-secrets.json"), []byte("{"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".codex", "beaver-secrets.json"), []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "easyagent-home")})
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "beaver-home")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +293,7 @@ func TestNewServerDefersInvalidCodexSecretsErrorUntilCodexUse(t *testing.T) {
 }
 
 func TestRuntimeSettingsReadErrorsAreReturnedByAPIs(t *testing.T) {
-	databasePath := filepath.Join(t.TempDir(), "easyagent.db")
+	databasePath := filepath.Join(t.TempDir(), "beaver.db")
 	database, err := store.Open(databasePath)
 	if err != nil {
 		t.Fatal(err)
@@ -327,7 +331,7 @@ func TestRuntimeSettingsReadErrorsAreReturnedByAPIs(t *testing.T) {
 }
 
 func TestUpdateSessionKeepsProjectAndWorkspaceConsistent(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +351,7 @@ func TestUpdateSessionKeepsProjectAndWorkspaceConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.CreateSession(store.CreateSessionParams{ID: "move-session", Title: "移动会话", Runtime: store.RuntimeEasyAgent, Model: "fixture", ProjectID: sourceProject.ID, Workspace: sourceDirectory, CreatedAt: now}); err != nil {
+	if _, err := database.CreateSession(store.CreateSessionParams{ID: "move-session", Title: "移动会话", Runtime: store.RuntimeBeaver, Model: "fixture", ProjectID: sourceProject.ID, Workspace: sourceDirectory, CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
 	application := newTestApplication(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}})
@@ -391,7 +395,7 @@ func TestUserTurnCountOnlyCountsUserMessages(t *testing.T) {
 }
 
 func TestSaveSkillValidatesSkillMarkdown(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +443,7 @@ func TestSaveSkillValidatesSkillMarkdown(t *testing.T) {
 func TestCodexConfigEndpointSeparatesProviderAndSecret(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +462,7 @@ func TestCodexConfigEndpointSeparatesProviderAndSecret(t *testing.T) {
 	if err != nil || strings.Contains(string(configData), "gsk-test-secret") || !strings.Contains(string(configData), `env_key = "GROQ_API_KEY"`) {
 		t.Fatalf("Codex config should not contain secret: data=%s err=%v", configData, err)
 	}
-	secrets, err := os.ReadFile(filepath.Join(home, ".codex", "easyagent-secrets.json"))
+	secrets, err := os.ReadFile(filepath.Join(home, ".codex", "beaver-secrets.json"))
 	if err != nil || !strings.Contains(string(secrets), "gsk-test-secret") {
 		t.Fatalf("managed secret was not persisted: data=%s err=%v", secrets, err)
 	}
@@ -514,7 +518,7 @@ func TestDecodeJSONRejectsTrailingData(t *testing.T) {
 }
 
 func TestGetSessionUsesBoundedHistoryWindow(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -592,7 +596,7 @@ func TestGetSessionUsesBoundedHistoryWindow(t *testing.T) {
 }
 
 func TestSessionStreamResumesTraceAfterLastEventID(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,7 +642,7 @@ func TestSessionStreamResumesTraceAfterLastEventID(t *testing.T) {
 }
 
 func TestSessionStreamStopsWhenServerShutsDown(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -679,7 +683,7 @@ func TestSessionStreamStopsWhenServerShutsDown(t *testing.T) {
 }
 
 func TestServerRejectsNewWorkAfterShutdownBegins(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -744,7 +748,7 @@ func TestShellKeepsRawPathForAgentAndTrace(t *testing.T) {
 	}))
 	defer modelServer.Close()
 
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -818,7 +822,7 @@ func TestMessageAttachmentsReachModelAndDownloadEndpoint(t *testing.T) {
 		})
 	}))
 	defer modelServer.Close()
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -871,7 +875,7 @@ func TestMessageAttachmentsReachModelAndDownloadEndpoint(t *testing.T) {
 // TestUnknownAPIIsNotSPA 确保接口地址拼错时返回可识别的 JSON 404，
 // 而不是被前端 history fallback 吞掉后返回 index.html 和 200。
 func TestUnknownAPIIsNotSPA(t *testing.T) {
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -920,7 +924,7 @@ func TestMultiTurnSession(t *testing.T) {
 	}))
 	defer modelServer.Close()
 
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -968,7 +972,7 @@ func TestLongSessionCreatesCompactionCheckpoint(t *testing.T) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		isCompaction := len(body.Messages) > 0 && strings.HasPrefix(body.Messages[0].Content, "你正在为同一个 EasyAgent 创建")
+		isCompaction := len(body.Messages) > 0 && strings.HasPrefix(body.Messages[0].Content, "你正在为同一个 Beaver 创建")
 		answer, promptTokens, completionTokens := "", 0, 10
 		if isCompaction {
 			answer, promptTokens, completionTokens = "## 目标\n- 继续记住第一轮信息\n\n## 下一步\n1. 回答当前问题", 110, 20
@@ -999,7 +1003,7 @@ func TestLongSessionCreatesCompactionCheckpoint(t *testing.T) {
 	}))
 	defer modelServer.Close()
 
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1054,7 +1058,7 @@ func TestRunningSessionCanBeCanceled(t *testing.T) {
 	}))
 	defer modelServer.Close()
 
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1108,7 +1112,7 @@ func TestFailedModelCallPersistsAttemptAndTrace(t *testing.T) {
 	}))
 	defer modelServer.Close()
 
-	database, err := store.Open(filepath.Join(t.TempDir(), "easyagent.db"))
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1317,7 +1321,7 @@ func TestSummaryTruncationKeepsUTF8Valid(t *testing.T) {
 }
 
 func TestPromptCacheKeyOnlyTargetsOpenAI(t *testing.T) {
-	if key := promptCacheKey(store.ModelSettings{Provider: "custom", BaseURL: "https://api.openai.com/v1"}); key != "easyagent-core-v1" {
+	if key := promptCacheKey(store.ModelSettings{Provider: "custom", BaseURL: "https://api.openai.com/v1"}); key != "beaver-core-v1" {
 		t.Fatalf("OpenAI 应使用稳定缓存键: %q", key)
 	}
 	if key := promptCacheKey(store.ModelSettings{Provider: "openai", BaseURL: "https://compatible.example.com/v1"}); key != "" {
@@ -1336,7 +1340,7 @@ func TestModelSecretIsOnlyKeptForSameEndpoint(t *testing.T) {
 }
 
 func TestOllamaURLCanBeConfigured(t *testing.T) {
-	t.Setenv("EASYAGENT_OLLAMA_URL", "models.internal:11434/")
+	t.Setenv("BEAVER_OLLAMA_URL", "models.internal:11434/")
 	if value := ollamaServerURL(); value != "http://models.internal:11434" {
 		t.Fatalf("Ollama 地址没有正确归一化: %q", value)
 	}
@@ -1415,7 +1419,7 @@ func TestAdaptiveCompactionPreservesStructuredResultAndBudgetMetadata(t *testing
 	if compacted[0].ToolResult.Truncation.Strategy != "adaptive_token_budget" || compacted[0].ToolResult.Truncation.OriginalTokens != estimateTextTokens(toolResult.ModelText()) {
 		t.Fatalf("truncation metadata = %+v", compacted[0].ToolResult.Truncation)
 	}
-	if !json.Valid(compacted[0].ToolResult.StructuredContent) || !strings.Contains(string(compacted[0].ToolResult.StructuredContent), "_easyagent_truncation") {
+	if !json.Valid(compacted[0].ToolResult.StructuredContent) || !strings.Contains(string(compacted[0].ToolResult.StructuredContent), "_beaver_truncation") {
 		t.Fatalf("structured result lost JSON shape: %s", compacted[0].ToolResult.StructuredContent)
 	}
 	if estimateAgentMessageTokens(compacted) >= before || string(messages[0].ToolResult.StructuredContent) != string(structured) {

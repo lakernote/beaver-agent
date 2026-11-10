@@ -1,20 +1,24 @@
-.PHONY: build build-linux web test run container container-test clean
+.PHONY: dev build build-linux web test run container container-test clean
 
 LINUX_ARCH ?= amd64
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
 BUILD_FLAGS ?= -trimpath -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)"
-IMAGE ?= easyagent:local
+IMAGE ?= beaver:local
+
+# 前端热更新开发服务（:5173，/api 代理到 :8080）；需另开终端运行后端。
+dev:
+	cd web && npm run dev
 
 # 默认发布构建：先生成前端 dist，再把 dist 嵌入 Go 单二进制。
 build: web
 	mkdir -p bin
-	go build $(BUILD_FLAGS) -o bin/easyagent ./cmd/easyagent
+	go build $(BUILD_FLAGS) -o bin/beaver ./cmd/beaver
 
 # 交叉编译 Linux 单文件；可用 `make build-linux LINUX_ARCH=arm64` 切换架构。
 build-linux: web
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(LINUX_ARCH) go build $(BUILD_FLAGS) -o bin/easyagent-linux-$(LINUX_ARCH) ./cmd/easyagent
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(LINUX_ARCH) go build $(BUILD_FLAGS) -o bin/beaver-linux-$(LINUX_ARCH) ./cmd/beaver
 
 # npm ci 严格按照 package-lock.json 安装依赖，适合 CI 和可复现构建。
 web:
@@ -29,7 +33,7 @@ test:
 
 # build 成功后以前台方式启动；默认监听 0.0.0.0:8080。
 run: build
-	./bin/easyagent
+	./bin/beaver
 
 # 构建与发布环境相同的非 root 容器镜像。
 container:

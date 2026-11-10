@@ -1,5 +1,5 @@
-// Command easyagent-eval compares model/provider configurations with the same
-// native Function Calling qualification enforced by the EasyAgent server.
+// Command beaver-eval compares model/provider configurations with the same
+// native Function Calling qualification enforced by the Beaver server.
 package main
 
 import (
@@ -13,9 +13,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/agent/qualification"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/agent/qualification"
 )
 
 type modelSummary struct {

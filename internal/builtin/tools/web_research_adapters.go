@@ -1122,7 +1122,7 @@ func getResearchJSON(ctx context.Context, client *http.Client, endpoint string, 
 	if err != nil {
 		return err
 	}
-	request.Header.Set("User-Agent", "EasyAgent/1.0 (+https://github.com/lakernote/easy-agent)")
+	request.Header.Set("User-Agent", "Beaver/1.0 (+https://github.com/lakernote/beaver-agent)")
 	request.Header.Set("Accept", "application/json")
 	for key, values := range headers {
 		for _, value := range values {
@@ -1154,7 +1154,7 @@ func getResearchBody(ctx context.Context, client *http.Client, endpoint string, 
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("User-Agent", "EasyAgent/1.0 (+https://github.com/lakernote/easy-agent)")
+	request.Header.Set("User-Agent", "Beaver/1.0 (+https://github.com/lakernote/beaver-agent)")
 	for key, values := range headers {
 		for _, value := range values {
 			request.Header.Add(key, value)

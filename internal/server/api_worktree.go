@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func (server *Server) cleanupWorktree(response http.ResponseWriter, request *http.Request) {

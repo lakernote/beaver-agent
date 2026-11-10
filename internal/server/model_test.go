@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lakernote/easy-agent/internal/agent"
-	"github.com/lakernote/easy-agent/internal/agent/modeladapter"
-	"github.com/lakernote/easy-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/store"
 )
 
 func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
@@ -26,15 +26,15 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 			if body["tool_choice"] != "auto" {
 				t.Fatalf("能力测试必须复现 Agent 的 auto 选择: %#v", body["tool_choice"])
 			}
-			_, _ = response.Write([]byte(`{"id":"one","model":"test","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call-1","type":"function","function":{"name":"easyagent_diagnostic_echo","arguments":"{\"text\":\"ping\"}"}}]}}],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}`))
+			_, _ = response.Write([]byte(`{"id":"one","model":"test","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call-1","type":"function","function":{"name":"beaver_diagnostic_echo","arguments":"{\"text\":\"ping\"}"}}]}}],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}`))
 			return
 		}
 		messages, _ := body["messages"].([]any)
 		encoded, _ := json.Marshal(messages)
-		if !strings.Contains(string(encoded), "EASYAGENT_OK") || body["tool_choice"] != "none" {
+		if !strings.Contains(string(encoded), "BEAVER_OK") || body["tool_choice"] != "none" {
 			t.Fatalf("第二次请求没有回传工具结果: %s", encoded)
 		}
-		_, _ = response.Write([]byte(`{"id":"two","model":"test","choices":[{"message":{"role":"assistant","content":"EASYAGENT_OK"}}],"usage":{"prompt_tokens":16,"completion_tokens":2,"total_tokens":18}}`))
+		_, _ = response.Write([]byte(`{"id":"two","model":"test","choices":[{"message":{"role":"assistant","content":"BEAVER_OK"}}],"usage":{"prompt_tokens":16,"completion_tokens":2,"total_tokens":18}}`))
 	}))
 	defer provider.Close()
 
@@ -46,7 +46,7 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.OK || result.ToolCall != "easyagent_diagnostic_echo" || result.Answer != "EASYAGENT_OK" || result.InputTokens != 26 || result.OutputTokens != 5 || calls.Load() != 2 {
+	if !result.OK || result.ToolCall != "beaver_diagnostic_echo" || result.Answer != "BEAVER_OK" || result.InputTokens != 26 || result.OutputTokens != 5 || calls.Load() != 2 {
 		t.Fatalf("模型能力测试结果不完整: %+v, calls=%d", result, calls.Load())
 	}
 }
@@ -54,7 +54,7 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("Content-Type", "application/json")
-		_, _ = response.Write([]byte(`{"model":"test","choices":[{"message":{"role":"assistant","content":"{\"name\":\"easyagent_diagnostic_echo\"}"}}]}`))
+		_, _ = response.Write([]byte(`{"model":"test","choices":[{"message":{"role":"assistant","content":"{\"name\":\"beaver_diagnostic_echo\"}"}}]}`))
 	}))
 	defer provider.Close()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
@@ -66,8 +66,8 @@ func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 	}
 }
 
-func TestEasyAgentProfileActivationRequiresMatchingCapabilityTest(t *testing.T) {
-	database, err := store.Open(t.TempDir() + "/easyagent.db")
+func TestBeaverProfileActivationRequiresMatchingCapabilityTest(t *testing.T) {
+	database, err := store.Open(t.TempDir() + "/beaver.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestEasyAgentProfileActivationRequiresMatchingCapabilityTest(t *testing.T) 
 }
 
 func TestModelProfileViewsExposeCapabilityStatusWithoutSecrets(t *testing.T) {
-	database, err := store.Open(t.TempDir() + "/easyagent.db")
+	database, err := store.Open(t.TempDir() + "/beaver.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestPrepareModelInputKeepsSecretForSameProfileEndpoint(t *testing.T) {
 }
 
 func TestSaveModelPreservesEditedProfileSecretWithoutActivating(t *testing.T) {
-	database, err := store.Open(t.TempDir() + "/easyagent.db")
+	database, err := store.Open(t.TempDir() + "/beaver.db")
 	if err != nil {
 		t.Fatal(err)
 	}

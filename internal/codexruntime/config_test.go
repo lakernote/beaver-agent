@@ -247,8 +247,8 @@ func TestDeleteProviderConfigRejectsOfficialLogin(t *testing.T) {
 
 func TestSyncMCPServersDocumentPreservesUnmanagedAndKeepsSecretsInEnvironment(t *testing.T) {
 	document := configDocument{"mcp_servers": map[string]any{
-		"personal":        map[string]any{"url": "https://personal.example/mcp"},
-		"easyagent_stale": map[string]any{"url": "https://stale.example/mcp"},
+		"personal":     map[string]any{"url": "https://personal.example/mcp"},
+		"beaver_stale": map[string]any{"url": "https://stale.example/mcp"},
 	}}
 	environment := syncMCPServersDocument(document, []MCPServerConfig{
 		{ID: "docs", Transport: "http", Endpoint: "https://docs.example/mcp", AuthType: "bearer", Token: "secret-token", Headers: map[string]string{"X-Team": "alpha"}},
@@ -256,16 +256,16 @@ func TestSyncMCPServersDocumentPreservesUnmanagedAndKeepsSecretsInEnvironment(t 
 	})
 	servers := providerDocumentMap(document, "mcp_servers")
 	if _, ok := servers["personal"]; !ok {
-		t.Fatal("不属于 EasyAgent 的 MCP 配置不应被删除")
+		t.Fatal("不属于 Beaver 的 MCP 配置不应被删除")
 	}
-	if _, ok := servers["easyagent_stale"]; ok {
-		t.Fatal("已失效的 EasyAgent MCP 配置应被清理")
+	if _, ok := servers["beaver_stale"]; ok {
+		t.Fatal("已失效的 Beaver MCP 配置应被清理")
 	}
 	encoded, _ := json.Marshal(document)
 	if strings.Contains(string(encoded), "secret-token") || strings.Contains(string(encoded), "local-secret") {
 		t.Fatalf("MCP 密钥不应写入 Codex TOML 文档: %s", encoded)
 	}
-	if environment["LOCAL_TOKEN"] != "local-secret" || environment["EASYAGENT_DOCS_TOKEN"] != "secret-token" {
+	if environment["LOCAL_TOKEN"] != "local-secret" || environment["BEAVER_DOCS_TOKEN"] != "secret-token" {
 		t.Fatalf("MCP 密钥应通过进程环境传递: %+v", environment)
 	}
 }
@@ -276,11 +276,11 @@ func TestSyncMCPServersDocumentTreatsTokenAsBearerAuthentication(t *testing.T) {
 		ID: "token-mcp", Transport: "http", Endpoint: "https://mcp.example/mcp", AuthType: "token", Token: "secret-token",
 	}})
 	servers := providerDocumentMap(document, "mcp_servers")
-	entry, ok := servers["easyagent_token-mcp"].(map[string]any)
-	if !ok || entry["bearer_token_env_var"] != "EASYAGENT_TOKEN_MCP_TOKEN" {
+	entry, ok := servers["beaver_token-mcp"].(map[string]any)
+	if !ok || entry["bearer_token_env_var"] != "BEAVER_TOKEN_MCP_TOKEN" {
 		t.Fatalf("token authentication should use Codex bearer token env var: %+v", entry)
 	}
-	if environment["EASYAGENT_TOKEN_MCP_TOKEN"] != "secret-token" {
+	if environment["BEAVER_TOKEN_MCP_TOKEN"] != "secret-token" {
 		t.Fatalf("token authentication should be passed through the process environment: %+v", environment)
 	}
 }
@@ -293,7 +293,7 @@ func TestSyncMCPServersDocumentUsesNativeOAuthWithoutWritingTokens(t *testing.T)
 		OAuthScopes: []string{"read", "write"},
 	}})
 	servers := providerDocumentMap(document, "mcp_servers")
-	entry, ok := servers["easyagent_gitlab"].(map[string]any)
+	entry, ok := servers["beaver_gitlab"].(map[string]any)
 	if !ok || entry["auth"] != "oauth" {
 		t.Fatalf("MCP should use Codex native OAuth: %+v", entry)
 	}
@@ -315,7 +315,7 @@ func TestSyncMCPServersDocumentKeepsDisabledOAuthAddressable(t *testing.T) {
 		ID: "gitlab", Disabled: true, Transport: "http", Endpoint: "https://gitlab.example/mcp", AuthType: "oauth",
 	}})
 	servers := providerDocumentMap(document, "mcp_servers")
-	entry, ok := servers["easyagent_gitlab"].(map[string]any)
+	entry, ok := servers["beaver_gitlab"].(map[string]any)
 	if !ok || entry["enabled"] != false || entry["auth"] != "oauth" {
 		t.Fatalf("disabled OAuth MCP should remain addressable for login/logout: %+v", entry)
 	}
