@@ -1,10 +1,10 @@
-# EasyAgent 工程复盘与学习记录
+# Beaver 工程复盘与学习记录
 
-这份文档记录项目从早期原型到当前 EasyAgent Runtime 遇到的主要问题、错误方案和修正原则。它不是发布日志；目标是帮助后续 Review 时判断一段代码是在实现确定性协议，还是在替模型做脆弱的语义决策。
+这份文档记录项目从早期原型到当前 Beaver Runtime 遇到的主要问题、错误方案和修正原则。它不是发布日志；目标是帮助后续 Review 时判断一段代码是在实现确定性协议，还是在替模型做脆弱的语义决策。
 
 ## 1. 当前结论
 
-EasyAgent 保持一个核心 Agent：
+Beaver 保持一个核心 Agent：
 
 ```text
 用户消息
@@ -90,7 +90,7 @@ entry {
 
 `web_research` 已在一次工具调用内完成来源读取，因此 Runner 不需要依赖模型自行完成第二个网页工具调用；工具返回的 `sources` 和 source ID 直接作为回答依据。
 
-默认使用 DuckDuckGo 与 Bing HTML 作为零配置后端并识别验证码/挑战页；生产环境可配置 `TAVILY_API_KEY`、`EASYAGENT_SEARXNG_URL` 或 `BRAVE_SEARCH_API_KEY`。配置型 API provider 优先，候选不足才调用 HTML 降级，provider 失败会保留诊断。`domains` 是抓取前后校验的硬白名单；官方资料请求通过显式 `source_scope=official` 保守筛选，不由 Runner 猜测用户意图。HTML provider 都失效且已有域名约束时，Runtime 尝试标准站点地图和官网入口；这条静态降级仍遵守 SSRF 与域名边界。可选 `EASYAGENT_READER_URL` 用于 PDF 或静态抓取无法提取正文的页面，`EASYAGENT_READER_API_KEY` 只通过请求头发送，不进入 Tool 结果。
+默认使用 DuckDuckGo 与 Bing HTML 作为零配置后端并识别验证码/挑战页；生产环境可配置 `TAVILY_API_KEY`、`BEAVER_SEARXNG_URL` 或 `BRAVE_SEARCH_API_KEY`。配置型 API provider 优先，候选不足才调用 HTML 降级，provider 失败会保留诊断。`domains` 是抓取前后校验的硬白名单；官方资料请求通过显式 `source_scope=official` 保守筛选，不由 Runner 猜测用户意图。HTML provider 都失效且已有域名约束时，Runtime 尝试标准站点地图和官网入口；这条静态降级仍遵守 SSRF 与域名边界。可选 `BEAVER_READER_URL` 用于 PDF 或静态抓取无法提取正文的页面，`BEAVER_READER_API_KEY` 只通过请求头发送，不进入 Tool 结果。
 
 ### 2.5 把日期、星期和精确时间混为一谈
 
@@ -149,23 +149,23 @@ entry {
 
 **问题**：终端启动时工具工作区正常，由 launchd/systemd 启动后 CWD 可能是 `/`，PATH 也可能只有系统目录，导致文件工具访问错误位置、Shell/MCP 找不到 `node` 或 `npx`。
 
-**解决**：`internal/appenv` 自动管理 Home、默认工作区、私有 Runtime 和确定性 PATH。PATH 合并私有 bin、一次性读取的登录 Shell PATH 和进程 PATH；Playwright 包安装到私有 Runtime，不依赖每次执行 `npx -y`。工作区不再作为启动参数：页面创建会话时选择并写入 SQLite，留空使用 `~/.easyagent/workspaces/default`；每轮为该会话派生独立 Environment，Shell、文件 Tool 和 stdio MCP 共用它。
+**解决**：`internal/appenv` 自动管理 Home、默认工作区、私有 Runtime 和确定性 PATH。PATH 合并私有 bin、一次性读取的登录 Shell PATH 和进程 PATH；Playwright 包安装到私有 Runtime，不依赖每次执行 `npx -y`。工作区不再作为启动参数：页面创建会话时选择并写入 SQLite，留空使用 `~/.beaver/workspaces/default`；每轮为该会话派生独立 Environment，Shell、文件 Tool 和 stdio MCP 共用它。
 
 ### 2.12 Provider 与工具重试边界
 
 模型请求只对 429、5xx 和明确的临时网络错误重试一次，遵守 `Retry-After`（最多等待 30 秒）；认证、参数等 4xx 直接失败。每个真实请求仍属于同一 Step 的不同 Attempt，并完整进入 Trace。工具重试由结构化 `retryable` 控制，不能把所有错误都盲目重放。
 
-### 2.13 把 EasyAgent 做成通用 Runtime 管理器
+### 2.13 把 Beaver 做成通用 Runtime 管理器
 
-**错误方案**：因为某个 MCP 或项目可能缺少 Java、Node.js、Python，就在 EasyAgent 中为每种语言增加下载地址、版本字段、安装 API 和管理页面。
+**错误方案**：因为某个 MCP 或项目可能缺少 Java、Node.js、Python，就在 Beaver 中为每种语言增加下载地址、版本字段、安装 API 和管理页面。
 
 **问题**：这会把一个轻量 Agent 变成不完整的 SDK 管理器；平台、架构、校验、镜像、补丁版本和项目锁文件都会进入核心代码，而且很快与 asdf、mise、SDKMAN、容器和团队现有工具链冲突。
 
 **修正边界**：
 
-- EasyAgent 管理自己的 Home、默认工作区、确定性 PATH 和 MCP 私有包；
+- Beaver 管理自己的 Home、默认工作区、确定性 PATH 和 MCP 私有包；
 - MCP 页面可以检测宿主命令和版本，但不执行系统级运行时安装；
-- MCP 固定版本包安装到 `~/.easyagent/runtime/mcp/<id>`，卸载只删除该目录和配置；
+- MCP 固定版本包安装到 `~/.beaver/runtime/mcp/<id>`，卸载只删除该目录和配置；
 - Java、Node.js、Python 等项目环境交给宿主机、容器、项目脚本或专门版本管理器；
 - 检测失败和安装失败不写入“看起来已经安装”的配置，只有私有包安装成功但握手失败时保留停用配置供排查。
 
@@ -182,7 +182,7 @@ entry {
 
 Prompt 不是安全沙箱。若未来允许无人值守执行高风险 Shell、写操作或外部发布，还需要独立的权限策略、审批或隔离执行环境，不能只依赖模型“记住不要做”。
 
-对标结论：OpenAI API 用 `system`/`developer` 与 `user` 角色表达指令层级，并建议保持 Prompt 精简、把授权边界写清楚；Codex 把 Personality 单独写成简短、具体的协作风格；Claude Code 在 Prompt 之外使用权限、工作区/网络沙箱、WebFetch 隔离上下文和 MCP 信任确认；Pi 明确说明默认继承宿主进程权限，强隔离需要容器或沙箱。EasyAgent 当前实现角色边界、外部内容信任标记和工作区文件边界，但尚未实现 Claude/Codex 等级的 Shell 审批与系统沙箱，页面不能把它宣传成“已完全防御提示词注入”。
+对标结论：OpenAI API 用 `system`/`developer` 与 `user` 角色表达指令层级，并建议保持 Prompt 精简、把授权边界写清楚；Codex 把 Personality 单独写成简短、具体的协作风格；Claude Code 在 Prompt 之外使用权限、工作区/网络沙箱、WebFetch 隔离上下文和 MCP 信任确认；Pi 明确说明默认继承宿主进程权限，强隔离需要容器或沙箱。Beaver 当前实现角色边界、外部内容信任标记和工作区文件边界，但尚未实现 Claude/Codex 等级的 Shell 审批与系统沙箱，页面不能把它宣传成“已完全防御提示词注入”。
 
 参考：
 
@@ -217,24 +217,24 @@ Ollama 是本地开发和协议兼容测试 Provider，适合验证：
 - 多轮历史、上下文压缩和 Trace；
 - 弱模型失败时 Runtime 是否能如实处理。
 
-生产效果应使用经过真实 Case 评测的云模型。EasyAgent 的 `internal/agent/openai` 同时实现 Chat Completions 和 Responses，页面可配置任意 OpenAI 兼容 Base URL、模型和 API Key，因此可接 OpenAI、DeepSeek、OpenRouter、Groq、Gemini 兼容端点等。Provider 配置与 Agent Runtime 分离，切模型不应修改 Runner。
+生产效果应使用经过真实 Case 评测的云模型。Beaver 的 `internal/agent/openai` 同时实现 Chat Completions 和 Responses，页面可配置任意 OpenAI 兼容 Base URL、模型和 API Key，因此可接 OpenAI、DeepSeek、OpenRouter、Groq、Gemini 兼容端点等。Provider 配置与 Agent Runtime 分离，切模型不应修改 Runner。
 
 ### Codex 与 GitHub Copilot
 
-- **OpenAI 模型 API**：EasyAgent 当前通过正式 API Key 调用 Responses 或 Chat Completions。这条路径由 EasyAgent 自己负责 Tool、Skill、MCP、上下文和 Trace。
+- **OpenAI 模型 API**：Beaver 当前通过正式 API Key 调用 Responses 或 Chat Completions。这条路径由 Beaver 自己负责 Tool、Skill、MCP、上下文和 Trace。
 - **Codex SDK**：OpenAI 已提供 `@openai/codex-sdk`，可以在服务端启动、继续和恢复本地 Codex thread；Codex 本身支持 ChatGPT 订阅登录或 API Key 登录。它是一套完整的编码 Agent，不是 OpenAI-compatible 模型 URL。
-- **Codex 集成边界**：不能把 Codex 桌面应用的缓存凭证读取出来塞进 EasyAgent 的 API Key 字段。若采用 Codex SDK、App Server 或 MCP Server，应作为一个明确的可选 Runtime/外部能力，并单独映射事件与 Trace。
+- **Codex 集成边界**：不能把 Codex 桌面应用的缓存凭证读取出来塞进 Beaver 的 API Key 字段。若采用 Codex SDK、App Server 或 MCP Server，应作为一个明确的可选 Runtime/外部能力，并单独映射事件与 Trace。
 - **GitHub Copilot SDK**：GitHub 已提供正式 Copilot SDK，可在后端连接 Copilot CLI，支持 GitHub OAuth、Copilot 订阅计费或 BYOK。它返回的是一套 Agent Session/JSON-RPC 能力，不是 IntelliJ 插件公开出来的 OpenAI Chat Completions 地址。
-- **IntelliJ Copilot 插件**：不要读取插件缓存、Token 或内部接口。若采用 Copilot，应使用官方 Copilot SDK，在 EasyAgent 外增加独立适配层，并明确它和现有核心 Agent 谁负责 Tool 循环，避免“双 Agent”重复规划和重复计费。
+- **IntelliJ Copilot 插件**：不要读取插件缓存、Token 或内部接口。若采用 Copilot，应使用官方 Copilot SDK，在 Beaver 外增加独立适配层，并明确它和现有核心 Agent 谁负责 Tool 循环，避免“双 Agent”重复规划和重复计费。
 
 因此有两条清晰路线：
 
 ```text
-路线 A（当前默认）：EasyAgent Runtime + OpenAI/DeepSeek 等模型 API
-路线 B（以后可选）：EasyAgent UI/任务入口 + Codex SDK 或 Copilot SDK Runtime
+路线 A（当前默认）：Beaver Runtime + OpenAI/DeepSeek 等模型 API
+路线 B（以后可选）：Beaver UI/任务入口 + Codex SDK 或 Copilot SDK Runtime
 ```
 
-路线 A 最轻、协议统一、Trace 最完整；路线 B 的代码能力可能更强，但会增加 CLI/Node 等部署依赖，并且需要重新适配会话、权限、工具事件、Token 和取消。不要在同一个 Turn 中让 EasyAgent Runner 与外部 Agent 同时自主规划。
+路线 A 最轻、协议统一、Trace 最完整；路线 B 的代码能力可能更强，但会增加 CLI/Node 等部署依赖，并且需要重新适配会话、权限、工具事件、Token 和取消。不要在同一个 Turn 中让 Beaver Runner 与外部 Agent 同时自主规划。
 
 参考资料：
 

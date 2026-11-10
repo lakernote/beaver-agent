@@ -2,15 +2,25 @@
 
 ## 未发布
 
+- Web UI 可读性：原先大量 7–10px 的辅助文字整体上调约 1–2px（共约 400 处），中文标签不再使用等宽字体；手机端首次引导时收起重复的配置提示条。
+- **文档**：README 增加“个人电脑 / 服务器”部署对照、两种引擎对比，并说明微信无需公网 IP。
+- Web UI：手机端逐页检查设置、Skills、工具与 MCP、微信、用量页，未发现页面级横向溢出；手机底部导航不再显示通知按钮。
+- **首次引导**：没有可用模型时，首页展示 Ollama / API Key / Codex CLI 三条起步路径（含检测状态），不再只显示一条“配置不完整”。
+- **任务通知**：任务完成或失败且页面在后台时弹出浏览器通知；标签页标题显示运行中/已完成数量；后台（微信、定时）任务运行期间自动低频刷新。
+- **安全**：首次启动不再使用 `admin/admin`，改为生成随机初始密码并在日志中打印一次；新增 `beaver -reset-password` 重置管理员密码；登录页提示同步更新。
+- **更名**：项目更名为 Beaver，二进制、环境变量（`BEAVER_*`）、数据目录（`~/.beaver/`）、Go 模块与 Runtime ID 一并更名，不保留旧名兼容。
+- 文档与开源治理：新增英文 README、文档索引、行为准则、docker-compose、Dependabot、Issue 模板配置与 `.editorconfig`，修复 README 中的占位符与内网地址。
+- 品牌：新 Logo（任务轨道环 + 扫描扇区 + 友好 Agent），新增 README 用 512px 图标，侧边栏加入“自托管 Agent 工作台”副标题。
+- Web UI：补充全局键盘焦点样式、`prefers-reduced-motion` 支持与页面元信息；新增 ErrorBoundary，渲染异常时提示刷新而非白屏；清理 32 条重复 CSS 规则；修复手机端新会话输入区权限/模型被挤成整行的问题。
 - 模型默认值与校验范围集中管理，新数据库不再猜测用户已经下载某个 Ollama 模型。
-- 增加 OpenRouter、Gemini 和 Groq 免费额度配置模板，并支持 `EASYAGENT_OLLAMA_URL`。
+- 增加 OpenRouter、Gemini 和 Groq 免费额度配置模板，并支持 `BEAVER_OLLAMA_URL`。
 - 移除整轮 Agent 的固定十分钟超时；模型与工具继续使用各自超时和主动取消。
 - 切换模型服务时不再沿用旧 API Key，避免跨 Provider 误发密钥。
 - 增加模型 Agent 能力测试，真实验证原生 Function Calling 和工具结果回传。
 
 ## 0.1.0
 
-- 重构为 EasyAgent：一个核心 Agent，不使用 Graph、多 Agent 或固定业务状态机。
+- 重构为 EasyAgent（现 Beaver）：一个核心 Agent，不使用 Graph、多 Agent 或固定业务状态机。
 - 支持 OpenAI Chat Completions、OpenAI Responses 和兼容模型服务。
 - 支持 SQLite 多轮会话、消息历史和完整 Agent Trace。
 - 将 System Prompt、内置 Skills、内置 Tools、MCP 预设拆成独立 Go packages。

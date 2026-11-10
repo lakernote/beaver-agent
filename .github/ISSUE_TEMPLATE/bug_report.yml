@@ -1,5 +1,5 @@
 name: 问题报告
-description: 报告可复现的 EasyAgent 问题
+description: 报告可复现的 Beaver 问题
 title: "[问题] "
 labels: [bug]
 body:

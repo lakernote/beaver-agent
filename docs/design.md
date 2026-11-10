@@ -1,10 +1,10 @@
-# EasyAgent 设计说明
+# Beaver 设计说明
 
-这份文档面向代码 Review：说明 EasyAgent 解决什么问题、核心概念如何计算，以及哪些判断可以写在 Go 代码里、哪些必须交给模型。
+这份文档面向代码 Review：说明 Beaver 解决什么问题、核心概念如何计算，以及哪些判断可以写在 Go 代码里、哪些必须交给模型。
 
 ## 1. 产品定位与场景
 
-EasyAgent 是一个服务器上的轻量通用 Agent Runtime，不是某个固定业务流程。
+Beaver 是一个服务器上的轻量通用 Agent Runtime，不是某个固定业务流程。
 
 典型场景：
 
@@ -172,7 +172,7 @@ MCP   = 外部系统提供什么能力（按需连接的 Tool）
 - 会随项目和团队变化的方法写成 Skill；
 - 需要外部服务、账号或独立生命周期的能力接 MCP。
 
-EasyAgent 只管理 MCP 自己的私有包和连接配置，不管理项目语言运行时。MCP 所需的 Node.js、Python 或 Java 从服务器 PATH 检测；缺少时给出明确提示，由宿主机、容器或项目工具链提供。这样扩展能力不会演变成另一套 SDK 管理器。
+Beaver 只管理 MCP 自己的私有包和连接配置，不管理项目语言运行时。MCP 所需的 Node.js、Python 或 Java 从服务器 PATH 检测；缺少时给出明确提示，由宿主机、容器或项目工具链提供。这样扩展能力不会演变成另一套 SDK 管理器。
 
 内置 Tool 使用分层渐进披露。可写会话首轮采用 PI 风格的小核心：`read`、`shell`、`edit`、`write`；只读会话首轮提供 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时额外直接提供 `load_skill`，避免先加载工具再加载正文的双重往返；`current_time`、`calculate`、`web_research` 和其余文件检索能力通过 `load_tools` 的短能力目录按需加入。组是工具自身的声明式元数据，代码不读取用户自然语言做关键词或正则路由。Loader 成功后，下一步会临时隐藏 Loader，使用 `tool_choice=auto` 交给 Provider，再由 Runner 验证至少调用一个真实工具，避免把“已经加载”误当成“已经核验”。用户在输入框明确 `@tool:name` 时只按准确名称预加载，并在整轮保持这个工具作用域。保留在协议历史中的内置 function call 会自动恢复同名 Schema。工具模式的空响应或 SSE 尾部工具校验错误可以从流式切到非流式重试一次；只有本轮已成功执行真实工具时，空正文重试才可进入无工具收敛。
 

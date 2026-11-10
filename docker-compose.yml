@@ -1,0 +1,18 @@
+services:
+  beaver:
+    build:
+      context: .
+      args:
+        VERSION: ${BEAVER_VERSION:-dev}
+    image: beaver:local
+    container_name: beaver
+    restart: unless-stopped
+    ports:
+      # 默认仅本机可访问；需要局域网访问时改为 "8080:8080"，并放在 VPN/HTTPS 反向代理之后。
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # /data 保存数据库、工作区、MCP Runtime 与 Codex 登录状态，升级时请保留。
+      - beaver-data:/data
+
+volumes:
+  beaver-data:

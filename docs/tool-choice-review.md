@@ -1,10 +1,10 @@
-# EasyAgent `tool_choice` 请求链路 Review
+# Beaver `tool_choice` 请求链路 Review
 
 > 状态：已按方案 A 修复。以下链路保留为故障复盘，描述的是修复前行为。
 
 ## 1. Review 结论
 
-当前 400 的主要根因是 EasyAgent Runner 的重试逻辑，而不是 Groq 不支持 `tool_choice`。
+当前 400 的主要根因是 Beaver Runner 的重试逻辑，而不是 Groq 不支持 `tool_choice`。
 
 Groq API 支持 `auto`、`required`、`none` 和指定函数；`openai/gpt-oss-20b` 也支持 Tool Use 和 Function Calling。
 
@@ -22,7 +22,7 @@ Groq 返回 400
 
 ## 2. `tool_choice` 语义
 
-| 值 | 语义 | EasyAgent 适用场景 |
+| 值 | 语义 | Beaver 适用场景 |
 |---|---|---|
 | `auto` | 模型自行选择直接回答或调用工具 | 默认 Agent 循环 |
 | `required` | 必须调用至少一个工具 | 明确要求必须调用工具的场景 |
@@ -38,7 +38,7 @@ GPT-OSS-20B 官方模型说明：
 
 <https://console.groq.com/docs/model/openai/gpt-oss-20b>
 
-## 3. EasyAgent 当前请求链路
+## 3. Beaver 当前请求链路
 
 ### 3.1 第一轮：`auto → load_tools`
 
@@ -148,7 +148,7 @@ Groq 的 400 是对非法模型输出的正确拒绝，不是 `tool_choice=none`
 | Groq API 能力 | 支持 `auto`、`required`、`none` |
 | GPT-OSS-20B 能力 | 支持工具调用和 Function Calling |
 | 第二轮空响应 | 模型/Provider 流式兼容性问题，或需要进一步查看 raw chunks 判断 Parser 是否漏解析 |
-| 第三轮 400 | EasyAgent 将 Loader 结果误判为真实工具结果，错误进入 `none` 收敛 |
+| 第三轮 400 | Beaver 将 Loader 结果误判为真实工具结果，错误进入 `none` 收敛 |
 | Shell 是否执行 | 没有执行；400 发生在 Provider 返回模型结果阶段 |
 
 ## 5. 与 Pi / OpenCode 的对比
@@ -165,7 +165,7 @@ Pi 的 Agent 核心循环主要是：
 → 没有 Tool Call 就结束
 ```
 
-Pi 的核心 `ToolChoice` 类型主要是 `auto` 和 `none`，没有 EasyAgent 当前这种 Loader 后强制 `required` 的特殊切换。
+Pi 的核心 `ToolChoice` 类型主要是 `auto` 和 `none`，没有 Beaver 当前这种 Loader 后强制 `required` 的特殊切换。
 
 源码：
 
@@ -263,7 +263,7 @@ TestRunnerDoesNotConvergeAfterLoaderOnlyResult
 
 ## 8. 最终判断
 
-不建议把所有请求永远固定成 `auto`，但 EasyAgent 的默认 Agent 循环应该以 `auto` 为主：
+不建议把所有请求永远固定成 `auto`，但 Beaver 的默认 Agent 循环应该以 `auto` 为主：
 
 ```text
 有工具时：auto

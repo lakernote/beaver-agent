@@ -1,13 +1,15 @@
 # 贡献指南
 
-EasyAgent 的核心边界是：**消息描述目标，上下文提供事实，Skill 定义方法，Tool/MCP 提供能力，一个小型 Runtime 决定下一步。**
+Beaver 的核心边界是：**消息描述目标，上下文提供事实，Skill 定义方法，Tool/MCP 提供能力，一个小型 Runtime 决定下一步。**
 
 ## 本地开发
 
 ```bash
 make build
-./bin/easyagent -db ./data/easyagent.db
+./bin/beaver -db ./data/beaver.db
 ```
+
+前端热更新：`make dev`（Vite :5173，`/api` 代理到 :8080），同时另开终端运行 `go run ./cmd/beaver -listen 127.0.0.1:8080`。`make test` 会一次性执行下方全部检查。参与前请阅读[行为准则](CODE_OF_CONDUCT.md)；安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
 修改后至少运行：
 
