@@ -18,7 +18,7 @@ COPY web/embed.go ./web/embed.go
 COPY --from=web /src/web/dist ./web/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" -o /beaver ./cmd/beaver
 
-FROM alpine:3.22
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 beaver \
     && adduser -S -D -H -h /data -u 10001 -G beaver beaver \
