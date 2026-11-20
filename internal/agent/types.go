@@ -291,8 +291,8 @@ type ToolSpec struct {
 // Tool 把声明与实际执行函数绑定起来。
 type Tool struct {
 	Spec ToolSpec
-	// Execute is the typed path. Run remains as a compatibility bridge for
-	// existing built-ins and third-party integrations while they migrate.
+	// 两种实现二选一：Run 返回纯文本，适合绝大多数内置工具；
+	// Execute 返回结构化的 ToolResult，用于需要保留多段内容的 MCP 桥接。
 	Execute func(context.Context, json.RawMessage) (ToolResult, error)
 	Run     func(context.Context, json.RawMessage) (string, error)
 }

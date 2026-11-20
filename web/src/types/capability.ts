@@ -47,5 +47,3 @@ export type MCPInstallResult = {
   mcp: MCPConfig
   tools: { name: string; description: string }[]
 }
-
-export type KnowledgeDoc = { name: string; size: number; updatedAt: string }

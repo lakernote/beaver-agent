@@ -3,7 +3,6 @@ import type { Bootstrap, ModelSettings } from './types'
 import { api } from './api'
 import type { Page } from './sessionState'
 import { Capabilities, type SettingsSection } from './CapabilitiesPage'
-import { Knowledge } from './Knowledge'
 import { Skills } from './Skills'
 import { UsagePage } from './UsagePage'
 import { WeixinPage } from './WeixinPage'
@@ -27,7 +26,6 @@ const sectionGroups: { label: string; sections: { id: SettingsSection; label: st
   ] },
   { label: '能力扩展', sections: [
     { id: 'skills', label: 'Skills' },
-    { id: 'knowledge', label: '知识库' },
     { id: 'tools', label: '工具与 MCP' },
   ] },
   { label: '渠道与账户', sections: [
@@ -38,7 +36,7 @@ const sectionGroups: { label: string; sections: { id: SettingsSection; label: st
 ]
 
 function activeSection(page: Page): SettingsSection {
-  return page === 'tasks' || page === 'skills' || page === 'knowledge' || page === 'tools' || page === 'usage' || page === 'weixin' || page === 'security' ? page : 'runtime'
+  return page === 'tasks' || page === 'skills' || page === 'tools' || page === 'usage' || page === 'weixin' || page === 'security' ? page : 'runtime'
 }
 
 export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefresh, onError, onLogout, onOpenSession, passwordGenerated = false }: SettingsShellProps) {
@@ -48,7 +46,6 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
     models: '选择执行引擎并管理模型配置',
     tasks: '调整并发、超时与恢复',
     skills: '管理按需加载的 Skills',
-    knowledge: '管理团队共享的知识库文档',
     tools: '管理内置工具与 MCP',
     usage: '查看模型与任务用量',
     weixin: '管理微信绑定与远程任务',
@@ -117,7 +114,6 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
       </nav>
       <main className="settings-hub-content">
         {selected === 'skills' && <Skills data={data} onRefresh={onRefresh} onError={onError} />}
-        {selected === 'knowledge' && <Knowledge onError={onError} />}
         {selected === 'usage' && <UsagePage data={data} />}
         {selected === 'weixin' && <WeixinPage onError={onError} onOpenSession={onOpenSession} />}
         {(selected === 'runtime' || selected === 'tasks' || selected === 'models' || selected === 'tools') && <Capabilities section="settings" initialSection={selected} initialModelRuntime={initialModelRuntime} data={data} onRefresh={onRefresh} onError={onError} onSettingsSectionChange={onPage} />}

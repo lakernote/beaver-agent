@@ -14,11 +14,11 @@ import (
 // PI 的默认 coding tools 只有 read/bash/edit/write。Beaver 保留同样的小核心，
 // 再直接暴露 load_skill，避免“先加载 Skill 工具、再加载 Skill 内容”的两次模型
 // 往返。时间、计算、搜索和额外文件检索继续通过 load_tools 渐进加载。
-var codingCoreToolNames = []string{"read", "shell", "edit", "write", "load_skill"}
+var codingCoreToolNames = []string{"read", "shell", "edit", "write", "todo_write", "load_skill"}
 
 // 只读权限下没有 Shell 和写工具。此时直接提供结构化文件检索，避免只读审查在
 // 开始工作前必须先花一轮加载 grep/find/ls。
-var readOnlyCoreToolNames = []string{"read", "grep", "find", "ls", "load_skill"}
+var readOnlyCoreToolNames = []string{"read", "grep", "find", "ls", "todo_write", "load_skill"}
 
 // Loader 只把一个精简的工具组目录放进首轮请求。模型确认需要某类能力后，调用
 // load_tools 按组加载真实 Tool Schema；下一轮即可调用这些工具。

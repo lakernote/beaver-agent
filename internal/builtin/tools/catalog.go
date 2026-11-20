@@ -10,7 +10,6 @@ import (
 
 	"github.com/lakernote/beaver-agent/internal/agent"
 	"github.com/lakernote/beaver-agent/internal/appenv"
-	"github.com/lakernote/beaver-agent/internal/knowledge"
 	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/permissions"
 )
@@ -51,7 +50,6 @@ const (
 	groupExecution      = "execution"
 	groupWeb            = "web"
 	groupSkills         = "skills"
-	groupKnowledge      = "knowledge"
 )
 
 var groupDescriptions = map[string]string{
@@ -60,7 +58,7 @@ var groupDescriptions = map[string]string{
 	groupExecution:   "数学计算、Shell、构建、测试和 CLI",
 	groupWeb:         "联网搜索与网页读取",
 	groupSkills:      "按需加载与任务相关的 Skill 方法",
-	groupKnowledge:   "团队知识库：检索用户上传的文档",
+	groupPlanning:    "任务规划：为复杂任务维护步骤清单",
 	groupMemory:      "长期记忆：保存、检索和遗忘用户偏好与团队约定",
 }
 
@@ -69,18 +67,12 @@ func Catalog(environment *appenv.Environment, skills SkillSource) []agent.Tool {
 }
 
 func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []agent.Tool {
-	return CatalogWithExtras(environment, skills, policy, Extras{})
+	return CatalogWithMemory(environment, skills, policy, nil)
 }
 
-// Extras 是需要服务端提供存储才能工作的可选能力；字段为 nil 时对应工具不会出现。
-type Extras struct {
-	Memory    *MemoryScope     // 绑定了成员身份的长期记忆
-	Knowledge *knowledge.Store // 团队共享知识库
-}
-
-// CatalogWithExtras 在内置工具之外附带记忆、知识库等可选工具。
-func CatalogWithExtras(environment *appenv.Environment, skills SkillSource, policy permissions.Policy, extras Extras) []agent.Tool {
-	entries := catalogEntries(environment, skills, policy, extras)
+// CatalogWithMemory 在内置工具之外附带绑定了成员身份的长期记忆工具；mem 为 nil 时不提供记忆。
+func CatalogWithMemory(environment *appenv.Environment, skills SkillSource, policy permissions.Policy, mem *MemoryScope) []agent.Tool {
+	entries := catalogEntries(environment, skills, policy, mem)
 	result := make([]agent.Tool, 0, len(entries))
 	for _, item := range entries {
 		tool := item.tool
@@ -98,11 +90,12 @@ func CatalogWithExtras(environment *appenv.Environment, skills SkillSource, poli
 	return result
 }
 
-func catalogEntries(environment *appenv.Environment, skills SkillSource, permissionPolicy permissions.Policy, extras Extras) []entry {
+func catalogEntries(environment *appenv.Environment, skills SkillSource, permissionPolicy permissions.Policy, mem *MemoryScope) []entry {
 	// 文件工具共享同一个工作区和“已读取版本”记录。这样 write 可以阻止模型在
 	// 没看过现有文件时直接覆盖，同时整套能力仍然只属于本轮 Agent。
 	files := newFileWorkspaceWithPolicy(environment.Workspace(), environment.Directories(), permissionPolicy)
 	result := []entry{
+		{tool: todoWriteTool(), category: categoryPlanning, group: groupPlanning},
 		{tool: currentTimeTool(), category: categoryInformation, group: groupInformation},
 		{tool: calculateTool(), category: categoryExecution, group: groupExecution},
 		{tool: webSearchTool(), category: categoryInformation, group: groupWeb},
@@ -114,13 +107,10 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, permiss
 	if !permissionPolicy.IsReadOnly() {
 		result = append(result, entry{tool: shellToolWithPolicy(environment, permissionPolicy), category: categoryExecution, group: groupExecution})
 	}
-	if mem := extras.Memory; mem != nil && mem.Store != nil {
+	if mem != nil && mem.Store != nil {
 		for _, tool := range memoryTools(*mem) {
 			result = append(result, entry{tool: tool, category: categoryMemory, group: groupMemory})
 		}
-	}
-	if extras.Knowledge != nil {
-		result = append(result, entry{tool: knowledgeSearchTool(extras.Knowledge), category: categoryInformation, group: groupKnowledge})
 	}
 	if skills != nil && len(skills.EnabledSkills()) > 0 {
 		result = append(result, entry{tool: loadSkillTool(skills), category: categoryExtension, group: groupSkills})
@@ -134,7 +124,7 @@ func InfoList(environment *appenv.Environment, skills SkillSource) []Info {
 
 func InfoListWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
 	// 页面展示用：用一个占位的记忆存储，让记忆工具出现在工具列表里。
-	entries := catalogEntries(environment, skills, policy, Extras{Memory: &MemoryScope{Store: memory.New("")}, Knowledge: knowledge.New("")})
+	entries := catalogEntries(environment, skills, policy, &MemoryScope{Store: memory.New("")})
 	result := make([]Info, 0, len(entries))
 	for _, item := range entries {
 		result = append(result, Info{
