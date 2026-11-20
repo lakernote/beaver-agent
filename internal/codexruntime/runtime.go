@@ -99,13 +99,8 @@ func DetectContext(ctx context.Context, environment *appenv.Environment) Status 
 		}
 	}
 	if runtime.GOOS == "darwin" {
-		// ChatGPT/Codex 桌面端会携带完整 CLI，但不会保证把它加入登录
-		// Shell 的 PATH。当前新版应用把入口放在 codex-cli/bin 下；保留
-		// 旧版 Resources/codex 路径以兼容尚未升级的安装。
-		paths = append(paths,
-			"/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
-			"/Applications/ChatGPT.app/Contents/Resources/codex",
-		)
+		// ChatGPT/Codex 桌面端会携带完整 CLI，但不保证把它加入登录 Shell 的 PATH。
+		paths = append(paths, "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex")
 	}
 	environmentValues := commandEnv(environment)
 	best := status

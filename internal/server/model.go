@@ -48,8 +48,7 @@ func prepareModelInputWithRegistry(input, current store.ModelSettings, clearAPIK
 		input.CompressionThresholdPercent = 0
 	}
 	if input.Runtime != store.RuntimeCodex {
-		// Beaver 只使用 DB 中的 APIKey；环境变量入口仅为旧版本兼容
-		// 保留在结构体中，不再接受或读取。
+		// Beaver 只使用 DB 中的 APIKey，不接受环境变量入口。
 		input.APIKeyEnv = ""
 	}
 	if input.Runtime != store.RuntimeCodex && input.APIKey == "" {

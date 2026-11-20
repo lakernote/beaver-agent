@@ -43,7 +43,7 @@ func TestNativeChatPreservesToolsResultsAndUsage(t *testing.T) {
 	}))
 	defer provider.Close()
 
-	client, err := New(Config{BaseURL: provider.URL + "/v1", DisableThinking: true, ContextWindow: 8192})
+	client, err := New(Config{BaseURL: provider.URL, DisableThinking: true, ContextWindow: 8192})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,9 +44,6 @@ type Client struct {
 
 func New(config Config) (*Client, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
-	// The previous Beaver default pointed at Ollama's compatibility /v1.
-	// Accept that saved value while switching the wire protocol to native chat.
-	baseURL = strings.TrimSuffix(baseURL, "/v1")
 	parsed, err := url.Parse(baseURL)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return nil, errors.New("Ollama 地址必须是有效的 http(s) URL")

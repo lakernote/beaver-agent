@@ -284,15 +284,3 @@ func TestSyncMCPServersDocumentTreatsTokenAsBearerAuthentication(t *testing.T) {
 		t.Fatalf("token authentication should be passed through the process environment: %+v", environment)
 	}
 }
-
-func TestSyncMCPServersDocumentClearsStaleOAuthCallback(t *testing.T) {
-	document := configDocument{"mcp_oauth_callback_url": "https://stale.example/callback", "mcp_oauth_callback_port": 12345}
-
-	syncMCPServersDocument(document, nil)
-	if _, exists := document["mcp_oauth_callback_url"]; exists {
-		t.Fatalf("stale callback URL should be removed: %+v", document)
-	}
-	if _, exists := document["mcp_oauth_callback_port"]; exists {
-		t.Fatalf("stale callback port should be removed: %+v", document)
-	}
-}

@@ -357,9 +357,6 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 		}
 	}
 	environment := map[string]string{}
-	// 清理旧版本写入的 OAuth 全局回调配置，避免残留。
-	delete(document, "mcp_oauth_callback_url")
-	delete(document, "mcp_oauth_callback_port")
 	for _, config := range configs {
 		id := managedMCPID(config.ID)
 		entry := map[string]any{"enabled": !config.Disabled}

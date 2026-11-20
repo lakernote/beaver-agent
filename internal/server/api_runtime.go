@@ -21,7 +21,7 @@ func (server *Server) saveRuntimeSettings(response http.ResponseWriter, request 
 		}
 		input.Permissions = current.Permissions
 	}
-	// 兼容只包含早期两个字段的客户端；新页面始终会提交完整设置。
+	// 缺省的时间类字段取默认值。
 	if input.TurnTimeoutSeconds == 0 {
 		input.TurnTimeoutSeconds = store.DefaultTurnTimeoutSeconds
 	}

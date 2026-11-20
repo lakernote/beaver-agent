@@ -72,7 +72,6 @@ func (store *Store) saveModelProfile(value ModelSettings, activate bool) error {
 }
 
 // ListModelProfiles 返回所有模型配置以及当前用于创建新会话的配置 ID。
-// 旧版本只有 settings.model；首次读取时将它无损包装成 default profile。
 func (store *Store) ListModelProfiles() ([]ModelProfile, string, error) {
 	var data []byte
 	err := store.db.QueryRow(`SELECT value_json FROM settings WHERE key='model_profiles'`).Scan(&data)
@@ -95,21 +94,14 @@ func (store *Store) ListModelProfiles() ([]ModelProfile, string, error) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, "", err
 	}
-	legacy, legacyErr := store.legacyModelSettings()
-	if legacyErr != nil {
-		if errors.Is(legacyErr, sql.ErrNoRows) {
-			legacy = DefaultModelSettings()
-		} else {
-			return nil, "", legacyErr
-		}
-	}
-	legacy = legacy.WithDefaults()
-	legacy.ProfileID = "default"
-	legacy.ProfileName = defaultModelProfileName(legacy)
-	return []ModelProfile{{ID: legacy.ProfileID, Name: legacy.ProfileName, Settings: legacy}}, legacy.ProfileID, nil
+	// 还没保存过任何配置：返回一份默认配置。
+	value := DefaultModelSettings().WithDefaults()
+	value.ProfileID = "default"
+	value.ProfileName = defaultModelProfileName(value)
+	return []ModelProfile{{ID: value.ProfileID, Name: value.ProfileName, Settings: value}}, value.ProfileID, nil
 }
 
-// GetModelSettingsByProfileID 为新会话读取指定配置；空 ID 兼容旧客户端并使用当前配置。
+// GetModelSettingsByProfileID 为新会话读取指定配置；空 ID 表示使用当前配置。
 func (store *Store) GetModelSettingsByProfileID(id string) (ModelSettings, error) {
 	profiles, activeID, err := store.ListModelProfiles()
 	if err != nil {
@@ -204,18 +196,6 @@ func (store *Store) ClearCodexProvider(provider string) error {
 		return nil
 	}
 	return store.saveModelProfiles(profiles, activeID, filteredModelSettings(profiles, activeID))
-}
-
-func (store *Store) legacyModelSettings() (ModelSettings, error) {
-	var data []byte
-	if err := store.db.QueryRow(`SELECT value_json FROM settings WHERE key='model'`).Scan(&data); err != nil {
-		return ModelSettings{}, err
-	}
-	var result ModelSettings
-	if err := json.Unmarshal(data, &result); err != nil {
-		return ModelSettings{}, err
-	}
-	return result, nil
 }
 
 func withProfile(profile ModelProfile) ModelSettings {

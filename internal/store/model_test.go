@@ -63,7 +63,7 @@ func TestModelCapabilityDetectionUsesEndpoint(t *testing.T) {
 	}
 }
 
-func TestModelProfilesMigrateLegacyAndKeepActiveSelection(t *testing.T) {
+func TestModelProfilesKeepActiveSelection(t *testing.T) {
 	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
 		t.Fatal(err)

@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   source_workspace TEXT NOT NULL DEFAULT '',
   worktree_branch TEXT NOT NULL DEFAULT '',
   workspace_notice TEXT NOT NULL DEFAULT '',
+  owner_id TEXT NOT NULL DEFAULT '', -- 会话所属成员（微信账号 ID），个人记忆按此隔离
   response_id TEXT NOT NULL,
   provider_key TEXT NOT NULL,
   input_tokens INTEGER NOT NULL DEFAULT 0,
@@ -202,144 +203,8 @@ CREATE INDEX IF NOT EXISTS idx_model_capability_tests_tested ON model_capability
 CREATE INDEX IF NOT EXISTS idx_compactions_session ON compactions(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_weixin_accounts_enabled ON weixin_accounts(enabled, updated_at);
 `
-	if err := store.renameLegacyTables(); err != nil {
-		return fmt.Errorf("迁移旧表名: %w", err)
-	}
-	_, err := store.db.Exec(schema)
-	if err != nil {
+	if _, err := store.db.Exec(schema); err != nil {
 		return fmt.Errorf("初始化 SQLite: %w", err)
-	}
-	// 旧版本数据库由 CREATE TABLE IF NOT EXISTS 不会自动补列；这里做一次
-	// 幂等迁移，保证已有会话也能保存 split-turn 检查点。
-	var splitTurnColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('compactions') WHERE name='split_turn'`).Scan(&splitTurnColumn); err != nil {
-		return err
-	}
-	if splitTurnColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE compactions ADD COLUMN split_turn INTEGER NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("迁移 compactions.split_turn: %w", err)
-		}
-	}
-	var toolResultColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='tool_result_json'`).Scan(&toolResultColumn); err != nil {
-		return err
-	}
-	if toolResultColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE messages ADD COLUMN tool_result_json BLOB NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 messages.tool_result_json: %w", err)
-		}
-	}
-	var pendingModelColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='pending_model_json'`).Scan(&pendingModelColumn); err != nil {
-		return err
-	}
-	if pendingModelColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN pending_model_json BLOB NOT NULL DEFAULT X''`); err != nil {
-			return fmt.Errorf("迁移 sessions.pending_model_json: %w", err)
-		}
-	}
-	var toolGuaranteeColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tool_operations') WHERE name='guarantee'`).Scan(&toolGuaranteeColumn); err != nil {
-		return err
-	}
-	if toolGuaranteeColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE tool_operations ADD COLUMN guarantee TEXT NOT NULL DEFAULT 'observed'`); err != nil {
-			return fmt.Errorf("迁移 tool_operations.guarantee: %w", err)
-		}
-	}
-	// 会话工作区是会话上下文的一部分。SQLite 的 IF NOT EXISTS 不会给已经存在的
-	// 表补列，因此用幂等迁移保证升级后的现有数据库可以直接打开。
-	var workspaceColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='workspace'`).Scan(&workspaceColumn); err != nil {
-		return err
-	}
-	if workspaceColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN workspace TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 sessions.workspace: %w", err)
-		}
-	}
-	var runtimeColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='runtime'`).Scan(&runtimeColumn); err != nil {
-		return err
-	}
-	if runtimeColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN runtime TEXT NOT NULL DEFAULT 'beaver'`); err != nil {
-			return fmt.Errorf("迁移 sessions.runtime: %w", err)
-		}
-	}
-	var profileColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='profile_id'`).Scan(&profileColumn); err != nil {
-		return err
-	}
-	if profileColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN profile_id TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 sessions.profile_id: %w", err)
-		}
-	}
-	var channelColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='channel'`).Scan(&channelColumn); err != nil {
-		return err
-	}
-	if channelColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT 'web'`); err != nil {
-			return fmt.Errorf("迁移 sessions.channel: %w", err)
-		}
-	}
-	// Older databases did not record the source channel. The account pointer is
-	// the only unambiguous relation available for existing WeChat sessions.
-	if _, err := store.db.Exec(`UPDATE sessions SET channel='weixin' WHERE id IN (SELECT current_session_id FROM weixin_accounts WHERE current_session_id <> '') AND channel='web'`); err != nil {
-		return fmt.Errorf("迁移微信会话来源: %w", err)
-	}
-	for _, column := range []struct {
-		name       string
-		definition string
-	}{
-		{name: "project_id", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "source_workspace", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "worktree_branch", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "workspace_notice", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "permissions_json", definition: "BLOB NOT NULL DEFAULT '{}'"},
-		{name: "reasoning_effort", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "owner_id", definition: "TEXT NOT NULL DEFAULT ''"}, // 会话所属成员（微信账号 ID），用于隔离个人记忆
-	} {
-		var exists int
-		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name=?`, column.name).Scan(&exists); err != nil {
-			return err
-		}
-		if exists == 0 {
-			if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
-				return fmt.Errorf("迁移 sessions.%s: %w", column.name, err)
-			}
-		}
-	}
-	var weixinProjectColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('weixin_accounts') WHERE name='project_id'`).Scan(&weixinProjectColumn); err != nil {
-		return err
-	}
-	if weixinProjectColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE weixin_accounts ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 weixin_accounts.project_id: %w", err)
-		}
-	}
-	for _, column := range []struct {
-		name       string
-		definition string
-	}{
-		{name: "repeat", definition: "TEXT NOT NULL DEFAULT 'interval'"},
-		{name: "schedule_time", definition: "TEXT NOT NULL DEFAULT ''"},
-		{name: "schedule_weekday", definition: "INTEGER NOT NULL DEFAULT 1"},
-		{name: "schedule_enabled", definition: "INTEGER NOT NULL DEFAULT 0"},
-		{name: "cron", definition: "TEXT NOT NULL DEFAULT ''"},
-	} {
-		var exists int
-		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('automation_tasks') WHERE name=?`, column.name).Scan(&exists); err != nil {
-			return err
-		}
-		if exists == 0 {
-			if _, err := store.db.Exec(`ALTER TABLE automation_tasks ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
-				return fmt.Errorf("迁移 automation_tasks.%s: %w", column.name, err)
-			}
-		}
 	}
 	var count int
 	if err := store.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key='model'`).Scan(&count); err != nil {

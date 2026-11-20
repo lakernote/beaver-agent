@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,45 +75,6 @@ func TestDefaultAdminCanRotatePassword(t *testing.T) {
 	}
 	if valid, err := database.Authenticate("admin", "new-admin-password"); err != nil || !valid {
 		t.Fatalf("新密码认证失败: valid=%v err=%v", valid, err)
-	}
-}
-
-func TestOpenMigratesLegacyCompactionSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "legacy.db")
-	database, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = database.Exec(`CREATE TABLE compactions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		session_id TEXT NOT NULL,
-		seq INTEGER NOT NULL,
-		summary TEXT NOT NULL,
-		through_message_id INTEGER NOT NULL,
-		source_messages INTEGER NOT NULL,
-		compacted_messages INTEGER NOT NULL,
-		usage_json BLOB NOT NULL,
-		created_at TEXT NOT NULL
-	)`)
-	if err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	store, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	var columns int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('compactions') WHERE name='split_turn'`).Scan(&columns); err != nil {
-		t.Fatal(err)
-	}
-	if columns != 1 {
-		t.Fatalf("旧数据库没有迁移 split_turn 列: %d", columns)
 	}
 }
 
