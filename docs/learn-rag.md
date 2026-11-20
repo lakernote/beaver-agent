@@ -1,6 +1,6 @@
 # 学习：RAG（检索增强生成）
 
-对应源码：`internal/rag/rag.go`（约 200 行，纯标准库，带测试）。
+对应源码：`internal/search/rag.go`（约 200 行，纯标准库，带测试）。
 
 ## 1. 为什么需要 RAG
 
@@ -60,11 +60,11 @@ Tool{
 }
 ```
 
-在 `internal/builtin/tools/catalog.go` 里注册即可，模型会在需要私有资料时自己调用。目前 `internal/rag` 已被长期记忆（[learn-memory.md](learn-memory.md)）复用；知识库工具尚未注册；接线时需要决定索引哪个目录（例如项目的 `docs/` 或工作区）以及何时重建索引。
+在 `internal/builtin/tools/catalog.go` 里注册即可，模型会在需要私有资料时自己调用。目前 `internal/search` 已被长期记忆（[learn-memory.md](learn-memory.md)）复用；知识库工具尚未注册；接线时需要决定索引哪个目录（例如项目的 `docs/` 或工作区）以及何时重建索引。
 
 ## 6. 练习
 
-1. 运行 `go test ./internal/rag -run Search -v`，读懂测试，再给 `Search` 加一个“最低分阈值”。
+1. 运行 `go test ./internal/search -run Search -v`，读懂测试，再给 `Search` 加一个“最低分阈值”。
 2. 用 `BuildFromDir("docs")` 写个小 main，搜索“定时任务”，观察命中片段。
 3. 调整 `maxChunkRunes` 为 200 / 2000，看同一问题的排序如何变化。
 4. 实现第 4 节的向量检索版本，并与 BM25 对比同一批问题的命中。

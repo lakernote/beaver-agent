@@ -2,7 +2,7 @@
 //
 // 设计刻意保持朴素：
 //   - 一条记忆 = 文件里的一个段落（以空行分隔），人可以直接打开、编辑、删除；
-//   - 检索复用 internal/rag（BM25），不依赖向量库；
+//   - 检索复用 internal/search（BM25），不依赖向量库；
 //   - 按成员隔离：每个成员一个文件，另有一份团队共享文件。
 //
 // 目录结构：
@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lakernote/beaver-agent/internal/rag"
+	"github.com/lakernote/beaver-agent/internal/search"
 )
 
 // 作用域：个人记忆或团队记忆。
@@ -84,7 +84,7 @@ func (store *Store) Save(owner, scope, text string) error {
 
 // Search 在个人记忆和团队记忆中检索，返回最相关的 limit 条。
 func (store *Store) Search(owner, query string, limit int) ([]Note, error) {
-	var chunks []rag.Chunk
+	var chunks []search.Chunk
 	for _, scope := range []string{ScopePersonal, ScopeTeam} {
 		path, err := store.file(owner, scope)
 		if err != nil {
@@ -95,11 +95,11 @@ func (store *Store) Search(owner, query string, limit int) ([]Note, error) {
 			return nil, err
 		}
 		for _, note := range notes {
-			chunks = append(chunks, rag.Chunk{Source: scope, Text: note})
+			chunks = append(chunks, search.Chunk{Source: scope, Text: note})
 		}
 	}
 	var result []Note
-	for _, hit := range rag.NewIndex(chunks).Search(query, limit) {
+	for _, hit := range search.NewIndex(chunks).Search(query, limit) {
 		result = append(result, Note{Scope: hit.Source, Text: hit.Text, Score: hit.Score})
 	}
 	return result, nil

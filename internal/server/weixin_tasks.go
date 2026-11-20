@@ -14,8 +14,8 @@ import (
 )
 
 func (manager *weixinManager) handleCommand(account store.WeixinAccount, message weixin.Message, text string) bool {
-	intent := parseWeixinCommand(text)
-	switch intent.Command {
+	command := parseWeixinCommand(text)
+	switch command.Name {
 	case "help":
 		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n/new 开始独立的新会话\n/status 查看当前进度\n/stop 中断当前任务\n/projects 查看可用项目\n/project 项目名 设置后续新会话的源文件夹\n发送 .md/.txt 文件并附文字 /kb，加入团队知识库")
 		return true
@@ -88,13 +88,13 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 		}
 		var selected *store.Project
 		for index := range projects {
-			if strings.EqualFold(strings.TrimSpace(projects[index].Name), intent.Argument) {
+			if strings.EqualFold(strings.TrimSpace(projects[index].Name), command.Argument) {
 				selected = &projects[index]
 				break
 			}
 		}
 		if selected == nil {
-			manager.send(account, message.FromUserID, message.ContextToken, "没有找到项目“"+intent.Argument+"”。发送 /projects查看可用项目。")
+			manager.send(account, message.FromUserID, message.ContextToken, "没有找到项目“"+command.Argument+"”。发送 /projects查看可用项目。")
 			return true
 		}
 		if err := manager.server.store.SetWeixinProject(account.ID, selected.ID, time.Now()); err != nil {

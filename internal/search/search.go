@@ -1,4 +1,4 @@
-// Package rag 是一个用于学习的最小 RAG（检索增强生成）实现。
+// Package search 是一个用于学习的最小 RAG（检索增强生成）实现。
 //
 // RAG 的本质只有三步：
 //
@@ -9,7 +9,7 @@
 // 这里的检索用 BM25（经典的关键词打分算法），不需要 Embedding 服务，纯标准库即可运行。
 // 想升级成“语义检索”，只需把 Search 里的打分换成向量余弦相似度，其余流程完全不变，
 // 详见 docs/learn-rag.md。
-package rag
+package search
 
 import (
 	"math"

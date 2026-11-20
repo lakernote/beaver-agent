@@ -165,8 +165,6 @@ func (manager *weixinManager) ingestKnowledge(attachments []store.Attachment) st
 	if len(attachments) == 0 {
 		return "请把 .md 或 .txt 文件和文字 /kb 一起发送，即可加入团队知识库。"
 	}
-	knowledgeWriteMu.Lock()
-	defer knowledgeWriteMu.Unlock()
 	var lines []string
 	for _, attachment := range attachments {
 		if name, err := manager.server.knowledgeStore().Add(attachment.Name, attachment.Data); err != nil {

@@ -3,7 +3,6 @@ package server
 import (
 	"net/http"
 	"path/filepath"
-	"sync"
 
 	"github.com/lakernote/beaver-agent/internal/knowledge"
 )
@@ -12,9 +11,6 @@ import (
 func (server *Server) knowledgeStore() *knowledge.Store {
 	return knowledge.New(filepath.Join(server.env.Home(), "knowledge"))
 }
-
-// 写入文档需要串行化，避免并发上传时“数量上限”检查被绕过。
-var knowledgeWriteMu sync.Mutex
 
 func (server *Server) listKnowledge(response http.ResponseWriter, _ *http.Request) {
 	docs, err := server.knowledgeStore().List()
@@ -37,8 +33,6 @@ func (server *Server) uploadKnowledge(response http.ResponseWriter, request *htt
 	if !decodeJSON(response, request, &input) {
 		return
 	}
-	knowledgeWriteMu.Lock()
-	defer knowledgeWriteMu.Unlock()
 	name, err := server.knowledgeStore().Add(input.Name, []byte(input.Content))
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())

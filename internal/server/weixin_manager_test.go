@@ -166,7 +166,7 @@ func TestWeixinSlashCommands(t *testing.T) {
 		"please stop the service": "",
 	}
 	for input, expected := range tests {
-		if actual := parseWeixinCommand(input).Command; actual != expected {
+		if actual := parseWeixinCommand(input).Name; actual != expected {
 			t.Fatalf("命令 %q 解析为 %q，期望 %q", input, actual, expected)
 		}
 	}

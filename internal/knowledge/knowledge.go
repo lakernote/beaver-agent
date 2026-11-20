@@ -1,7 +1,7 @@
 // Package knowledge 是团队共享的知识库：用户上传文档，Agent 通过检索使用它们。
 //
 // 与 internal/memory 的区别：记忆是 Agent 在对话中写入的短事实；知识库是人上传的长文档，
-// 需要先切块再检索。两者都复用 internal/rag 的 BM25，不依赖向量库。
+// 需要先切块再检索。两者都复用 internal/search 的 BM25，不依赖向量库。
 //
 // 文件直接保存在 <root>/ 下，文件名即文档名。目前只支持 .md 和 .txt。
 package knowledge
@@ -13,9 +13,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/lakernote/beaver-agent/internal/rag"
+	"github.com/lakernote/beaver-agent/internal/search"
 )
 
 const (
@@ -30,6 +31,10 @@ type Doc struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// writeMu 串行化写入，保证“文档数量上限”检查与写文件之间没有并发空隙。
+// Store 可被随时重新构造，所以锁放在包级而不是 Store 上。
+var writeMu sync.Mutex
+
 // Store 管理知识库目录。零值不可用，请用 New。
 type Store struct{ root string }
 
@@ -42,6 +47,8 @@ func (store *Store) Add(name string, content []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	if len(content) == 0 {
 		return "", errors.New("文档内容为空")
 	}
@@ -96,11 +103,11 @@ func (store *Store) Delete(name string) error {
 // Search 在所有文档中检索最相关的 limit 个片段。
 // 每次检索都重新建索引：个人/团队规模的知识库（几百份文档）只需几十毫秒，
 // 换来的是没有缓存失效问题，代码也最简单。文档很多时再考虑缓存。
-func (store *Store) Search(query string, limit int) ([]rag.Result, error) {
+func (store *Store) Search(query string, limit int) ([]search.Result, error) {
 	if _, err := os.Stat(store.root); errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	index, err := rag.BuildFromDir(store.root)
+	index, err := search.BuildFromDir(store.root)
 	if err != nil {
 		return nil, err
 	}
