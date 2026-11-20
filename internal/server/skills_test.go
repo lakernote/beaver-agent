@@ -6,12 +6,9 @@ import (
 	"github.com/lakernote/beaver-agent/internal/store"
 )
 
-func TestCoreSkillsFollowDevelopmentWorkflow(t *testing.T) {
+func TestCoreSkillOrder(t *testing.T) {
 	want := []string{
-		"project-onboarding",
 		"code-review",
-		"test-and-e2e",
-		"web-research",
 	}
 	items := []store.SkillOverride{{Name: "z-custom"}}
 	for index := len(want) - 1; index >= 0; index-- {
