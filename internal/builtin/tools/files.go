@@ -40,15 +40,7 @@ type fileWorkspace struct {
 	reads      map[string][sha256.Size]byte
 }
 
-func newFileWorkspace(root string, additional ...[]string) *fileWorkspace {
-	var directories []string
-	if len(additional) > 0 {
-		directories = additional[0]
-	}
-	return newFileWorkspaceWithPolicy(root, directories, permissions.Default())
-}
-
-func newFileWorkspaceWithPolicy(root string, additional []string, policy permissions.Policy) *fileWorkspace {
+func newFileWorkspace(root string, additional []string, policy permissions.Policy) *fileWorkspace {
 	values := []string{root}
 	if len(additional) > 0 {
 		values = append(values, additional...)

@@ -600,15 +600,6 @@ func TestRunnerConvergesAfterRepeatedFailedToolSteps(t *testing.T) {
 	}
 }
 
-func TestToolErrorOutputIncludesRecoveryMetadata(t *testing.T) {
-	output := toolErrorOutput(&ToolError{Code: "temporary", Message: "稍后重试", Hint: "等待一秒", Retryable: true})
-	for _, expected := range []string{`"ok":false`, `"code":"temporary"`, `"retryable":true`, `"hint":"等待一秒"`} {
-		if !strings.Contains(output, expected) {
-			t.Fatalf("结构化错误缺少 %s: %s", expected, output)
-		}
-	}
-}
-
 func TestRunnerCanAddToolsAfterCreation(t *testing.T) {
 	model := modelFunc(func(_ context.Context, request Request) (Response, error) {
 		if len(request.Tools) != 1 || request.Tools[0].Name != "loaded_tool" {

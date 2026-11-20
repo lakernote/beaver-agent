@@ -68,7 +68,7 @@ func (store *Store) saveModelProfile(value ModelSettings, activate bool) error {
 	if activate || activeID == "" {
 		activeID = value.ProfileID
 	}
-	return store.saveModelProfiles(profiles, activeID, filteredModelSettings(profiles, activeID))
+	return store.saveModelProfiles(profiles, activeID)
 }
 
 // ListModelProfiles 返回所有模型配置以及当前用于创建新会话的配置 ID。
@@ -133,7 +133,7 @@ func (store *Store) SetActiveModelProfile(id string) (ModelSettings, error) {
 			continue
 		}
 		active := withProfile(profile)
-		if err := store.saveModelProfiles(profiles, id, active); err != nil {
+		if err := store.saveModelProfiles(profiles, id); err != nil {
 			return ModelSettings{}, err
 		}
 		return active, nil
@@ -168,7 +168,7 @@ func (store *Store) DeleteModelProfile(id string) error {
 	if activeID == id {
 		activeID = filtered[0].ID
 	}
-	return store.saveModelProfiles(filtered, activeID, filteredModelSettings(filtered, activeID))
+	return store.saveModelProfiles(filtered, activeID)
 }
 
 // ClearCodexProvider switches reusable Codex profiles away from a Provider
@@ -195,7 +195,7 @@ func (store *Store) ClearCodexProvider(provider string) error {
 	if !changed {
 		return nil
 	}
-	return store.saveModelProfiles(profiles, activeID, filteredModelSettings(profiles, activeID))
+	return store.saveModelProfiles(profiles, activeID)
 }
 
 func withProfile(profile ModelProfile) ModelSettings {
@@ -220,16 +220,12 @@ func filteredModelSettings(profiles []ModelProfile, activeID string) ModelSettin
 	return ModelSettings{}
 }
 
-func (store *Store) saveModelProfiles(profiles []ModelProfile, activeID string, active ModelSettings) error {
+func (store *Store) saveModelProfiles(profiles []ModelProfile, activeID string) error {
 	data, err := encode(profiles)
 	if err != nil {
 		return err
 	}
 	activeData, err := encode(activeID)
-	if err != nil {
-		return err
-	}
-	legacyData, err := encode(active)
 	if err != nil {
 		return err
 	}
@@ -242,9 +238,6 @@ func (store *Store) saveModelProfiles(profiles []ModelProfile, activeID string, 
 		return err
 	}
 	if _, err = tx.Exec(`INSERT INTO settings(key,value_json) VALUES('model_active_profile',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, activeData); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(`INSERT INTO settings(key,value_json) VALUES('model',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, legacyData); err != nil {
 		return err
 	}
 	return tx.Commit()

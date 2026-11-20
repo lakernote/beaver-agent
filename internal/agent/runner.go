@@ -624,8 +624,8 @@ func toolResultWithError(result ToolResult, err error) ToolResult {
 	return result
 }
 
-// ValidateModelResponse rejects empty or non-terminal generations before any
-// caller accepts partial text or executes a potentially truncated tool call.
+// ValidateModelResponse 拒绝空响应和非正常结束的响应，避免把被截断的文本
+// 当作答案，或执行参数可能不完整的工具调用。
 func ValidateModelResponse(response *Response) error {
 	reason := response.StopReason
 	if reason == "" {
@@ -651,22 +651,6 @@ func ValidateModelResponse(response *Response) error {
 	default:
 		return &IncompleteModelResponseError{StopReason: reason, Reason: response.IncompleteReason}
 	}
-}
-
-func toolErrorOutput(err error) string {
-	value := map[string]any{"ok": false, "code": "tool_error", "error": err.Error(), "retryable": false}
-	var failure *ToolError
-	if errors.As(err, &failure) {
-		if strings.TrimSpace(failure.Code) != "" {
-			value["code"] = failure.Code
-		}
-		value["retryable"] = failure.Retryable
-		if strings.TrimSpace(failure.Hint) != "" {
-			value["hint"] = failure.Hint
-		}
-	}
-	body, _ := json.Marshal(value)
-	return string(body)
 }
 
 type failedToolCall struct {

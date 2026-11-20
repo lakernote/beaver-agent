@@ -43,13 +43,7 @@ func (server *Server) modelAdapterRegistry() *modeladapter.Registry {
 	return modeladapter.NewRegistry()
 }
 
-// runModelTest is kept as a small package-level helper for isolated tests and
-// non-HTTP callers. Production Server paths use the registry owned by Server.
-func runModelTest(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
-	return runModelTestWithRegistry(request, settings, modeladapter.NewRegistry())
-}
-
-func runModelTestWithRegistry(request *http.Request, settings store.ModelSettings, registry *modeladapter.Registry) (modelTestResult, error) {
+func runModelTest(request *http.Request, settings store.ModelSettings, registry *modeladapter.Registry) (modelTestResult, error) {
 	client, err := registry.New(modeladapter.Config{
 		Provider: settings.Provider, Protocol: settings.Protocol, BaseURL: settings.BaseURL,
 		APIKey: settings.APIKey, Timeout: time.Duration(settings.RequestTimeoutSeconds) * time.Second,

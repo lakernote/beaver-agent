@@ -42,7 +42,7 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 	result, err := runModelTest(request, store.ModelSettings{
 		Provider: "test", Protocol: "chat_completions", BaseURL: provider.URL, Model: "test",
 		MaxOutputTokens: 100, RequestTimeoutSeconds: 30, CompressionThresholdPercent: 75,
-	})
+	}, modeladapter.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
 	_, err := runModelTest(request, store.ModelSettings{
 		Protocol: "chat_completions", BaseURL: provider.URL, Model: "test", RequestTimeoutSeconds: 30,
-	})
+	}, modeladapter.NewRegistry())
 	if err == nil || !strings.Contains(err.Error(), "没有返回协议原生 Function Call") {
 		t.Fatalf("普通 JSON 文本不能被误判为工具调用: %v", err)
 	}
@@ -154,15 +154,15 @@ func TestPrepareModelInputRequiresExplicitSecretDecisionAcrossProviders(t *testi
 		Provider: "openrouter", Protocol: "chat_completions", BaseURL: "https://openrouter.ai/api/v1", Model: "openrouter/free",
 		MaxOutputTokens: 100, RequestTimeoutSeconds: 30, CompressionThresholdPercent: 75,
 	}
-	if _, err := prepareModelInput(candidate, current, false); err == nil || !strings.Contains(err.Error(), "填写新 API Key") {
+	if _, err := prepareModelInput(candidate, current, false, modeladapter.NewRegistry()); err == nil || !strings.Contains(err.Error(), "填写新 API Key") {
 		t.Fatalf("切换端点且留空时应要求明确处理密钥: %v", err)
 	}
-	cleared, err := prepareModelInput(candidate, current, true)
+	cleared, err := prepareModelInput(candidate, current, true, modeladapter.NewRegistry())
 	if err != nil || cleared.APIKey != "" {
 		t.Fatalf("显式清除旧密钥应允许切换端点: value=%+v err=%v", cleared, err)
 	}
 	candidate.APIKey = "replacement"
-	replaced, err := prepareModelInput(candidate, current, false)
+	replaced, err := prepareModelInput(candidate, current, false, modeladapter.NewRegistry())
 	if err != nil || replaced.APIKey != "replacement" {
 		t.Fatalf("填写新密钥应允许切换端点: value=%+v err=%v", replaced, err)
 	}
@@ -173,7 +173,7 @@ func TestPrepareModelInputKeepsSecretForSameProfileEndpoint(t *testing.T) {
 	input, err := prepareModelInput(store.ModelSettings{
 		Provider: "groq", Protocol: "chat_completions", BaseURL: "https://api.groq.com/openai/v1/", Model: "changed-model",
 		MaxOutputTokens: 200, RequestTimeoutSeconds: 30, CompressionThresholdPercent: 75,
-	}, current, false)
+	}, current, false, modeladapter.NewRegistry())
 	if err != nil || input.APIKey != "private" {
 		t.Fatalf("修改普通属性时应保留本配置密钥: value=%+v err=%v", input, err)
 	}
@@ -269,7 +269,7 @@ func TestCodexTurnTimeoutIsIndependentFromRequestTimeout(t *testing.T) {
 	input, err := prepareModelInput(store.ModelSettings{
 		Runtime:         store.RuntimeCodex,
 		MaxOutputTokens: 100,
-	}, store.ModelSettings{}, false)
+	}, store.ModelSettings{}, false, modeladapter.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}

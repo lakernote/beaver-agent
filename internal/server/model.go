@@ -26,11 +26,7 @@ type modelTestResult struct {
 
 // prepareModelInput 统一保存和连接测试的默认值、旧密钥恢复及校验逻辑。
 // 不允许两个入口各自解释“空 API Key”，否则容易再次跨 Provider 复用旧密钥。
-func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool) (store.ModelSettings, error) {
-	return prepareModelInputWithRegistry(input, current, clearAPIKey, modeladapter.NewRegistry())
-}
-
-func prepareModelInputWithRegistry(input, current store.ModelSettings, clearAPIKey bool, registry *modeladapter.Registry) (store.ModelSettings, error) {
+func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool, registry *modeladapter.Registry) (store.ModelSettings, error) {
 	input = input.WithDefaults()
 	if clearAPIKey && input.APIKey != "" {
 		return store.ModelSettings{}, errors.New("不能同时填写新 API Key 和清除已保存的 API Key")
@@ -78,7 +74,7 @@ func (server *Server) testModel(response http.ResponseWriter, request *http.Requ
 	}
 	input := payload.settings()
 	current := server.modelSettingsForInput(input)
-	settings, err := prepareModelInputWithRegistry(input, current, false, server.modelAdapterRegistry())
+	settings, err := prepareModelInput(input, current, false, server.modelAdapterRegistry())
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -164,5 +160,5 @@ func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error 
 }
 
 func (server *Server) runModelTest(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
-	return runModelTestWithRegistry(request, settings, server.modelAdapterRegistry())
+	return runModelTest(request, settings, server.modelAdapterRegistry())
 }

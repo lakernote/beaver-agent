@@ -1,8 +1,7 @@
-// Package permissions contains the runtime-independent permission contract.
+// Package permissions 定义与 Runtime 无关的权限契约。
 //
-// Beaver and Codex have different execution engines, but users should not
-// have to learn two permission vocabularies. The adapters translate this
-// policy into their native tool/sandbox controls.
+// Beaver 和 Codex 的执行引擎不同，但用户不应该学两套权限词汇。
+// 各自的适配器负责把这份策略翻译成原生的工具/沙箱控制。
 package permissions
 
 import (
@@ -27,9 +26,8 @@ const (
 	ApprovalNever     ApprovalPolicy = "never"
 )
 
-// Policy is persisted in RuntimeSettings and is shared by both runtimes.
-// WritableRoots are absolute paths; an empty list means the current session
-// workspace and its project source directories.
+// Policy 保存在 RuntimeSettings 中，由两个 Runtime 共用。
+// WritableRoots 是绝对路径；为空表示当前会话工作区及其项目源目录。
 type Policy struct {
 	Mode          Mode           `json:"mode"`
 	Approval      ApprovalPolicy `json:"approval"`
@@ -94,9 +92,8 @@ func (policy Policy) IsReadOnly() bool { return policy.Normalize().Mode == ModeR
 
 func (policy Policy) IsFullAccess() bool { return policy.Normalize().Mode == ModeFullAccess }
 
-// EffectiveWritableRoots returns the roots that the Beaver adapter should
-// enforce for a session. A caller supplies workspace-derived defaults so a
-// global policy remains valid for per-session worktrees.
+// EffectiveWritableRoots 返回 Beaver 适配器对某个会话应强制执行的可写根目录。
+// 调用方传入由工作区派生的默认值，使全局策略对每个会话的 worktree 依然有效。
 func (policy Policy) EffectiveWritableRoots(defaults []string) []string {
 	policy = policy.Normalize()
 	if len(policy.WritableRoots) > 0 {

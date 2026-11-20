@@ -50,7 +50,7 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 	}
 	settings := payload.settings()
 	current := server.modelSettingsForInput(settings)
-	input, err := prepareModelInputWithRegistry(settings, current, payload.ClearAPIKey, server.modelAdapterRegistry())
+	input, err := prepareModelInput(settings, current, payload.ClearAPIKey, server.modelAdapterRegistry())
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return

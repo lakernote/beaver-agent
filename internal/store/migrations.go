@@ -207,7 +207,7 @@ CREATE INDEX IF NOT EXISTS idx_weixin_accounts_enabled ON weixin_accounts(enable
 		return fmt.Errorf("初始化 SQLite: %w", err)
 	}
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key='model'`).Scan(&count); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key='model_profiles'`).Scan(&count); err != nil {
 		return err
 	}
 	if count == 0 {

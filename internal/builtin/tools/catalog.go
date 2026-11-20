@@ -85,7 +85,7 @@ func CatalogWithMemory(environment *appenv.Environment, skills SkillSource, poli
 func catalogEntries(environment *appenv.Environment, skills SkillSource, permissionPolicy permissions.Policy, mem *MemoryScope) []entry {
 	// 文件工具共享同一个工作区和“已读取版本”记录。这样 write 可以阻止模型在
 	// 没看过现有文件时直接覆盖，同时整套能力仍然只属于本轮 Agent。
-	files := newFileWorkspaceWithPolicy(environment.Workspace(), environment.Directories(), permissionPolicy)
+	files := newFileWorkspace(environment.Workspace(), environment.Directories(), permissionPolicy)
 	result := []entry{
 		{tool: todoWriteTool(), category: categoryPlanning, group: groupPlanning},
 		{tool: currentTimeTool(), category: categoryInformation, group: groupInformation},
@@ -97,7 +97,7 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, permiss
 		result = append(result, entry{tool: tool, category: categoryFile, group: groupFiles})
 	}
 	if !permissionPolicy.IsReadOnly() {
-		result = append(result, entry{tool: shellToolWithPolicy(environment, permissionPolicy), category: categoryExecution, group: groupExecution})
+		result = append(result, entry{tool: shellTool(environment, permissionPolicy), category: categoryExecution, group: groupExecution})
 	}
 	if mem != nil && mem.Store != nil {
 		for _, tool := range memoryTools(*mem) {

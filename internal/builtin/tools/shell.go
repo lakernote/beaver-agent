@@ -23,11 +23,7 @@ const (
 
 // shellTool 是 Beaver 的通用本地执行底座。模型可以用它运行构建、测试、
 // 项目脚本和系统已有的 CLI。每次调用的命令、结果、耗时都会由 Runner 写入 Trace。
-func shellTool(environment *appenv.Environment) agent.Tool {
-	return shellToolWithPolicy(environment, permissions.Default())
-}
-
-func shellToolWithPolicy(environment *appenv.Environment, policy permissions.Policy) agent.Tool {
+func shellTool(environment *appenv.Environment, policy permissions.Policy) agent.Tool {
 	return agent.Tool{
 		Spec: agent.ToolSpec{
 			Name:        "shell",

@@ -106,17 +106,15 @@ type ContentBlock struct {
 	Name     string          `json:"name,omitempty"`
 	MIMEType string          `json:"mimeType,omitempty"`
 	Data     []byte          `json:"data,omitempty"`
-	// ArtifactID points at separately persisted binary data. Data is populated
-	// only while executing or rebuilding model context and is never required in
-	// the session JSON returned to the browser.
+	// ArtifactID 指向单独保存的二进制数据。Data 只在执行工具或重建模型上下文时
+	// 才会填充，返回给浏览器的会话 JSON 里不需要它。
 	ArtifactID string `json:"artifactId,omitempty"`
 	URI        string `json:"uri,omitempty"`
 }
 
 const (
-	// Tool-result ingestion limits protect process and SQLite availability. They
-	// are deliberately separate from request-time token compaction: accepted
-	// results are preserved in full, while oversized results fail explicitly.
+	// 工具结果的接收上限用来保护进程和 SQLite。它与请求时的 Token 压缩刻意分开：
+	// 已接收的结果完整保留，超限的结果则明确报错。
 	MaxToolResultBlocks     = 256
 	MaxToolResultBlockBytes = 8 * 1024 * 1024
 	MaxToolResultTotalBytes = 16 * 1024 * 1024
@@ -136,9 +134,8 @@ type ToolResultTruncation struct {
 	OmittedItems   int    `json:"omittedItems,omitempty"`
 }
 
-// ToolResult preserves typed MCP/native-tool output, error semantics and any
-// request-only compaction metadata. StructuredContent is preferred by adapters
-// that support native JSON function responses.
+// ToolResult 保存带类型的 MCP/原生工具输出、错误语义，以及仅用于单次请求的
+// 压缩元数据。支持原生 JSON 函数响应的适配器会优先使用 StructuredContent。
 type ToolResult struct {
 	Content           []ContentBlock        `json:"content,omitempty"`
 	StructuredContent json.RawMessage       `json:"structuredContent,omitempty"`
@@ -193,9 +190,8 @@ func ValidateToolResult(result ToolResult) error {
 	return nil
 }
 
-// ModelText is the deterministic textual projection for string-only protocols
-// and message history. Non-text blocks become explicit metadata instead of
-// disappearing from the model context.
+// ModelText 是给只接受字符串的协议和消息历史使用的确定性文本投影。
+// 非文本块会变成明确的元数据，而不是从模型上下文里悄悄消失。
 func (result ToolResult) ModelText() string {
 	if len(result.StructuredContent) > 0 {
 		if result.IsError {
@@ -364,8 +360,8 @@ type Exchange struct {
 	Usage      Usage
 	Duration   time.Duration
 	StatusCode int
-	// Request shape is reported by the adapter because only the adapter knows
-	// whether history was sent in full or continued by the provider.
+	// 请求形态由适配器上报，因为只有适配器知道历史是完整发送的，
+	// 还是由 Provider 服务端续接的。
 	HistoryMode      string
 	RequestMessages  int
 	ToolDefinitions  int
@@ -413,8 +409,8 @@ type ModelCapabilities struct {
 	Protocol    string
 	Streaming   bool
 	NativeTools bool
-	// StructuredToolResults means the adapter preserves typed tool-result
-	// content supported by its wire protocol instead of flattening everything.
+	// StructuredToolResults 表示适配器会按其协议原生支持的方式保留带类型的
+	// 工具结果，而不是全部压平成文本。
 	StructuredToolResults bool
 	ServerContinuation    bool
 	MultimodalInput       bool
@@ -482,8 +478,7 @@ type RunRequest struct {
 	MaxSteps       int
 	ToolTimeout    time.Duration
 	OnTextDelta    func(string)
-	// OnToolApproval is called immediately before a tool that requires user
-	// confirmation runs. A non-nil error denies the call.
+	// OnToolApproval 在需要用户确认的工具运行前调用；返回非 nil 错误即拒绝本次调用。
 	OnToolApproval func(context.Context, ToolCall) error
 	// OnToolLifecycle 在真实工具执行前同步收到 tool_start，在执行结束后收到
 	// tool_end。start 回调失败时工具不会运行；end 回调失败时本轮立即失败，

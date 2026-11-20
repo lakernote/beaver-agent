@@ -84,7 +84,7 @@ func TestShellCapturesExitCodeAndDirectory(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
 		"command": "pwd; printf problem >&2; exit 7", "working_directory": directory,
 	})
-	output, err := shellTool(testEnvironment(t, directory)).Run(context.Background(), raw)
+	output, err := shellTool(testEnvironment(t, directory), permissions.Default()).Run(context.Background(), raw)
 	if err == nil || !strings.Contains(err.Error(), "退出码 7") {
 		t.Fatalf("非零退出码应该明确返回失败: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestFileToolsAllowAdditionalProjectSourceByAbsolutePath(t *testing.T) {
 	if err := os.WriteFile(path, []byte("shared source"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	workspace := newFileWorkspace(primary, []string{secondary})
+	workspace := newFileWorkspace(primary, []string{secondary}, permissions.Default())
 	input, _ := json.Marshal(map[string]string{"path": path})
 	output, err := workspace.read(context.Background(), input)
 	if err != nil || !strings.Contains(output, "shared source") || !strings.Contains(output, filepath.ToSlash(path)) {
@@ -196,7 +196,7 @@ func TestGrepRejectsSymlinkToOutsideWorkspace(t *testing.T) {
 func TestShellTimeout(t *testing.T) {
 	raw := json.RawMessage(`{"command":"sleep 5","timeout_seconds":1}`)
 	startedAt := time.Now()
-	output, err := shellTool(testEnvironment(t, t.TempDir())).Run(context.Background(), raw)
+	output, err := shellTool(testEnvironment(t, t.TempDir()), permissions.Default()).Run(context.Background(), raw)
 	if err == nil || !strings.Contains(err.Error(), "已终止") || !strings.Contains(output, `"timed_out": true`) || time.Since(startedAt) > 3*time.Second {
 		t.Fatalf("Shell 没有按时终止: output=%s err=%v", output, err)
 	}
@@ -218,7 +218,7 @@ func TestWorkspaceWriteShellUsesHostSandboxWhenAvailable(t *testing.T) {
 	root := t.TempDir()
 	environment := testEnvironment(t, root)
 	raw := json.RawMessage(`{"command":"printf ok > allowed.txt"}`)
-	if _, err := shellToolWithPolicy(environment, permissions.Policy{Mode: permissions.ModeWorkspaceWrite}).Run(context.Background(), raw); err != nil {
+	if _, err := shellTool(environment, permissions.Policy{Mode: permissions.ModeWorkspaceWrite}).Run(context.Background(), raw); err != nil {
 		t.Fatalf("工作区写入应能通过 macOS 沙盒: %v", err)
 	}
 	content, err := os.ReadFile(filepath.Join(root, "allowed.txt"))
@@ -227,7 +227,7 @@ func TestWorkspaceWriteShellUsesHostSandboxWhenAvailable(t *testing.T) {
 	}
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 	command := fmt.Sprintf("printf blocked > %q", outside)
-	if _, err := shellToolWithPolicy(environment, permissions.Policy{Mode: permissions.ModeWorkspaceWrite}).Run(context.Background(), mustJSON(map[string]string{"command": command})); err == nil {
+	if _, err := shellTool(environment, permissions.Policy{Mode: permissions.ModeWorkspaceWrite}).Run(context.Background(), mustJSON(map[string]string{"command": command})); err == nil {
 		t.Fatal("工作区沙盒不应允许写入工作区外文件")
 	}
 }
