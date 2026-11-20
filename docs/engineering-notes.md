@@ -230,12 +230,15 @@ Ollama 是本地开发和协议兼容测试 Provider，适合验证：
 ## 5. 分包与依赖 Review
 
 ```text
-internal/agent          核心类型和唯一 Runner
-internal/agent/openai   模型协议适配
+internal/agent          核心类型和唯一 Runner（含各协议适配器子包）
 internal/appenv         应用目录、默认工作区、私有运行时和确定性 PATH
-internal/builtin        内置 Prompt、Tool、Skill、MCP 和模型模板
+internal/builtin        内置 Prompt、Tool、Skill
+internal/memory         长期记忆（依赖 search）
+internal/search         BM25 检索
 internal/mcpclient      外部 MCP 转 agent.Tool
-internal/server         HTTP、会话、运行时组装和队列
+internal/permissions    权限策略
+internal/codexruntime   Codex app-server 适配
+internal/server         HTTP、会话、任务调度、微信与定时任务入口、运行时组装
 internal/store          SQLite
 web                     页面
 ```
@@ -243,8 +246,8 @@ web                     页面
 正确依赖方向：
 
 ```text
-server → agent/openai, builtin, mcpclient, store
-builtin/tools → agent
+server → agent, builtin, mcpclient, memory, codexruntime, store
+builtin/tools → agent, appenv, memory, permissions
 mcpclient → agent
 agent → Go 标准库
 ```

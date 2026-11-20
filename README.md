@@ -101,9 +101,7 @@ gh attestation verify beaver_* -R lakernote/beaver-agent
 
 ### Docker
 
-推荐使用仓库自带的 `docker-compose.yml`：`docker compose up -d --build`。也可手动运行：
-
-容器以固定的非 root 用户（UID/GID `10001`）运行。`/data` 是唯一需要持久化的目录，包含 SQLite 数据库、默认工作区、Runtime 依赖以及 Codex 配置：
+推荐使用仓库自带的 `docker-compose.yml`：`docker compose up -d --build`。容器以固定的非 root 用户（UID/GID `10001`）运行。`/data` 是唯一需要持久化的目录，包含 SQLite 数据库、默认工作区、Runtime 依赖以及 Codex 配置。也可手动运行：
 
 ```bash
 docker build -t beaver:local .
@@ -132,7 +130,7 @@ docker run -d --name beaver \
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
 
-安装命令会下载并执行 OpenAI 官方安装脚本，请在执行前核对[官方安装说明](https://developers.openai.com/codex/cli)。Beaver 只检测 Codex CLI，不会下载安装或执行该脚本。`app-server` 是 Codex CLI 自带的子命令，不需要单独安装。检测会依次检查 Beaver 服务进程的 PATH、`~/.local/bin/codex`，以及 macOS ChatGPT 应用内置的 CLI；因此本机终端、IDE 和容器若使用不同账号或环境，检测结果也可能不同。需要固定部署版本时，可给 Beaver 服务进程设置 `BEAVER_CODEX_PATH=/absolute/path/to/codex`；该值必须是绝对路径，配置错误时会直接报错而不会静默切换到另一份 CLI。两个 Runtime 共用任务队列、项目目录、worktree、Skills 和 MCP；设置中心的 Runtime 权限支持只读、工作区写入、完全访问和自定义模式，默认仍为完全访问以兼容已有安装。
+安装命令会下载并执行 OpenAI 官方安装脚本，请在执行前核对[官方安装说明](https://developers.openai.com/codex/cli)。Beaver 只检测 Codex CLI，不会下载安装或执行该脚本。`app-server` 是 Codex CLI 自带的子命令，不需要单独安装。检测会依次检查 Beaver 服务进程的 PATH、`~/.local/bin/codex`，以及 macOS ChatGPT 应用内置的 CLI；因此本机终端、IDE 和容器若使用不同账号或环境，检测结果也可能不同。需要固定部署版本时，可给 Beaver 服务进程设置 `BEAVER_CODEX_PATH=/absolute/path/to/codex`；该值必须是绝对路径，配置错误时会直接报错而不会静默切换到另一份 CLI。两个 Runtime 共用任务队列、项目目录、worktree、Skills 和 MCP；设置中心的 Runtime 权限支持只读、工作区写入、完全访问和自定义模式，默认为完全访问。
 
 无论选择哪个 Runtime，都使用相同的项目和任务系统：
 
@@ -150,12 +148,9 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。搜索后会提醒模型读取原始来源再回答。
 
-任务规划：`todo_write` 让模型在 3 步以上的复杂任务里先列清单、逐步更新，详见 [docs/tutorial/02-todo.md](docs/tutorial/02-todo.md)。学习路线见 [三天从 0 到 1 写一个 Agent](docs/tutorial/README.md)。
-
-长期记忆：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/tutorial/04-memory.md](docs/tutorial/04-memory.md)。
-
-
-联网只有两个简单工具：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。
+- **任务规划**：`todo_write` 让模型在 3 步以上的复杂任务里先列清单、逐步更新，详见 [docs/tutorial/02-todo.md](docs/tutorial/02-todo.md)。
+- **长期记忆**：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/tutorial/04-memory.md](docs/tutorial/04-memory.md)。
+- **联网**：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。
 
 ### GitHub、GitLab 与 Git 凭据
 
@@ -174,6 +169,10 @@ Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环�
 - 支持多人扫码绑定，并为每个人选择新会话的默认项目。
 - 文字、图片、PDF、代码文件和带微信文字的语音进入与 Web 相同的任务队列；语音没有文字时提示补发说明，不下载音频，也不运行语音识别。
 - 斜杠指令 `/new`、`/status`、`/stop`、`/projects`、`/project 名称`、`/help` 不调用模型；其他文字一律交给 Agent。微信回传状态和结果，完整 Trace 保留在 Web。
+
+## 学习与文档
+
+项目也是一份学习 Agent 的材料：[三天从 0 到 1 写一个 Agent](docs/tutorial/README.md) 按“循环 → 规划/检索/记忆 → 多入口与团队”的顺序讲解，每篇对应真实源码；设计与运行原理见 [文档索引](docs/README.md)。
 
 ## 部署前注意
 

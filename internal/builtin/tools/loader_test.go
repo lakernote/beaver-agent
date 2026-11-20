@@ -42,7 +42,7 @@ func TestLoaderRegistersOnlySelectedTools(t *testing.T) {
 }
 
 func TestLoaderPreloadsCoreTools(t *testing.T) {
-	names := []string{"current_time", "calculate", "shell", "read", "grep", "find", "ls", "edit", "write", "web_research", "load_skill", "legacy_tool"}
+	names := []string{"current_time", "calculate", "shell", "read", "grep", "find", "ls", "edit", "write", "web_search", "load_skill", "legacy_tool"}
 	expected := []string{"read", "shell", "edit", "write", "load_skill"}
 	catalog := make([]agent.Tool, 0, len(names))
 	for _, name := range names {
@@ -64,7 +64,7 @@ func TestLoaderPreloadsCoreTools(t *testing.T) {
 }
 
 func TestLoaderPreloadsReadOnlyExplorationCore(t *testing.T) {
-	names := []string{"current_time", "calculate", "read", "grep", "find", "ls", "web_research", "load_skill"}
+	names := []string{"current_time", "calculate", "read", "grep", "find", "ls", "web_search", "load_skill"}
 	expected := []string{"read", "grep", "find", "ls", "load_skill"}
 	catalog := make([]agent.Tool, 0, len(names))
 	for _, name := range names {
@@ -89,7 +89,7 @@ func TestLoaderDirectoryOmitsFullyLoadedGroups(t *testing.T) {
 	catalog := []agent.Tool{
 		{Spec: agent.ToolSpec{Name: "read", Group: "files", GroupDescription: "文件"}, Run: func(context.Context, json.RawMessage) (string, error) { return "", nil }},
 		{Spec: agent.ToolSpec{Name: "load_skill", Group: "skills", GroupDescription: "技能"}, Run: func(context.Context, json.RawMessage) (string, error) { return "", nil }},
-		{Spec: agent.ToolSpec{Name: "web_research", Group: "web", GroupDescription: "联网"}, Run: func(context.Context, json.RawMessage) (string, error) { return "", nil }},
+		{Spec: agent.ToolSpec{Name: "web_search", Group: "web", GroupDescription: "联网"}, Run: func(context.Context, json.RawMessage) (string, error) { return "", nil }},
 	}
 	loader, err := NewLoader(catalog)
 	if err != nil {

@@ -2,6 +2,8 @@
 
 Beaver 的核心边界是：**消息描述目标，上下文提供事实，Skill 定义方法，Tool/MCP 提供能力，一个小型 Runtime 决定下一步。**
 
+第一次读代码？先看[三天教程](docs/tutorial/README.md)，再看[设计说明](docs/design.md)。
+
 ## 本地开发
 
 ```bash

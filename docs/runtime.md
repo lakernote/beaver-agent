@@ -14,29 +14,28 @@ Model.Generate(messages, tools)
 ## 分层
 
 ```text
-internal/agent/
-├── types.go                 # Message、ContentBlock、ToolResult、Model、Usage、Event
+internal/agent/              # 与应用无关的 Agent 内核
+├── types.go                 # Message、Tool、ToolResult、Model、Usage、Event
 ├── runner.go                # 唯一 Agent 循环
 ├── modeladapter/            # 协议注册表；Server 不依赖具体 Provider
-├── ollama/                  # 原生 /api/chat
-├── anthropic/               # 原生 Messages API
-└── openai/
-    ├── client.go            # HTTP、认证、原始请求/响应
-    ├── chat.go              # Chat Completions
-    └── responses.go         # Responses
+├── ollama/ anthropic/ openai/   # 各协议的适配器
 
 internal/builtin/
-├── prompt/system.md         # 常规 Agent 的稳定基础 Prompt
-├── prompt/compaction.md     # 独立的上下文检查点 Prompt
+├── prompt/                  # system.md（基础提示词）、compaction.md（上下文检查点）
 ├── skills/definitions/*     # 一个目录一个 SKILL.md
-├── tools/                   # 文件、高层网页研究、时间、计算、Shell 和 Skill 加载
+└── tools/                   # 文件、Shell、联网、时间、计算、todo_write、记忆、渐进加载器
 
-internal/mcp/
-└── presets/                 # 页面一键安装预设
-
+internal/memory/             # 长期记忆（Markdown 落盘，按成员隔离）
+internal/search/             # BM25 检索（记忆使用，也是 RAG 教学样例）
 internal/mcpclient/          # 把远端 MCP Tool 转为 agent.Tool
-internal/server/             # 配置、会话、API 和运行时组装
-internal/store/              # SQLite
+internal/mcp/presets/        # 页面一键安装的 MCP 预设
+internal/permissions/        # 权限策略（沙箱模式、审批模式）
+internal/appenv/             # 工作区与进程环境
+internal/redact/             # Trace 敏感值与大块 Base64 脱敏
+internal/weixin/             # 微信协议客户端
+internal/codexruntime/       # Codex app-server 适配
+internal/store/              # SQLite 持久化
+internal/server/             # HTTP API、会话与任务调度、微信入口、定时任务、运行时组装
 ```
 
 依赖方向保持单向：`agent` 不 import `server`、`store`、`builtin` 或 `mcpclient`。Server 只构造 `agent.Model`；Adapter 独立负责消息块、工具、终止原因、Usage、流式和续接能力。新增协议只需向 `modeladapter` 注册 Factory，不需要修改 `Runner`。Codex Runtime 仍以 app-server 作为独立 Adapter，由 Codex 管理内部模型和工具协议。
@@ -54,7 +53,7 @@ Chat Completions、Ollama Chat 和 Anthropic Messages 每轮发送完整历史�
 
 Function Calling 是 Beaver 的硬能力边界。Adapter 只读取协议原生结构：Chat Completions 的 `tool_calls`、Responses 的 `function_call`、Ollama Chat 的 `message.tool_calls`、Anthropic Messages 的 `tool_use`。Runtime 不从普通文本中猜测、提取或修复 JSON/XML 伪工具调用；不满足该边界的模型会在“测试当前模型”中直接报错，不进入兼容分支。
 
-工具结果不是一个无类型字符串。`ToolResult` 分别保存文本/图片/音频/资源等 `ContentBlock`、任意 JSON `StructuredContent`、`isError`、结构化错误与压缩元数据。`messages.tool_result_json` 保存类型和 Artifact 引用，`content` 只是兼容旧工具和只接受字符串协议的确定性投影。二进制块单独写入 `attachments`，页面窗口只返回元数据，Runtime 重建模型上下文时才加载字节。入口还设置 256 个块、单块 8 MiB、总计 16 MiB 的可用性上限；超限会成为明确的 `tool_result_too_large`，不会静默裁剪或把无界 Base64 写进消息 JSON。
+工具结果不是一个无类型字符串。`ToolResult` 分别保存文本/图片/音频/资源等 `ContentBlock`、任意 JSON `StructuredContent`、`isError`、结构化错误与压缩元数据。`messages.tool_result_json` 保存类型和 Artifact 引用，`content` 是给只接受字符串协议的模型准备的确定性文本投影。二进制块单独写入 `attachments`，页面窗口只返回元数据，Runtime 重建模型上下文时才加载字节。入口还设置 256 个块、单块 8 MiB、总计 16 MiB 的可用性上限；超限会成为明确的 `tool_result_too_large`，不会静默裁剪或把无界 Base64 写进消息 JSON。
 
 用户消息可以携带附件。文本和代码附件会转成文本内容块；图片会转成 Chat Completions 的 `image_url` 或 Responses 的 `input_image`；PDF 会转成 `file` 或 `input_file`。附件原文保存在 `attachments`，会话接口只返回元数据，页面需要内容时再通过附件接口读取，避免列表接口携带大段 Base64。
 
@@ -115,10 +114,7 @@ Prompt 规则只能降低模型服从直接或间接注入的概率，不能替�
 
 Skill 默认使用渐进式加载：模型先看到简短元数据；任务相关时加载 `load_skill`，再读取指定 Skill 全文。用户明确 `@skill:name` 时，运行时直接把已选正文注入本轮 Prompt。
 
-内置 Tool 首轮只提供一个稳定小核心和 `load_tools`。可写会话直接给出 `read`、`shell`、`edit`、`write`；只读会话直接给出 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时直接加入 `load_skill`，避免额外一次 Loader 往返。`load_tools` 只描述仍有未加载工具的 information、files、execution、web、skills 能力组，不向小模型列出组内函数名；`current_time`、`calculate`、`web_search`、`web_fetch` 和额外文件检索按需注册。Loader 结果不是任务证据，下一轮会临时隐藏 Loader，使用 `tool_choice=auto` 并由 Runner 验证真实工具调用。`@tool:name` 是用户显式选择的整轮工具作用域，不是语义路由；后续模型回合不会突然恢复整套核心 Schema。当历史上下文仍包含某个内置 function call 时，Runtime 会恢复其 Schema，防止历史与本轮 `tools` 不一致。MCP 默认同样先提供服务元数据；用户明确输入 `@mcp:id` 时，如果该 MCP 不超过 5 个工具且 Schema 体积较小，Runtime 直接预加载，否则仍调用 `search_mcp_tools(id, query)` 按需检索，一次最多注册 5 个最相关 Schema。若 Provider 在 HTTP 200 的 SSE 尾部返回工具校验错误，Trace 会保留原始错误并关闭流式重试一次。空响应只在本轮已成功执行真实工具后才可进入 `none` 收敛；Loader 结果和历史工具结果不会触发收敛。
-
-`web_search` 只返回候选摘要，`web_fetch` 读取原始网页；Runner 在搜索后提醒模型读取原始来源再回答（见 `web.go`）。
-
+内置 Tool 首轮只提供一个稳定小核心和 `load_tools`。可写会话直接给出 `read`、`shell`、`edit`、`write`、`todo_write`；只读会话直接给出 `read`、`grep`、`find`、`ls`、`todo_write`。存在已启用 Skill 时直接加入 `load_skill`，避免额外一次 Loader 往返。`load_tools` 只描述仍有未加载工具的 information、files、execution、web、skills 能力组，不向小模型列出组内函数名；`current_time`、`calculate`、`web_search`、`web_fetch` 和额外文件检索按需注册。Loader 结果不是任务证据，下一轮会临时隐藏 Loader，使用 `tool_choice=auto` 并由 Runner 验证真实工具调用。`@tool:name` 是用户显式选择的整轮工具作用域，不是语义路由；后续模型回合不会突然恢复整套核心 Schema。当历史上下文仍包含某个内置 function call 时，Runtime 会恢复其 Schema，防止历史与本轮 `tools` 不一致。MCP 默认同样先提供服务元数据；用户明确输入 `@mcp:id` 时，如果该 MCP 不超过 5 个工具且 Schema 体积较小，Runtime 直接预加载，否则仍调用 `search_mcp_tools(id, query)` 按需检索，一次最多注册 5 个最相关 Schema。若 Provider 在 HTTP 200 的 SSE 尾部返回工具校验错误，Trace 会保留原始错误并关闭流式重试一次。空响应只在本轮已成功执行真实工具后才可进入 `none` 收敛；Loader 结果和历史工具结果不会触发收敛。
 
 GitHub/GitLab 能力分三层：公开事实由 `web_fetch` 读取；本地版本控制由 `shell` 调用服务账号 PATH 中的 `git`、`gh` 或 `glab`；仓库平台的私有对象与工作流优先通过 MCP。GitHub 官方远端 MCP 可在 **设置 → 工具与 MCP** 填写 Bearer Token。MCP 密钥会从 Bootstrap/API 响应中遮蔽，本地凭证数据库仍依赖文件权限和磁盘加密，不应把它当成独立密钥保险库。
 
