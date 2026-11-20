@@ -160,6 +160,12 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
+		// 记录会话所属成员，个人记忆按此隔离。
+		if err := manager.server.store.SetSessionOwner(sessionID, account.ID); err != nil {
+			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
+			manager.server.discardPreparedWorkspace(workspace)
+			return "", err
+		}
 		if err := manager.server.sessionsRepository().SetSessionWorkspace(sessionID, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
 			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)

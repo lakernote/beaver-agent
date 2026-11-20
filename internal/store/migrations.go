@@ -297,6 +297,7 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 		{name: "workspace_notice", definition: "TEXT NOT NULL DEFAULT ''"},
 		{name: "permissions_json", definition: "BLOB NOT NULL DEFAULT '{}'"},
 		{name: "reasoning_effort", definition: "TEXT NOT NULL DEFAULT ''"},
+		{name: "owner_id", definition: "TEXT NOT NULL DEFAULT ''"}, // 会话所属成员（微信账号 ID），用于隔离个人记忆
 	} {
 		var exists int
 		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name=?`, column.name).Scan(&exists); err != nil {

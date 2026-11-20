@@ -705,3 +705,23 @@ func TestPasswordGeneratedFlag(t *testing.T) {
 		t.Fatal("重置后的随机密码应再次标记")
 	}
 }
+
+func TestSessionOwnerRoundTrip(t *testing.T) {
+	database, err := Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if _, err := database.CreateSession(CreateSessionParams{ID: "s1", Title: "t", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if owner, err := database.SessionOwner("s1"); err != nil || owner != "" {
+		t.Fatalf("默认无 owner: %q %v", owner, err)
+	}
+	if err := database.SetSessionOwner("s1", "wx-1"); err != nil {
+		t.Fatal(err)
+	}
+	if owner, _ := database.SessionOwner("s1"); owner != "wx-1" {
+		t.Fatalf("owner=%q", owner)
+	}
+}

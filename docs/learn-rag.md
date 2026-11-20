@@ -60,7 +60,7 @@ Tool{
 }
 ```
 
-在 `internal/builtin/tools/catalog.go` 里注册即可，模型会在需要私有资料时自己调用。目前仓库只提供了 `internal/rag` 检索库本身，尚未注册为工具；接线时需要决定索引哪个目录（例如项目的 `docs/` 或工作区）以及何时重建索引。
+在 `internal/builtin/tools/catalog.go` 里注册即可，模型会在需要私有资料时自己调用。目前 `internal/rag` 已被长期记忆（[learn-memory.md](learn-memory.md)）复用；知识库工具尚未注册；接线时需要决定索引哪个目录（例如项目的 `docs/` 或工作区）以及何时重建索引。
 
 ## 6. 练习
 

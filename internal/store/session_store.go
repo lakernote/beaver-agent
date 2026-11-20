@@ -1,7 +1,9 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -157,4 +159,21 @@ func (store *Store) sessionWindowBefore(id string, messageLimit, eventLimit int,
 		}
 	}
 	return value, err
+}
+
+// SetSessionOwner 记录会话属于哪个成员（微信账号 ID）。Web 和定时任务会话没有 owner，
+// 视为管理员。owner 只用于隔离个人记忆，不参与权限判断。
+func (store *Store) SetSessionOwner(sessionID, owner string) error {
+	_, err := store.db.Exec(`UPDATE ea_sessions SET owner_id=? WHERE id=?`, owner, sessionID)
+	return err
+}
+
+// SessionOwner 返回会话所属成员；没有 owner 时返回空字符串。
+func (store *Store) SessionOwner(sessionID string) (string, error) {
+	var owner string
+	err := store.db.QueryRow(`SELECT owner_id FROM ea_sessions WHERE id=?`, sessionID).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return owner, err
 }

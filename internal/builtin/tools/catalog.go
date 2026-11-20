@@ -10,6 +10,7 @@ import (
 
 	"github.com/lakernote/beaver-agent/internal/agent"
 	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/permissions"
 )
 
@@ -57,6 +58,7 @@ var groupDescriptions = map[string]string{
 	groupExecution:   "数学计算、Shell、构建、测试和 CLI",
 	groupWeb:         "联网搜索与网页读取",
 	groupSkills:      "按需加载与任务相关的 Skill 方法",
+	groupMemory:      "长期记忆：保存、检索和遗忘用户偏好与团队约定",
 }
 
 func Catalog(environment *appenv.Environment, skills SkillSource) []agent.Tool {
@@ -64,7 +66,12 @@ func Catalog(environment *appenv.Environment, skills SkillSource) []agent.Tool {
 }
 
 func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []agent.Tool {
-	entries := catalogEntries(environment, skills, policy)
+	return CatalogWithMemory(environment, skills, policy, nil)
+}
+
+// CatalogWithMemory 在内置工具之外，为当前会话附带绑定了成员身份的记忆工具；mem 为 nil 时不提供记忆。
+func CatalogWithMemory(environment *appenv.Environment, skills SkillSource, policy permissions.Policy, mem *Memory) []agent.Tool {
+	entries := catalogEntries(environment, skills, policy, mem)
 	result := make([]agent.Tool, 0, len(entries))
 	for _, item := range entries {
 		tool := item.tool
@@ -82,11 +89,7 @@ func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource,
 	return result
 }
 
-func catalogEntries(environment *appenv.Environment, skills SkillSource, policy ...permissions.Policy) []entry {
-	permissionPolicy := permissions.Default()
-	if len(policy) > 0 {
-		permissionPolicy = policy[0]
-	}
+func catalogEntries(environment *appenv.Environment, skills SkillSource, permissionPolicy permissions.Policy, mem *Memory) []entry {
 	// 文件工具共享同一个工作区和“已读取版本”记录。这样 write 可以阻止模型在
 	// 没看过现有文件时直接覆盖，同时整套能力仍然只属于本轮 Agent。
 	files := newFileWorkspaceWithPolicy(environment.Workspace(), environment.Directories(), permissionPolicy)
@@ -102,6 +105,11 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, policy 
 	if !permissionPolicy.IsReadOnly() {
 		result = append(result, entry{tool: shellToolWithPolicy(environment, permissionPolicy), category: categoryExecution, group: groupExecution})
 	}
+	if mem != nil && mem.Store != nil {
+		for _, tool := range memoryTools(*mem) {
+			result = append(result, entry{tool: tool, category: categoryMemory, group: groupMemory})
+		}
+	}
 	if skills != nil && len(skills.EnabledSkills()) > 0 {
 		result = append(result, entry{tool: loadSkillTool(skills), category: categoryExtension, group: groupSkills})
 	}
@@ -113,7 +121,8 @@ func InfoList(environment *appenv.Environment, skills SkillSource) []Info {
 }
 
 func InfoListWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
-	entries := catalogEntries(environment, skills, policy)
+	// 页面展示用：用一个占位的记忆存储，让记忆工具出现在工具列表里。
+	entries := catalogEntries(environment, skills, policy, &Memory{Store: memory.New("")})
 	result := make([]Info, 0, len(entries))
 	for _, item := range entries {
 		result = append(result, Info{

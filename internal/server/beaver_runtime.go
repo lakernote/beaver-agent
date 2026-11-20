@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/lakernote/beaver-agent/internal/builtin/prompt"
 	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
 	"github.com/lakernote/beaver-agent/internal/mcpclient"
+	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/permissions"
 	"github.com/lakernote/beaver-agent/internal/store"
 )
@@ -42,7 +44,14 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 		selectedSkillNamesForTurn = append(selectedSkillNamesForTurn, skill.Name)
 	}
 
-	toolCatalog := builtintools.CatalogWithPermissions(runEnvironment, catalog, policy)
+	// 记忆工具绑定到会话所属成员：个人记忆按成员隔离，模型无法指定 owner。
+	owner, err := server.store.SessionOwner(id)
+	if err != nil {
+		return err
+	}
+	toolCatalog := builtintools.CatalogWithMemory(runEnvironment, catalog, policy, &builtintools.Memory{
+		Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner,
+	})
 	toolLoader, err := builtintools.NewLoader(toolCatalog)
 	if err != nil {
 		return err

@@ -150,6 +150,8 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。搜索后会提醒模型读取原始来源再回答。
 
+长期记忆：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/learn-memory.md](docs/learn-memory.md)。
+
 联网只有两个简单工具：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。
 
 ### GitHub、GitLab 与 Git 凭据
