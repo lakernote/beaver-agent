@@ -23,10 +23,10 @@ export function describeToolCall(call: ToolCall): CapabilityPresentation {
   if (call.activityKind === 'mcp_loader' || call.name === 'search_mcp_tools') {
     return { kind: 'mcp', label: '发现 MCP 工具', resultLabel: 'MCP 发现结果', name: formatSource(String(input.id || call.activitySource || 'MCP')) }
   }
-  const legacyMCP = /^mcp__(.+?)__(.+)$/.exec(call.name)
-  if (call.activityKind === 'mcp' || legacyMCP) {
-    const source = formatSource(call.activitySource || legacyMCP?.[1] || 'MCP')
-    const tool = call.displayName || legacyMCP?.[2] || call.name
+  const mcpByName = /^mcp__(.+?)__(.+)$/.exec(call.name)
+  if (call.activityKind === 'mcp' || mcpByName) {
+    const source = formatSource(call.activitySource || mcpByName?.[1] || 'MCP')
+    const tool = call.displayName || mcpByName?.[2] || call.name
     return { kind: 'mcp', label: '调用 MCP', resultLabel: 'MCP 返回结果', name: `${source} / ${tool}` }
   }
   return { kind: 'tool', label: '调用 Tool', resultLabel: 'Tool 返回结果', name: call.displayName || call.name }

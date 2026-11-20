@@ -2,8 +2,7 @@ package httpdto
 
 import "github.com/lakernote/beaver-agent/internal/store"
 
-// ModelSettings is the public model profile representation. Credentials and
-// legacy environment-variable selectors are intentionally not part of it.
+// ModelSettings 是对外展示的模型配置，刻意不包含 API Key 等凭据。
 type ModelSettings struct {
 	ProfileID                   string `json:"profileId,omitempty"`
 	ProfileName                 string `json:"profileName,omitempty"`

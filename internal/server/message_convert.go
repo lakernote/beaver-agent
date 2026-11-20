@@ -34,8 +34,7 @@ func toCoreMessage(value store.Message) agent.Message {
 		if value.Role == string(agent.RoleTool) {
 			continue
 		}
-		// Beaver's OpenAI-compatible adapters currently have no portable
-		// audio input shape. Keep legacy persisted audio out of model requests.
+		// 各模型适配器目前没有通用的音频输入格式，音频附件不送入模型。
 		if attachment.Kind == "audio" {
 			continue
 		}

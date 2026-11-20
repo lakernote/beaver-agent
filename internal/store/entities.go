@@ -97,8 +97,8 @@ type Message struct {
 	ID      int64  `json:"id"`
 	Role    string `json:"role"`
 	Content string `json:"content,omitempty"`
-	// ToolResult keeps the provider-neutral structured result without making
-	// the storage package depend on the agent package. Legacy rows keep it nil.
+	// ToolResult 保存与模型厂商无关的结构化工具结果，
+	// 以 RawMessage 存储，避免 store 包依赖 agent 包；普通消息为空。
 	ToolResult  json.RawMessage `json:"toolResult,omitempty"`
 	Attachments []Attachment    `json:"attachments"`
 	ToolCalls   []ToolCall      `json:"toolCalls"`

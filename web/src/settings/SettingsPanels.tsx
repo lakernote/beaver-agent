@@ -375,7 +375,7 @@ type BeaverSettingsProps = {
 export function BeaverSettings({ data, model, setModel, notice, testing, saving, onTest, onSave, onActivateOllama }: BeaverSettingsProps) {
   const [clearAPIKey, setClearAPIKey] = useState(false)
   useEffect(() => setClearAPIKey(false), [model.profileId])
-  const legacyOllamaProtocol = model.provider.trim().toLocaleLowerCase() === 'ollama' && model.protocol !== 'ollama_chat'
+  const ollamaOnCompatProtocol = model.provider.trim().toLocaleLowerCase() === 'ollama' && model.protocol !== 'ollama_chat'
   const useNativeOllama = () => setModel({ ...model, protocol: 'ollama_chat', baseUrl: model.baseUrl.replace(/\/v1\/?$/, '') || data.ollama.baseUrl })
 
   return (
@@ -385,7 +385,7 @@ export function BeaverSettings({ data, model, setModel, notice, testing, saving,
         <span className="tag">{model.protocol}</span>
       </div>
       {model.provider.trim().toLocaleLowerCase() === 'ollama' && <OllamaModelCatalog data={data} saving={saving} onActivate={onActivateOllama} />}
-      {legacyOllamaProtocol && <div className="ollama-protocol-warning"><div><strong>当前 Ollama 配置走兼容协议</strong><small>建议改用原生 Ollama Chat：流式 NDJSON、工具调用和上下文参数都由专用适配器处理。切换后仍需测试并保存。</small></div><button className="ghost-button" type="button" onClick={useNativeOllama}>改为原生协议</button></div>}
+      {ollamaOnCompatProtocol && <div className="ollama-protocol-warning"><div><strong>当前 Ollama 配置走兼容协议</strong><small>建议改用原生 Ollama Chat：流式 NDJSON、工具调用和上下文参数都由专用适配器处理。切换后仍需测试并保存。</small></div><button className="ghost-button" type="button" onClick={useNativeOllama}>改为原生协议</button></div>}
       <div className="form-grid">
         <label>提供方<input value={model.provider} onChange={(event) => setModel({ ...model, provider: event.target.value })} /></label>
         <label>协议

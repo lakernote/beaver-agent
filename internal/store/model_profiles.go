@@ -211,15 +211,6 @@ func defaultModelProfileName(value ModelSettings) string {
 	return "Beaver 默认配置"
 }
 
-func filteredModelSettings(profiles []ModelProfile, activeID string) ModelSettings {
-	for _, profile := range profiles {
-		if profile.ID == activeID {
-			return withProfile(profile)
-		}
-	}
-	return ModelSettings{}
-}
-
 func (store *Store) saveModelProfiles(profiles []ModelProfile, activeID string) error {
 	data, err := encode(profiles)
 	if err != nil {
