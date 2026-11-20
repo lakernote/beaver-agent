@@ -18,6 +18,9 @@ import (
 	"github.com/lakernote/beaver-agent/internal/store"
 )
 
+// runBeaverTurn 用自研 Runner 执行一轮对话，大致分五步：
+// 1 读取设置与 Skill；2 组装工具（assembleBeaverTools）；3 渲染系统提示词并按需压缩上下文；
+// 4 创建 Runner 并挂好回调（落库、Trace、审批）；5 运行并保存结果。
 func (server *Server) runBeaverTurn(ctx context.Context, id string, session store.Session, settings store.ModelSettings, runEnvironment *appenv.Environment, usage *store.Usage) error {
 	runtimeSettings, err := server.store.GetRuntimeSettings()
 	if err != nil {
@@ -44,59 +47,26 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 		selectedSkillNamesForTurn = append(selectedSkillNamesForTurn, skill.Name)
 	}
 
-	// 记忆工具绑定到会话所属成员：个人记忆按成员隔离，模型无法指定 owner。
-	owner, err := server.store.SessionOwner(id)
+	tools, err := server.assembleBeaverTools(ctx, id, session, runEnvironment, catalog, policy)
 	if err != nil {
 		return err
 	}
-	toolCatalog := builtintools.CatalogWithMemory(runEnvironment, catalog, policy, &builtintools.MemoryScope{Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner})
-	toolLoader, err := builtintools.NewLoader(toolCatalog)
-	if err != nil {
-		return err
-	}
-	// 默认只提供 PI 风格的读、执行、修改小核心以及可用的 Skill 入口；
-	// 时间、计算、联网和额外文件检索通过精简目录按需加入。
-	selectedToolNamesForTurn := selectedToolNames(session.Messages)
-	activeTools := toolLoader.PreloadCore()
-	activeTools = append(activeTools, toolLoader.Tool())
-	activeTools = append(activeTools, toolLoader.Preload(selectedToolNamesForTurn)...)
-	mcps, err := server.store.ListMCPConfigs()
-	if err != nil {
-		return err
-	}
-	mcpConfigs, err := server.mcpClientConfigs(mcps)
-	if err != nil {
-		return err
-	}
-	mcpLoader := mcpclient.NewLoader(runEnvironment, mcpConfigs)
-	defer mcpLoader.Close()
-	selectedMCPIDsForTurn := selectedMCPIDs(session.Messages)
-	selectedMCPTools, err := mcpLoader.Preload(ctx, selectedMCPIDsForTurn)
-	if err != nil {
-		return err
-	}
-	mcpMeta := make([]prompt.MCPMeta, 0)
-	for _, info := range mcpLoader.Servers() {
-		mcpMeta = append(mcpMeta, prompt.MCPMeta{ID: info.ID, Name: info.Name, Description: info.Description})
-	}
-	if !mcpLoader.Empty() {
-		activeTools = append(activeTools, selectedMCPTools...)
-		activeTools = append(activeTools, mcpLoader.Tool())
-	}
+	defer tools.mcp.Close()
+	activeTools := tools.active
 	client, err := server.newModelAdapter(settings)
 	if err != nil {
 		return err
 	}
 	systemPrompt := prompt.Render(prompt.Context{
-		Workspace: runEnvironment.Workspace(), Directories: runEnvironment.Directories(), Skills: skillMeta, MCPs: mcpMeta, SelectedSkills: selectedSkillsForTurn, SelectedTools: selectedToolNamesForTurn,
+		Workspace: runEnvironment.Workspace(), Directories: runEnvironment.Directories(), Skills: skillMeta, MCPs: tools.mcpMeta, SelectedSkills: selectedSkillsForTurn, SelectedTools: tools.selectedNames,
 	})
-	if err := server.appendSelectedCapabilityEvents(id, turn, selectedSkillNamesForTurn, selectedMCPIDsForTurn); err != nil {
+	if err := server.appendSelectedCapabilityEvents(id, turn, selectedSkillNamesForTurn, tools.selectedMCPIDs); err != nil {
 		return err
 	}
 	coreMessages := coreMessagesForSession(session, systemPrompt)
 	// 会话跨轮时，保持历史 function call 与当前 tools Schema 一致。
 	// Preload 只会恢复仍在内置目录中的工具，且会自动去重。
-	activeTools = append(activeTools, toolLoader.Preload(historicalToolNames(coreMessages))...)
+	activeTools = append(activeTools, tools.loader.Preload(historicalToolNames(coreMessages))...)
 	didCompact, err := server.compactIfNeeded(ctx, &session, settings, client, systemPrompt, activeTools, turn, usage, runtimeCompactionThreshold(settings), false)
 	if err != nil {
 		return err
@@ -105,8 +75,8 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 	if err != nil {
 		return err
 	}
-	mcpLoader.SetRegister(runner.AddTools)
-	toolLoader.SetRegister(runner.AddTools)
+	tools.mcp.SetRegister(runner.AddTools)
+	tools.loader.SetRegister(runner.AddTools)
 	runner.MaxOutputTokens = settings.MaxOutputTokens
 	maxSteps := settings.MaxSteps
 	if maxSteps <= 0 {
@@ -142,7 +112,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 	result, err := runner.Run(ctx, agent.RunRequest{
 		Messages: coreMessages, NewMessages: newMessages, PreviousResponseID: previousID,
 		MaxSteps:          maxSteps,
-		RequiredToolNames: selectedToolNamesForTurn,
+		RequiredToolNames: tools.selectedNames,
 		PromptCacheKey:    promptCacheKey(settings),
 		OnTextDelta:       func(delta string) { server.tasks.appendPartial(id, delta) },
 		OnTextReset:       func() { server.tasks.resetPartial(id) },
@@ -162,34 +132,8 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 			}
 			return server.awaitBeaverApproval(ctx, id, call, runEnvironment.Workspace())
 		},
-		OnToolLifecycle: func(event agent.Event) error {
-			if event.ToolCall == nil {
-				return nil
-			}
-			operation := store.ToolOperation{
-				Runtime: store.RuntimeBeaver, Turn: turn, Step: event.Step,
-				Guarantee:  store.ToolGuaranteePreEffect,
-				ActivityID: event.ToolCall.ID, Name: event.ToolCall.Name,
-				ActivityKind: event.ToolCall.ActivityKind, ActivitySource: event.ToolCall.ActivitySource,
-				DisplayName: event.ToolCall.DisplayName, Input: string(event.ToolCall.Arguments),
-				StartedAt: event.StartedAt,
-			}
-			if event.Kind == agent.EventToolStart {
-				return server.store.BeginToolOperation(id, operation)
-			}
-			if event.Kind != agent.EventToolEnd {
-				return nil
-			}
-			operation.Output = event.Output
-			operation.Status = store.ToolOperationSucceeded
-			operation.CompletedAt = event.StartedAt.Add(event.Duration)
-			if event.Err != nil {
-				operation.Status = store.ToolOperationFailed
-				operation.Error = event.Err.Error()
-			}
-			return server.store.SettleToolOperation(id, operation)
-		},
-		IsContextError: isContextLengthError,
+		OnToolLifecycle: server.recordToolLifecycle(id, turn),
+		IsContextError:  isContextLengthError,
 	})
 	if err != nil {
 		return err
@@ -201,6 +145,88 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 		return fmt.Errorf("保存 Agent Trace 失败: %w", savedTraceErr)
 	}
 	return server.store.FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
+}
+
+// beaverTools 是本轮可用的工具集合：常驻核心工具 + 按需加载器（load_tools / MCP）。
+type beaverTools struct {
+	active         []agent.Tool
+	loader         *builtintools.Loader
+	mcp            *mcpclient.Loader
+	mcpMeta        []prompt.MCPMeta
+	selectedNames  []string // 用户用 @tool 指定的内置工具
+	selectedMCPIDs []string // 用户用 @ 指定的 MCP 服务器
+}
+
+// assembleBeaverTools 组装本轮工具。调用方负责关闭 tools.mcp。
+func (server *Server) assembleBeaverTools(ctx context.Context, id string, session store.Session, env *appenv.Environment, skills *skillCatalog, policy permissions.Policy) (*beaverTools, error) {
+	// 记忆工具绑定到会话所属成员：个人记忆按成员隔离，模型无法指定 owner。
+	owner, err := server.store.SessionOwner(id)
+	if err != nil {
+		return nil, err
+	}
+	memoryScope := &builtintools.MemoryScope{Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner}
+	loader, err := builtintools.NewLoader(builtintools.CatalogWithMemory(env, skills, policy, memoryScope))
+	if err != nil {
+		return nil, err
+	}
+	tools := &beaverTools{loader: loader, selectedNames: selectedToolNames(session.Messages), selectedMCPIDs: selectedMCPIDs(session.Messages)}
+	// 默认只提供读、执行、修改的小核心；时间、计算、联网等通过精简目录按需加入。
+	tools.active = append(loader.PreloadCore(), loader.Tool())
+	tools.active = append(tools.active, loader.Preload(tools.selectedNames)...)
+
+	mcps, err := server.store.ListMCPConfigs()
+	if err != nil {
+		return nil, err
+	}
+	mcpConfigs, err := server.mcpClientConfigs(mcps)
+	if err != nil {
+		return nil, err
+	}
+	tools.mcp = mcpclient.NewLoader(env, mcpConfigs)
+	selectedMCPTools, err := tools.mcp.Preload(ctx, tools.selectedMCPIDs)
+	if err != nil {
+		tools.mcp.Close()
+		return nil, err
+	}
+	for _, info := range tools.mcp.Servers() {
+		tools.mcpMeta = append(tools.mcpMeta, prompt.MCPMeta{ID: info.ID, Name: info.Name, Description: info.Description})
+	}
+	if !tools.mcp.Empty() {
+		tools.active = append(tools.active, selectedMCPTools...)
+		tools.active = append(tools.active, tools.mcp.Tool())
+	}
+	return tools, nil
+}
+
+// recordToolLifecycle 把工具开始/结束写入 tool_operations，用于崩溃后判断工具是否可能已产生副作用。
+func (server *Server) recordToolLifecycle(id string, turn int) func(agent.Event) error {
+	return func(event agent.Event) error {
+		if event.ToolCall == nil {
+			return nil
+		}
+		operation := store.ToolOperation{
+			Runtime: store.RuntimeBeaver, Turn: turn, Step: event.Step,
+			Guarantee:  store.ToolGuaranteePreEffect,
+			ActivityID: event.ToolCall.ID, Name: event.ToolCall.Name,
+			ActivityKind: event.ToolCall.ActivityKind, ActivitySource: event.ToolCall.ActivitySource,
+			DisplayName: event.ToolCall.DisplayName, Input: string(event.ToolCall.Arguments),
+			StartedAt: event.StartedAt,
+		}
+		if event.Kind == agent.EventToolStart {
+			return server.store.BeginToolOperation(id, operation)
+		}
+		if event.Kind != agent.EventToolEnd {
+			return nil
+		}
+		operation.Output = event.Output
+		operation.Status = store.ToolOperationSucceeded
+		operation.CompletedAt = event.StartedAt.Add(event.Duration)
+		if event.Err != nil {
+			operation.Status = store.ToolOperationFailed
+			operation.Error = event.Err.Error()
+		}
+		return server.store.SettleToolOperation(id, operation)
+	}
 }
 
 func beaverToolNeedsApproval(name string) bool {
