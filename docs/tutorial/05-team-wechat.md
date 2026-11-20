@@ -169,7 +169,7 @@ go test ./internal/server -run TestWeixinSlashCommands -v
 
 成员 ID 由微信用户 ID 哈希得到（`weixinMemberID`），所以同一个人重新扫码绑定，ID 不变，个人记忆和定时任务的通知对象都不会失效。提交任务时，会话 owner 在应用层绑定；Memory Tool 通过闭包取得 owner，模型参数里没有“切换成另一个成员”的字段。
 
-同一成员的追问通常继续当前 Session；`/new` 清空当前会话指针，让下一条消息创建独立 Session。当前任务仍活跃时不允许 `/new`，必须先结束或 `/stop`，避免“当前会话”在投递期间被悄悄替换。
+同一成员的追问通常继续当前 Session；`/new` 清空当前会话指针，让下一条消息创建独立 Session。当前任务仍活跃时不允许 `/new`；任务虽已结束但最终结果尚未送达时也会先要求等待回传。这样不会在投递协程仍依赖旧 Session 时把指针清空。
 
 当前产品边界仍是单管理员、多个微信成员共享一套服务配置，不提供 RBAC 或多租户隔离；微信端也没有工具审批通道。
 
@@ -189,30 +189,33 @@ for {
 }
 ```
 
-考虑时间线：
+考虑 A 刚结束、B 紧接着到达的时间线。结果有两种合法分支：
 
 ```text
 T1  用户提交问题 A
 T2  投递协程等待 A
 T3  A 刚结束，用户又提交追问 B
-T4  协程发送 A
-T5  协程重新读取账号，发现 B 仍待投递
-T6  等待并发送 B
+T4a 投递侧先冻结 A：发送 A；发送期间 B 到达时，条件更新不会清掉 B
+T4b 提交侧先完整登记 B：A 已被最新单槽覆盖，不再发送 A
+T5  两条分支都会等待并发送 B
 T7  没有更多待发结果且没有新唤醒，原子释放所有权后退出
 ```
 
-只循环 `deliverPending` 仍不够：最后一次检查返回“没有待发结果”到协程删除所有权之间，还有一个很窄的退出窗口。B 若恰好在这时到达，只看“协程存在”就返回，旧协程随后退出，仍会漏发。唤醒位与所有权释放共用 `manager.mu`，保证新请求要么被旧协程再处理一轮，要么在所有权删除后启动新协程。
+只循环 `deliverPending` 仍不够：最后一次检查返回“没有待发结果”到协程删除所有权之间，还有一个很窄的退出窗口。唤醒位与所有权释放共用 `manager.mu`，保证新请求要么被旧协程再处理一轮，要么在所有权删除后启动新协程。
 
-等待任务结束时用的是 `waitWithProgress`。它同时调用 `startTyping`：按官方 openclaw-weixin 的做法，先 `getconfig` 取 `typing_ticket`，再每 5 秒 `sendtyping` 保活，让微信显示“正在输入…”；这条走的不是 `sendmessage`，不消耗回复条数，连续失败 3 次就静默放弃。另外它每 1 分钟检查一次 `taskManager.progress`，进度和上次推送不同才发一条“仍在执行”，最多 3 条。条数设上限、第一条放在 1 分钟，是因为 iLink 的限制没有公开说明（见 §9.1 的实测汇总），宁可少发，也不能把最终结果挤掉。
+同一 Session 连续两轮还有代际竞态。`accountDeliveryGate` 让“提交新轮次 + 更新 pending 槽”和“读取 pending + 冻结最终文本”对同一成员互斥；网络发送不持锁。发送完成后，`MarkWeixinDelivered` 只在数据库里的 `pending_message_id` 仍等于本次快照时推进 `DeliveredMessageID`。因此绝不允许“拿 B 的回复凭据发送 A”或“把尚未结束的 B 提前标成已送达”。
 
-`deliverPending` 在真正发送前会重新读取账号和 Session，避免使用过期状态；分段发送失败会有限重试，成功后才更新 `DeliveredMessageID`。
+等待任务结束时用的是 `waitWithProgress`。它同时调用 `startTyping`：先 `getconfig` 取 `typing_ticket`，再每 5 秒 `sendtyping` 让微信持续显示“正在输入…”；这条不走 `sendmessage`，但也不能视为延长 `context_token`。取票失败或连续 3 次业务/网络失败会静默停用，不影响任务。另外它在约 1 分钟时最多发送 1 条变化后的进度，提前提醒用户长任务仍在运行；这条提示同样不保证续期。
+
+每条通过过滤的有效入站消息都会独立更新 `ReplyContextToken`，不改变 pending/delivered 代际；因此 `/status`、`/help` 或普通文字都能为尚未送达的结果提供更新的回复凭据。`deliverPending` 在发送前读取最新凭据和冻结文本，分段发送失败会有限重试，成功后才用条件更新推进 `DeliveredMessageID`。
 
 微信只投递最终可见文字，不把完整 Trace 发到聊天中。详细模型、工具和错误事件仍留在 Web 会话页面。
 
 运行相关测试：
 
 ```bash
-go test ./internal/server -run 'TestWeixin(FinalText|Acknowledgement|MessageFiltering|APIShowsCurrentTask|DeliveryWakeup)|TestLongTaskPushesProgress' -v
+go test ./internal/server -run 'TestWeixin(FinalText|Acknowledgement|MessageFiltering|APIShowsCurrentTask|DeliveryWakeup|DeliverySkips|DeliveryCAS|NewWaits|InboundCommand|WaitShows)|TestLongTaskPushesProgress' -v
+go test ./internal/weixin -run 'TestGatewayTypingProtocol' -v
 ```
 
 ## 9. Automation 也是创建会话
@@ -237,16 +240,16 @@ go test ./internal/server -run 'TestWeixin(FinalText|Acknowledgement|MessageFilt
 
 | issue | 观察 | 含义 |
 | --- | --- | --- |
-| #81 | 同一条入站消息的 `context_token` 连续回复约 10 条后返回 `ret=-2 rate limited` | 按条数限制 |
-| #286 | 发送时间距入站消息 73 秒成功、135 秒失败（`ret=-2 prepare failed`），且不带 token 也失败 | 凭据只在入站后约 1.5–2 分钟内可靠 |
-| #309 | 主动推送在成员约 11 小时内没发消息时稳定，约 15 小时后大概率被拒；机器人自己发的消息不能续期 | 凭据按“最后一次入站”计时，时长不固定 |
-| #270 | 8 分钟内发约 4 条后持续限流 30 分钟以上，疑似累计配额 | 可能有按时间累计的配额 |
+| [#81](https://github.com/Tencent/openclaw-weixin/issues/81) | 同一条入站消息的 `context_token` 连续回复约 10 条后返回 `ret=-2 rate limited` | 可能存在按条数限制 |
+| [#286](https://github.com/Tencent/openclaw-weixin/issues/286) | 发送时间距入站消息 73 秒成功、135 秒失败（`ret=-2 prepare failed`），且不带 token 也失败 | 某版本观察到约 1.5–2 分钟时效窗口 |
+| [#309](https://github.com/Tencent/openclaw-weixin/issues/309) | 主动推送在成员约 11 小时内没发消息时稳定，约 15 小时后大概率被拒；机器人自己发的消息不能续期 | 时长可能浮动，不能依赖固定 TTL |
+| [#270](https://github.com/Tencent/openclaw-weixin/issues/270) | 8 分钟内发约 4 条后持续限流 30 分钟以上 | 可能另有累计配额 |
 
-没有任何一条说明了“每分钟 N 条”“每小时 N 条”这样的固定限额。能确定的只有三点：`ret=-2` 就是被拒；成员再发一条消息，凭据立刻刷新、发送恢复；官方客户端也是按“账号 + 用户”保存最近一条 token 并复用于主动发送，Beaver 的做法与它一致。
+这些都不是腾讯发布的稳定契约，彼此也不能推出固定 TTL 或配额。可以依赖的本地事实只有：Beaver 按“成员”保存最近一条入站 token；每条有效入站都会刷新；`ret=-2` 会被当成发送失败并记录，而不会伪装成已送达。
 
 据此 Beaver 的取舍是：
 
-- 第一条进度放在 1 分钟，赶在最短的 2 分钟窗口内；进度最多 3 条，且内容不变不重发，把额度留给最终结果。
+- 约 1 分钟时最多发送 1 条变化后的进度；它是提前告警，不是 token 续期方案。
 - 最终结果发送失败只会在日志里留下记录，完整结果仍在 Web 的会话里。
 - 定时任务推送只适合成员经常和机器人互动的场景；成员很久没说话时推送失败是协议限制，不是 Beaver 的缺陷。
 

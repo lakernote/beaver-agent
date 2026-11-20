@@ -57,7 +57,7 @@ func New(root string) *Store { return &Store{root: root} }
 
 // Save 追加一条记忆，返回实际写入的文本。相同文本不会重复保存。
 func (store *Store) Save(owner, scope, text string) error {
-	text = strings.TrimSpace(text)
+	text = canonicalNote(text)
 	if text == "" {
 		return errors.New("记忆内容不能为空")
 	}
@@ -75,13 +75,23 @@ func (store *Store) Save(owner, scope, text string) error {
 		return err
 	}
 	for _, note := range notes {
-		if stripDate(note) == text {
+		if canonicalNote(stripDate(note)) == text {
 			return nil
 		}
 	}
-	line := time.Now().Format("2006-01-02") + " " + strings.ReplaceAll(text, "\n\n", "\n")
+	line := time.Now().Format("2006-01-02") + " " + text
 	notes = append(notes, line)
 	return writeNotes(path, notes)
+}
+
+func canonicalNote(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = strings.TrimSpace(text)
+	for strings.Contains(text, "\n\n") {
+		text = strings.ReplaceAll(text, "\n\n", "\n")
+	}
+	return text
 }
 
 // Search 在个人记忆和团队记忆中检索，返回最相关的 limit 条。

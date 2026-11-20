@@ -66,6 +66,49 @@ func TestResolveURLRejectsNonHTTPS(t *testing.T) {
 	}
 }
 
+func TestGatewayTypingProtocolAndBusinessError(t *testing.T) {
+	requests := make(chan string, 3)
+	bodies := make(chan []byte, 3)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		requests <- request.URL.Path
+		bodies <- body
+		response.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/getconfig"):
+			_, _ = response.Write([]byte(`{"ret":0,"typing_ticket":"ticket-1"}`))
+		case bytes.Contains(body, []byte(`"status":2`)):
+			_, _ = response.Write([]byte(`{"ret":-2,"errmsg":"prepare failed"}`))
+		default:
+			_, _ = response.Write([]byte(`{"ret":0}`))
+		}
+	}))
+	defer server.Close()
+	gateway := NewHTTPGateway(server.Client())
+	account := Account{ID: "bot", Token: "secret", BaseURL: server.URL}
+	ticket, err := gateway.TypingTicket(context.Background(), account, "user", "context-1")
+	if err != nil || ticket != "ticket-1" {
+		t.Fatalf("ticket=%q err=%v", ticket, err)
+	}
+	if err := gateway.SendTyping(context.Background(), account, "user", ticket, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := gateway.SendTyping(context.Background(), account, "user", ticket, false); err == nil || !strings.Contains(err.Error(), "ret=-2") {
+		t.Fatalf("business error = %v", err)
+	}
+	paths := []string{<-requests, <-requests, <-requests}
+	values := [][]byte{<-bodies, <-bodies, <-bodies}
+	if !strings.HasSuffix(paths[0], "/getconfig") || !bytes.Contains(values[0], []byte(`"context_token":"context-1"`)) {
+		t.Fatalf("getconfig request: %s %s", paths[0], values[0])
+	}
+	if !strings.HasSuffix(paths[1], "/sendtyping") || !bytes.Contains(values[1], []byte(`"typing_ticket":"ticket-1"`)) || !bytes.Contains(values[1], []byte(`"status":1`)) {
+		t.Fatalf("typing start request: %s %s", paths[1], values[1])
+	}
+	if !bytes.Contains(values[2], []byte(`"status":2`)) {
+		t.Fatalf("typing stop request: %s %s", paths[2], values[2])
+	}
+}
+
 func TestDecryptMediaSupportsWeixinKeyEncodings(t *testing.T) {
 	key := []byte("0123456789abcdef")
 	plain := []byte("weixin attachment")

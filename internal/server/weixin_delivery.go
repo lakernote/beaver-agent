@@ -132,10 +132,11 @@ var (
 	weixinProgressMax      = 1
 )
 
-// weixinTypingInterval 是“正在输入”的保活间隔，与官方插件一致。
+// weixinTypingInterval 是“正在输入”状态的刷新间隔。
 var weixinTypingInterval = 5 * time.Second
 
-// startTyping 在任务运行期间让微信显示“对方正在输入…”，返回停止函数。
+// startTyping 在任务运行期间让微信显示“对方正在输入…”，返回停止函数；
+// typing 状态不能被视为延长 context_token。
 // 网关不支持、取不到 ticket 或连续失败 3 次时静默放弃，不影响任务和结果。
 func (manager *weixinManager) startTyping(account store.WeixinAccount) (stop func()) {
 	gateway, ok := manager.gateway.(weixin.TypingGateway)

@@ -92,9 +92,9 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	if !ignoreBefore.IsZero() && (message.CreatedAtMS == 0 || createdAt.Before(ignoreBefore)) {
 		return
 	}
-	// iLink 的 context_token 由每条入站消息刷新。只要当前还有未送达结果，
-	// 就更新回复凭据并唤醒投递；不改变 pending message ID，避免把命令或
-	// “任务仍在执行”这类消息误当成新的 Agent 轮次。
+	// 每条有效入站都刷新独立的回复凭据，供普通结果与 Automation 共用；
+	// 只有存在未送达结果时才唤醒投递。这里不改变 pending message ID，
+	// 避免把命令或“任务仍在执行”这类消息误当成新的 Agent 轮次。
 	if strings.TrimSpace(message.ContextToken) != "" {
 		refreshed, refreshErr := manager.server.store.RefreshWeixinReplyContext(account.ID, message.ContextToken, createdAt, time.Now())
 		if refreshErr == nil && refreshed {

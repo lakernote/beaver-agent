@@ -62,6 +62,9 @@ func TestWeixinFinalTextNeverIncludesTrace(t *testing.T) {
 	if !strings.Contains(value, "✅ 任务完成 · 检查服务") || !strings.Contains(value, "最终结果") || strings.Contains(value, "private trace") {
 		t.Fatalf("微信只应收到最终 assistant 文本: %q", value)
 	}
+	if value := finalSessionText(store.Session{Status: store.SessionQueued, Messages: session.Messages}); value != "" {
+		t.Fatalf("运行中的新一轮不应复用旧答案: %q", value)
+	}
 }
 
 func TestWeixinAcknowledgementDoesNotExposeTransientQueueStatus(t *testing.T) {
@@ -451,6 +454,25 @@ func (gateway *blockingRecordingGateway) SendText(ctx context.Context, _ weixin.
 	}
 }
 
+type typingRecordingGateway struct {
+	fakeWeixinGateway
+	tokens   chan string
+	statuses chan bool
+}
+
+func (gateway *typingRecordingGateway) TypingTicket(_ context.Context, _ weixin.Account, _ string, contextToken string) (string, error) {
+	gateway.tokens <- contextToken
+	return "typing-ticket", nil
+}
+
+func (gateway *typingRecordingGateway) SendTyping(_ context.Context, _ weixin.Account, _ string, ticket string, typing bool) error {
+	if ticket != "typing-ticket" {
+		return errors.New("unexpected typing ticket")
+	}
+	gateway.statuses <- typing
+	return nil
+}
+
 func newWeixinDeliveryFixture(t *testing.T) (*Server, *store.Store, string, string) {
 	t.Helper()
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
@@ -572,6 +594,75 @@ func TestWeixinNewWaitsForPendingFinalResult(t *testing.T) {
 	account, err = database.GetWeixinAccount(accountID)
 	if err != nil || account.CurrentSessionID != sessionID {
 		t.Fatalf("/new cleared a session with pending result: %+v err=%v", account, err)
+	}
+}
+
+func TestWeixinInboundCommandRefreshesReplyContextWithoutPendingTask(t *testing.T) {
+	application, database, accountID, _ := newWeixinDeliveryFixture(t)
+	gateway := &recordingGateway{sent: make(chan string, 2)}
+	application.weixin.gateway = gateway
+	marked, err := database.MarkWeixinDelivered(accountID, 42, time.Now())
+	if err != nil || !marked {
+		t.Fatalf("mark initial delivery: marked=%v err=%v", marked, err)
+	}
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := database.GetWeixinSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdAt := time.Now().Add(time.Second)
+	application.weixin.handleMessage(context.Background(), account, settings, weixin.Message{
+		MessageID: 43, MessageType: 1, FromUserID: account.UserID, ContextToken: "context-help",
+		CreatedAtMS: createdAt.UnixMilli(), Items: []weixin.MessageItem{{Type: 1, TextItem: &weixin.TextItem{Text: "/help"}}},
+	})
+	account, err = database.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID != 42 || account.DeliveredMessageID != 42 || account.ReplyContextToken != "context-help" {
+		t.Fatalf("inbound command did not refresh independent reply context: %+v err=%v", account, err)
+	}
+}
+
+func TestWeixinWaitShowsAndStopsTyping(t *testing.T) {
+	application, _, accountID, sessionID := newWeixinDeliveryFixture(t)
+	gateway := &typingRecordingGateway{tokens: make(chan string, 2), statuses: make(chan bool, 4)}
+	application.weixin.gateway = gateway
+	application.tasks.set(sessionID, "typing-test", func() {})
+	done := make(chan struct{})
+	go func() {
+		application.weixin.waitWithProgress(accountID, sessionID)
+		close(done)
+	}()
+	select {
+	case token := <-gateway.tokens:
+		if token != "context-A" {
+			t.Fatalf("typing used context token %q", token)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("typing ticket was not requested")
+	}
+	select {
+	case typing := <-gateway.statuses:
+		if !typing {
+			t.Fatal("typing stopped before it started")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("typing did not start")
+	}
+	application.tasks.clear(sessionID, "typing-test")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("waitWithProgress did not stop")
+	}
+	select {
+	case typing := <-gateway.statuses:
+		if typing {
+			t.Fatal("typing did not send stop status")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("typing stop status was not sent")
 	}
 }
 

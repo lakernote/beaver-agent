@@ -52,8 +52,13 @@ func TestSaveRejectsBadInputAndDeduplicates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	for _, text := range []string{"第一行\n\n\n第二行", "第一行\r\n\r\n第二行"} {
+		if err := store.Save("a", ScopePersonal, text); err != nil {
+			t.Fatal(err)
+		}
+	}
 	notes, _ := readNotes(filepath.Join(root, "people", "a", "notes.md"))
-	if len(notes) != 1 {
+	if len(notes) != 2 || !strings.Contains(notes[1], "第一行\n第二行") {
 		t.Fatalf("相同记忆不应重复保存: %v", notes)
 	}
 }

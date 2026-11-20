@@ -234,9 +234,16 @@ func (gateway *HTTPGateway) SendTyping(ctx context.Context, account Account, use
 	}
 	body := map[string]any{"ilink_user_id": userID, "typing_ticket": ticket, "status": status, "base_info": baseInfo()}
 	var response struct {
-		ReturnCode int `json:"ret,omitempty"`
+		ReturnCode   int    `json:"ret,omitempty"`
+		ErrorMessage string `json:"errmsg,omitempty"`
 	}
-	return gateway.request(ctx, http.MethodPost, account.BaseURL, "ilink/bot/sendtyping", account.Token, body, &response, true)
+	if err := gateway.request(ctx, http.MethodPost, account.BaseURL, "ilink/bot/sendtyping", account.Token, body, &response, true); err != nil {
+		return err
+	}
+	if response.ReturnCode != 0 {
+		return fmt.Errorf("微信发送输入状态失败: ret=%d %s", response.ReturnCode, response.ErrorMessage)
+	}
+	return nil
 }
 
 const maxDownloadedMediaBytes = 10 * 1024 * 1024
