@@ -104,6 +104,10 @@ OpenRouter 等兼容网关可能在 Tool Call 旁返回 `reasoning` 或 `reasoni
 
 已通过入口大小校验的工具结果，会根据“当前请求距离上下文阈值还差多少 Token”计算本次模型副本的保留预算，不再固定裁剪 1200 字符。普通文本按动态预算保留头尾；结构化 JSON 保留有效 JSON、字段/数组采样和 `_beaver_truncation` 元数据（原始、保留 Token 与省略项数）。完整的已接收内容仍留在 SQLite/Artifact；只有输入本身达到阈值时才调用模型生成检查点。每次请求还会按剩余上下文动态收紧该次 `max_output_tokens`。
 
+## 长期记忆
+
+长期记忆由全进程共享的 `memory.Store` 保存为按成员隔离的 Markdown，并用 BM25 按需检索。Beaver Runtime 通过 `memory_save`、`memory_search`、`memory_forget` 三个 Tool 读写；owner 由会话绑定，模型不能自行指定其他成员。Codex Runtime 不注册这些 Tool，而是在每轮开始时由 `codexMemoryContext` 按当前用户消息检索最多 5 条 personal/team 记忆，以 `<beaver_memory>` 只读背景注入；无命中时不添加任何内容。Codex 要新增或修改记忆，仍需切到 Beaver Runtime。
+
 ## Prompt 与 Skill
 
 基础 Prompt 在 `internal/builtin/prompt/system.md`，只保存身份、工作方式、信任边界、能力使用和回答契约。运行时事实、Skill 元数据和 MCP 元数据放在尾部，便于保持公共前缀稳定；不会把 MCP 启动参数或密钥写进 Prompt。用户消息可以定义任务目标，但不能覆盖 System Prompt 或授权越权操作；附件、网页、代码、日志以及 Tool/MCP 返回按不可信数据处理，只能提供证据。压缩使用独立的 `internal/builtin/prompt/compaction.md`，不携带常规工具规则，也不给模型任何 Tool，避免摘要过程继续执行用户任务。
@@ -140,7 +144,7 @@ mcp__<server_id>__<remote_tool_name>
 
 单机执行槽可在“任务设置”页面配置（默认 4），两个 Runtime 共用 12 小时的整轮 turn 上限。消息、`queued` 状态和本轮完整 `ModelSettings` 快照在同一个事务提交，拿到槽位后才进入 `running`；因此排队期间修改或删除 Profile、服务重启，都不会改变已经入队任务的 Provider、协议、模型或凭据。Git 工作区按会话创建独立 worktree，非 Git 目录或 worktree 创建失败时按工作区路径串行。排队任务可以安全暂停并继续；运行中任务只能中断，因为自动重放可能重复命令或文件写入。用户中断任务时，Server 取消对应 `context.Context`，模型 HTTP 请求、内置 Tool 和 MCP Tool 会收到同一个取消信号。服务重启后 queued 任务恢复排队，paused 保持暂停，running 标记中断而不自动重放。页面通过 SSE 接收实时 Session/Trace，SQLite 事件主键同时作为 `Last-Event-ID` 续传游标，心跳间隔也可在页面调整。
 
-整轮 Agent 不设置隐藏的固定总超时：每次模型请求使用页面配置的超时，每次 Tool 自己声明超时，Runner 还有最大循环步数，用户也能主动停止。这样长任务不会被一个与页面配置无关的总计时器提前杀掉。
+任务获得执行槽后会启动页面可配置的整轮超时，默认 12 小时、范围 5 分钟到 24 小时；排队时间不计入。每次模型请求还有自己的请求超时，每次 Tool 使用独立 timeout context，Runner 另有最大循环步数，用户也能主动停止。这样长任务有明确且可调整的总边界，而不是被隐藏常量提前终止。
 
 模型默认值和校验范围集中在 `internal/store/settings.go`；持久化实体集中在 `internal/store/entities.go`。页面提供 Chat Completions、Responses、Ollama Chat 和 Anthropic Messages 四种协议配置，不内置容易过期的厂商、模型或免费额度清单。切换 Provider 或 Base URL 时不会继承旧服务的 API Key。
 

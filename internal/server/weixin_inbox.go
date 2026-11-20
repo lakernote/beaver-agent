@@ -152,7 +152,7 @@ func weixinTaskAcknowledgement(title string) string {
 	if title = strings.TrimSpace(title); title != "" {
 		lines = append(lines, "💬 会话："+title)
 	}
-	lines = append(lines, "", "完成后会在这里回复。", "发送 /status 查看实时进度，发送 /stop 中断任务。")
+	lines = append(lines, "", "完成后会在这里回复；任务较长时我会每隔几分钟汇报一次进度。", "发送 /status 查看实时进度，发送 /stop 中断任务。")
 	return strings.Join(lines, "\n")
 }
 

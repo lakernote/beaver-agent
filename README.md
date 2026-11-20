@@ -144,12 +144,12 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 ## 内置能力
 
-内置 Skills 聚焦项目理解、问题分析、代码审查、API 设计、测试与 E2E、事故 RCA、发布工程、文档维护、Git worktree 和网页研究。GitHub、Context7、Playwright、OpenAI Docs 等 MCP 可在设置页启用，供两个 Runtime 共用。
+内置 Skill 只有 `code-review` 一个（也是写 Skill 的参考样例）；团队自己的方法在“Skills”页添加，两个 Runtime 共用。GitHub、Context7、Playwright、OpenAI Docs 等 MCP 可在设置页启用，供两个 Runtime 共用。
 
 默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。搜索后会提醒模型读取原始来源再回答。
 
 - **任务规划**：`todo_write` 让模型在 3 步以上的复杂任务里先列清单、逐步更新，详见 [docs/tutorial/02-todo.md](docs/tutorial/02-todo.md)。
-- **长期记忆**：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/tutorial/04-memory.md](docs/tutorial/04-memory.md)。
+- **长期记忆**：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆。Beaver Runtime 可读写；Codex Runtime 每轮会按消息检索相关记忆作为只读背景，新增或修改请在 Beaver Runtime 会话里进行。详见 [docs/tutorial/04-memory.md](docs/tutorial/04-memory.md)。
 - **联网**：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。
 
 ### GitHub、GitLab 与 Git 凭据
@@ -168,11 +168,13 @@ Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环�
 
 - 支持多人扫码绑定，并为每个人选择新会话的默认项目。
 - 文字、图片、PDF、代码文件和带微信文字的语音进入与 Web 相同的任务队列；语音没有文字时提示补发说明，不下载音频，也不运行语音识别。
-- 斜杠指令 `/new`、`/status`、`/stop`、`/projects`、`/project 名称`、`/help` 不调用模型；其他文字一律交给 Agent。微信回传状态和结果，完整 Trace 保留在 Web。
+- 成员 ID 由微信用户 ID 派生：同一个人重新扫码仍是同一成员，个人记忆不丢；绑定成功会自动启用微信通道。
+- 定时任务可勾选要通知的成员，任务结束（成功、失败或停止）后把结果推送到他们的微信；不勾选则只在 Web 查看。主动推送沿用成员最近一条消息的会话凭据，据社区实测，成员约 24–48 小时没给机器人发消息后凭据会过期（微信返回 `ret=-2`），给机器人发任意一条消息即可恢复；同一条消息最多回复约 10 次，所以进度推送最多 3 条。
+- 斜杠指令 `/new`、`/status`、`/stop`、`/projects`、`/project 名称`、`/help` 不调用模型；形如 `/stpo` 的未知命令会直接提示，文件路径等普通文本仍交给 Agent。任务超过 2 分钟后会自动推送进度（进度变化才发，最多 3 条）；微信回传状态和结果，完整 Trace 保留在 Web。
 
 ## 学习与文档
 
-项目也是一份学习 Agent 的材料：[三天从 0 到 1 写一个 Agent](docs/tutorial/README.md) 按“循环 → 规划/检索/记忆 → 多入口与团队”的顺序讲解，每篇对应真实源码；设计与运行原理见 [文档索引](docs/README.md)。
+项目也是一套可动手的 Agent 教材：[6 小时从 0 到 1 手搓一个 Agent](docs/tutorial/00-build-an-agent-in-6-hours.md) 从离线 Fake Model、原生 Tool Call 和可测试循环开始，再映射到 Beaver 的持久化、Trace、权限与调度；全程配套可运行的 [`examples/mini-agent`](examples/mini-agent)。90 分钟速览和三天源码路线见 [教程主页](docs/tutorial/README.md)，设计与运行原理见 [文档索引](docs/README.md)。
 
 ## 部署前注意
 

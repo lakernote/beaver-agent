@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/lakernote/beaver-agent/internal/store"
 )
@@ -195,6 +196,26 @@ func (manager *taskManager) cancel(id string) {
 	manager.mu.Unlock()
 	if current.cancel != nil {
 		current.cancel()
+	}
+}
+
+// waitFor 最多等 timeout；任务已结束（或不存在）返回 true，超时或 ctx 取消返回 false。
+func (manager *taskManager) waitFor(ctx context.Context, id string, timeout time.Duration) bool {
+	manager.mu.Lock()
+	current, ok := manager.tasks[id]
+	manager.mu.Unlock()
+	if !ok {
+		return true
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-current.done:
+		return true
+	case <-timer.C:
+		return false
+	case <-ctx.Done():
+		return false
 	}
 }
 

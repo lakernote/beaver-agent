@@ -194,6 +194,41 @@ func TestWeixinDeliveryStatus(t *testing.T) {
 	}
 }
 
+func TestWeixinDeliveryWakeupDuringExitStartsAnotherPass(t *testing.T) {
+	manager := &weixinManager{delivery: map[string]bool{"account": false}}
+	firstPass := make(chan struct{})
+	releaseFirstPass := make(chan struct{})
+	done := make(chan struct{})
+	passes := 0
+	go func() {
+		manager.runDelivery("account", func(string) bool {
+			passes++
+			if passes == 1 {
+				close(firstPass)
+				<-releaseFirstPass
+			}
+			return false
+		})
+		close(done)
+	}()
+
+	<-firstPass
+	// 旧协程还占有 account 时到达的新请求，必须留下唤醒标记。
+	manager.resumeDelivery("account")
+	close(releaseFirstPass)
+	<-done
+
+	if passes != 2 {
+		t.Fatalf("delivery passes = %d, want 2", passes)
+	}
+	manager.mu.Lock()
+	_, exists := manager.delivery["account"]
+	manager.mu.Unlock()
+	if exists {
+		t.Fatal("delivery ownership was not released")
+	}
+}
+
 func TestWeixinAPIBindsMultipleAccountsWithoutExposingSecrets(t *testing.T) {
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
@@ -430,5 +465,64 @@ func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 	case got := <-gateway.sent:
 		t.Fatalf("未勾选的成员不应收到通知: %q", got)
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestLongTaskPushesProgressWithoutRepeating(t *testing.T) {
+	oldInterval, oldMax := weixinProgressInterval, weixinProgressMax
+	weixinProgressInterval, weixinProgressMax = 30*time.Millisecond, 2
+	defer func() { weixinProgressInterval, weixinProgressMax = oldInterval, oldMax }()
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
+	gateway := &recordingGateway{sent: make(chan string, 8)}
+	application.weixin.gateway = gateway
+	defer application.Shutdown(context.Background())
+	now := time.Now()
+	accountID := weixinMemberID("user-a")
+	if err := database.SaveWeixinAccount(store.WeixinAccount{ID: accountID, Label: "a", UserID: "user-a", Token: "t", BaseURL: "https://x", Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	application.tasks.set("s1", "tok", func() {})
+	application.tasks.setProgress("s1", "Codex · 运行命令")
+	done := make(chan struct{})
+	go func() {
+		application.weixin.waitWithProgress(accountID, "s1")
+		close(done)
+	}()
+	select {
+	case got := <-gateway.sent:
+		if !strings.Contains(got, "运行命令") {
+			t.Fatalf("进度内容错误: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("没有收到进度推送")
+	}
+	select {
+	case got := <-gateway.sent:
+		t.Fatalf("进度没变化不应重复推送: %q", got)
+	case <-time.After(150 * time.Millisecond):
+	}
+	application.tasks.setProgress("s1", "Codex · 编辑文件")
+	select {
+	case got := <-gateway.sent:
+		if !strings.Contains(got, "编辑文件") {
+			t.Fatalf("进度内容错误: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("进度变化后应再次推送")
+	}
+	application.tasks.clear("s1", "tok")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("任务结束后应停止等待")
 	}
 }

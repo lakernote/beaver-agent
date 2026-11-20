@@ -13,12 +13,14 @@ import (
 // weixinManager coordinates worker lifecycles. Login, inbox and task behavior
 // live in focused sibling files; protocol and persistence stay in their packages.
 type weixinManager struct {
-	server   *Server
-	gateway  weixin.Gateway
-	mu       sync.Mutex
-	logins   map[string]*weixinLogin
-	pollers  map[string]weixinPoller
-	delivery map[string]struct{}
+	server  *Server
+	gateway weixin.Gateway
+	mu      sync.Mutex
+	logins  map[string]*weixinLogin
+	pollers map[string]weixinPoller
+	// delivery 的 bool 表示活跃投递协程结束前又收到了一次唤醒请求。
+	// 记录这个请求，才能避免“旧协程正退出、新请求看到它仍存在”时漏掉追问。
+	delivery map[string]bool
 }
 
 type weixinPoller struct {
@@ -27,7 +29,7 @@ type weixinPoller struct {
 }
 
 func newWeixinManager(server *Server, gateway weixin.Gateway) *weixinManager {
-	return &weixinManager{server: server, gateway: gateway, logins: make(map[string]*weixinLogin), pollers: make(map[string]weixinPoller), delivery: make(map[string]struct{})}
+	return &weixinManager{server: server, gateway: gateway, logins: make(map[string]*weixinLogin), pollers: make(map[string]weixinPoller), delivery: make(map[string]bool)}
 }
 
 func (manager *weixinManager) start() {

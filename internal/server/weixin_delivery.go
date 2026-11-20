@@ -13,10 +13,11 @@ import (
 func (manager *weixinManager) resumeDelivery(accountID string) {
 	manager.mu.Lock()
 	if _, exists := manager.delivery[accountID]; exists {
+		manager.delivery[accountID] = true
 		manager.mu.Unlock()
 		return
 	}
-	manager.delivery[accountID] = struct{}{}
+	manager.delivery[accountID] = false
 	manager.mu.Unlock()
 	if !manager.server.beginBackground() {
 		manager.mu.Lock()
@@ -26,15 +27,27 @@ func (manager *weixinManager) resumeDelivery(accountID string) {
 	}
 	go func() {
 		defer manager.server.completeBackground()
-		defer func() {
-			manager.mu.Lock()
-			delete(manager.delivery, accountID)
-			manager.mu.Unlock()
-		}()
-		// 投递期间成员可能又发来追问：循环到没有待发结果为止，避免追问的结果被漏掉。
-		for manager.deliverPending(accountID) {
-		}
+		manager.runDelivery(accountID, manager.deliverPending)
 	}()
+}
+
+// runDelivery 先投递到当前没有待发结果，再原子地处理“继续一轮”或释放所有权。
+// resumeDelivery 与这里共用 manager.mu，因此新请求要么留下唤醒标记，要么在
+// 旧协程删除标记后启动新协程，不会落在两者之间。
+func (manager *weixinManager) runDelivery(accountID string, deliver func(string) bool) {
+	for {
+		for deliver(accountID) {
+		}
+		manager.mu.Lock()
+		if manager.delivery[accountID] {
+			manager.delivery[accountID] = false
+			manager.mu.Unlock()
+			continue
+		}
+		delete(manager.delivery, accountID)
+		manager.mu.Unlock()
+		return
+	}
 }
 
 // deliverPending 等当前任务结束后，把最终结果发给成员；成功发送返回 true。
@@ -43,7 +56,7 @@ func (manager *weixinManager) deliverPending(accountID string) bool {
 	if err != nil || account.PendingMessageID == 0 || account.PendingMessageID <= account.DeliveredMessageID || account.CurrentSessionID == "" {
 		return false
 	}
-	_ = manager.server.tasks.wait(manager.server.ctx, account.CurrentSessionID)
+	manager.waitWithProgress(account.ID, account.CurrentSessionID)
 	if manager.server.ctx.Err() != nil {
 		return false
 	}
@@ -69,6 +82,38 @@ func (manager *weixinManager) deliverPending(accountID string) bool {
 	}
 	_ = manager.server.store.MarkWeixinDelivered(account.ID, account.PendingMessageID, time.Now())
 	return true
+}
+
+// 长任务期间的主动进度：每隔 interval 推送一次，最多 max 条，进度没变化就不打扰。
+// 条数有上限：iLink 对同一条入站消息的 context_token 只允许约 10 次回复（社区实测，见
+// Tencent/openclaw-weixin issue #81，非官方文档），超出返回 ret=-2。
+// 接收确认 1 条 + 进度最多 3 条，剩下的额度留给分段的最终结果。
+var (
+	weixinProgressInterval = 2 * time.Minute
+	weixinProgressMax      = 3
+)
+
+// waitWithProgress 等任务结束，期间按固定间隔把当前进度推送给成员。
+func (manager *weixinManager) waitWithProgress(accountID, sessionID string) {
+	startedAt := time.Now()
+	lastProgress := ""
+	for sent := 0; !manager.server.tasks.waitFor(manager.server.ctx, sessionID, weixinProgressInterval); {
+		if manager.server.ctx.Err() != nil {
+			return
+		}
+		progress := manager.server.tasks.progress(sessionID)
+		if sent >= weixinProgressMax || progress == "" || progress == lastProgress {
+			continue
+		}
+		account, err := manager.server.store.GetWeixinAccount(accountID)
+		if err != nil || !account.Enabled {
+			continue
+		}
+		text := fmt.Sprintf("⏳ 仍在执行（已 %d 分钟）\n🧭 进度：%s\n发送 /stop 可中断。", int(time.Since(startedAt).Minutes()), progress)
+		manager.send(account, account.UserID, account.PendingContextToken, text)
+		lastProgress = progress
+		sent++
+	}
 }
 
 func (manager *weixinManager) send(account store.WeixinAccount, userID, contextToken, text string) {
