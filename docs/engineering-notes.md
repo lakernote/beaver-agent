@@ -39,7 +39,7 @@ Runtime 校验并执行 → 结果回给模型 → 最终回答
 **错误示例**：
 
 ```text
-if userText requires current external data then call web_research
+if userText requires current external data then call web_search
 if contains(userText, "GitHub") then load github
 if matches(userText, "bug|修复") then load repair skill
 ```
@@ -69,34 +69,15 @@ entry {
 
 模型仍只接收 `ToolSpec`，Category 只返回页面展示。
 
-### 2.4 高层 `web_research` 统一联网研究
+### 2.4 联网研究：从大而全回到两个简单工具
 
-**问题文件**：`internal/builtin/tools/web_research.go`
-
-**旧方案**：模型先调用搜索，再自行选择网页读取工具，容易把搜索摘要当成事实，也容易在第二步停止。
-
-**为什么不合适**：小模型必须正确完成两个工具调用、来源选择和上下文控制，任一步都可能提前停止；单一 HTML 搜索 provider 也无法稳定承担天气、行情和 GitHub 指标等结构化实时事实。
-
-**当前方案**：
-
-- `web_research` 在一次调用内选择结构化适配器、聚合多个搜索 provider、读取来源、去重并返回稳定 source ID；
-- 模型只引用实际读取的 `sources`，不引用搜索摘要；
-- 天气、GitHub 仓库指标和行情作为不可见 adapter，仍由同一个高层工具返回统一证据；
-- 天气地点使用多个候选解析，容忍小模型把“降雨概率、出行建议”等请求词附在地点后；相对日期返回明确的来源时区日期；
-- 多源状态按可注册域名计算，同一网站的多个页面不冒充独立交叉验证；
-- 候选抓取失败自动补位，HTML 使用 DOM/字符集解析并只保留与问题相关的段落；
-- DNS 解析后校验并固定公开 IP，阻止私网跳转和 DNS rebinding；
-- 工具结果按深度设置 4K/7K/10K 字符证据预算，避免挤爆 16K 本地模型窗口。
-
-`web_research` 已在一次工具调用内完成来源读取，因此 Runner 不需要依赖模型自行完成第二个网页工具调用；工具返回的 `sources` 和 source ID 直接作为回答依据。
-
-默认使用 DuckDuckGo 与 Bing HTML 作为零配置后端并识别验证码/挑战页；生产环境可配置 `TAVILY_API_KEY`、`BEAVER_SEARXNG_URL` 或 `BRAVE_SEARCH_API_KEY`。配置型 API provider 优先，候选不足才调用 HTML 降级，provider 失败会保留诊断。`domains` 是抓取前后校验的硬白名单；官方资料请求通过显式 `source_scope=official` 保守筛选，不由 Runner 猜测用户意图。HTML provider 都失效且已有域名约束时，Runtime 尝试标准站点地图和官网入口；这条静态降级仍遵守 SSRF 与域名边界。可选 `BEAVER_READER_URL` 用于 PDF 或静态抓取无法提取正文的页面，`BEAVER_READER_API_KEY` 只通过请求头发送，不进入 Tool 结果。
+曾经实现过一个高层 `web_research`（多 provider、结构化适配器、引用整理，约 4000 行）。对个人轻量 Agent 来说维护成本远高于收益，现已删除，改为 `web_search` + `web_fetch`，并由 Runner 在“只有搜索摘要”时提醒模型读取原文。简单、可读、可学习优先。
 
 ### 2.5 把日期、星期和精确时间混为一谈
 
 **旧问题**：每次都调用时间工具会增加一次模型循环；完全依赖 Prompt 又可能把精确时间说错。
 
-**解决**：答案本身需要当前日期、星期、时区或精确时间，而且其他业务工具没有给出可靠时间基准时，模型调用 `current_time`。天气等联网查询由 `web_research` 按来源时区返回明确日期，无需仅因出现“今天/明天”再增加一次模型循环。是否调用仍由模型根据 Tool 描述决定，代码不扫描用户问题。
+**解决**：答案本身需要当前日期、星期、时区或精确时间，而且其他业务工具没有给出可靠时间基准时，模型调用 `current_time`。无需仅因出现“今天/明天”再增加一次模型循环。是否调用仍由模型根据 Tool 描述决定，代码不扫描用户问题。
 
 ### 2.6 小模型在带 Tool Schema 时返回空内容
 

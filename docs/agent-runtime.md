@@ -115,13 +115,12 @@ Prompt 规则只能降低模型服从直接或间接注入的概率，不能替�
 
 Skill 默认使用渐进式加载：模型先看到简短元数据；任务相关时加载 `load_skill`，再读取指定 Skill 全文。用户明确 `@skill:name` 时，运行时直接把已选正文注入本轮 Prompt。
 
-内置 Tool 首轮只提供一个稳定小核心和 `load_tools`。可写会话直接给出 `read`、`shell`、`edit`、`write`；只读会话直接给出 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时直接加入 `load_skill`，避免额外一次 Loader 往返。`load_tools` 只描述仍有未加载工具的 information、files、execution、web、skills 能力组，不向小模型列出组内函数名；`current_time`、`calculate`、`web_research` 和额外文件检索按需注册。Loader 结果不是任务证据，下一轮会临时隐藏 Loader，使用 `tool_choice=auto` 并由 Runner 验证真实工具调用。`@tool:name` 是用户显式选择的整轮工具作用域，不是语义路由；后续模型回合不会突然恢复整套核心 Schema。当历史上下文仍包含某个内置 function call 时，Runtime 会恢复其 Schema，防止历史与本轮 `tools` 不一致。MCP 默认同样先提供服务元数据；用户明确输入 `@mcp:id` 时，如果该 MCP 不超过 5 个工具且 Schema 体积较小，Runtime 直接预加载，否则仍调用 `search_mcp_tools(id, query)` 按需检索，一次最多注册 5 个最相关 Schema。若 Provider 在 HTTP 200 的 SSE 尾部返回工具校验错误，Trace 会保留原始错误并关闭流式重试一次。空响应只在本轮已成功执行真实工具后才可进入 `none` 收敛；Loader 结果和历史工具结果不会触发收敛。
+内置 Tool 首轮只提供一个稳定小核心和 `load_tools`。可写会话直接给出 `read`、`shell`、`edit`、`write`；只读会话直接给出 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时直接加入 `load_skill`，避免额外一次 Loader 往返。`load_tools` 只描述仍有未加载工具的 information、files、execution、web、skills 能力组，不向小模型列出组内函数名；`current_time`、`calculate`、`web_search`、`web_fetch` 和额外文件检索按需注册。Loader 结果不是任务证据，下一轮会临时隐藏 Loader，使用 `tool_choice=auto` 并由 Runner 验证真实工具调用。`@tool:name` 是用户显式选择的整轮工具作用域，不是语义路由；后续模型回合不会突然恢复整套核心 Schema。当历史上下文仍包含某个内置 function call 时，Runtime 会恢复其 Schema，防止历史与本轮 `tools` 不一致。MCP 默认同样先提供服务元数据；用户明确输入 `@mcp:id` 时，如果该 MCP 不超过 5 个工具且 Schema 体积较小，Runtime 直接预加载，否则仍调用 `search_mcp_tools(id, query)` 按需检索，一次最多注册 5 个最相关 Schema。若 Provider 在 HTTP 200 的 SSE 尾部返回工具校验错误，Trace 会保留原始错误并关闭流式重试一次。空响应只在本轮已成功执行真实工具后才可进入 `none` 收敛；Loader 结果和历史工具结果不会触发收敛。
 
-`web_research` 对模型保持一个 Schema。模型根据语义提供 `data_type`、`subject` 和可选的 `time_range_days`；复杂通用研究可以给出 2–4 条互补 `subqueries`，Runtime 去重后按 quick/normal/deep 将实际查询硬限制为 2/5/8 条，避免模型和 provider 数量造成无界扇出。Runtime 再运行对应结构化 adapter 与搜索/抓取管线；只有模型选择 `auto` 或旧模型没有填写类型时，才使用词法识别做兼容兜底。零配置时使用 DuckDuckGo、Bing HTML；生产环境可以在 **设置 → 工具与 MCP → Web Research** 配置 Tavily、SearXNG、Brave Search、Firecrawl、Reader 和 GitHub Token，也可继续使用 `TAVILY_API_KEY`（或 `BEAVER_TAVILY_API_KEY`）、`BEAVER_SEARXNG_URL`、`BRAVE_SEARCH_API_KEY`、`FIRECRAWL_API_KEY` 等环境变量。页面配置由后端 Provider 注册表驱动，保存值优先于环境变量，并在下一轮 Agent 调用时读取，无需重启。配置型 API provider 优先，候选不足才调用 HTML 降级。Firecrawl 可同时提供 Search API 与动态页面/PDF 正文降级；Reader 仍可作为独立提取服务。每个来源记录命中的检索式，前端可以展开查看检索溯源。`domains` 是抓取前后校验的硬白名单，官方资料请求使用 `source_scope=official`；搜索候选全部失效时，在白名单内通过标准 `sitemap.xml` 恢复站内文档发现，再降级到官网常见入口。候选优先覆盖不同网站域名，短英文实体会先由 Wikidata 返回候选消歧，同时追加精确拼写、meaning 与普通网页查询；版本化文档与正文近重复来源会合并并保留较新版本。中文公司名先由 Wikidata 做实体消歧，再读取行情；GitHub REST API 被限流时自动降级到 GitHub 官方搜索页和仓库页。这些内部凭据不会被写进 Prompt、`web_research` 参数、结果、Trace 或 Bootstrap 响应；但页面保存值仍位于权限受限的本地 SQLite，Shell、Codex 和 stdio MCP 也以同一个服务账号运行，因此它们不是面向不可信租户的隔离边界。
+`web_search` 只返回候选摘要，`web_fetch` 读取原始网页；Runner 在搜索后提醒模型读取原始来源再回答（见 `web.go`）。
 
-页面会从同一用户轮次的真实 `web_research` 结果建立来源表。即使小模型只输出 `[S1]` 而漏抄 `citation` 中的 Markdown URL，Web 回答区也会把该编号确定性地链接到对应来源；映射在新用户轮次开始时清空，防止跨轮串用编号。如果同一轮连续调用多次并把同一编号分配给不同 URL，页面不会猜测映射，只渲染模型明确复制的链接。
 
-GitHub/GitLab 能力分三层：公开事实由 `web_research` 读取；本地版本控制由 `shell` 调用服务账号 PATH 中的 `git`、`gh` 或 `glab`；仓库平台的私有对象与工作流优先通过 MCP。GitHub 官方远端 MCP 可在 **设置 → 工具与 MCP** 填写 Bearer Token。GitLab 官方远端 MCP 依赖 OAuth 动态客户端注册；HTTP MCP 的 OAuth 授权由浏览器完成，Beaver Runtime 的 access/refresh token 独立保存在 `ea_mcp_oauth_credentials`，Codex Runtime 则通过 app-server 原生 OAuth credential store 管理。MCP 密钥会从 Bootstrap/API 响应中遮蔽，本地凭证数据库仍依赖文件权限和磁盘加密，不应把它当成独立密钥保险库。
+GitHub/GitLab 能力分三层：公开事实由 `web_fetch` 读取；本地版本控制由 `shell` 调用服务账号 PATH 中的 `git`、`gh` 或 `glab`；仓库平台的私有对象与工作流优先通过 MCP。GitHub 官方远端 MCP 可在 **设置 → 工具与 MCP** 填写 Bearer Token。MCP 密钥会从 Bootstrap/API 响应中遮蔽，本地凭证数据库仍依赖文件权限和磁盘加密，不应把它当成独立密钥保险库。
 
 工作区文件能力直接编译进 Go 二进制：`read` 分段读取文本，`grep` 搜索内容，`find` 查找文件，`ls` 查看目录，`edit` 做唯一精确替换，`write` 创建文件或在已读取版本未变化时完整覆盖。默认工作区固定为 `~/.beaver/workspaces/default`，不使用进程 CWD。用户在页面创建会话时可以选择服务器上已存在的目录；绝对路径保存在会话中，后续多轮固定使用它。每轮从会话派生独立 Environment，文件、Shell 和 stdio MCP 共用该工作区，路径解析会校验真实符号链接目标并拒绝越界。
 
@@ -151,7 +150,6 @@ mcp__<server_id>__<remote_tool_name>
 
 页面的“测试当前模型”会执行一次无副作用的两阶段诊断：要求模型返回当前协议的原生 Function Call，回传固定工具结果，再确认模型能读取结果并生成最终文本。把工具调用 JSON 写在普通回答里的模型会被明确判定为不适合，而不会显示成“连接成功”。Beaver Profile 只有当前执行配置的测试指纹匹配时才能启用或入队；修改 Provider、协议、URL、模型、密钥、推理或上下文关键项后必须重新测试。Codex Profile 不走这项门禁，因为工具循环由 app-server 自己管理。
 
-`cmd/beaver-eval` 复用服务端完全相同的 Provider-independent 资格流程，可以对逗号分隔的多个模型重复运行并输出通过率、平均输入/输出 Token、耗时和首个可见输出时间。它只评价模型能否满足 Beaver 的最小协议，不把单一诊断题包装成完整 Agent 能力排名；代码修改、检索、长上下文和恢复能力应由独立任务集继续评测。
 
 ## Trace
 

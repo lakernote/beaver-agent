@@ -142,7 +142,7 @@ function runSession(sessionId):
 ### 不允许写在代码里的语义路由
 
 ```text
-if userText requires current external data: call web_research
+if userText requires current external data: call web_search
 if regex matches "修复|bug": load repair skill
 if userText == "继续": rewrite the user prompt
 if userText contains "GitHub": force GitHub MCP
@@ -174,9 +174,9 @@ MCP   = 外部系统提供什么能力（按需连接的 Tool）
 
 Beaver 只管理 MCP 自己的私有包和连接配置，不管理项目语言运行时。MCP 所需的 Node.js、Python 或 Java 从服务器 PATH 检测；缺少时给出明确提示，由宿主机、容器或项目工具链提供。这样扩展能力不会演变成另一套 SDK 管理器。
 
-内置 Tool 使用分层渐进披露。可写会话首轮采用 PI 风格的小核心：`read`、`shell`、`edit`、`write`；只读会话首轮提供 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时额外直接提供 `load_skill`，避免先加载工具再加载正文的双重往返；`current_time`、`calculate`、`web_research` 和其余文件检索能力通过 `load_tools` 的短能力目录按需加入。组是工具自身的声明式元数据，代码不读取用户自然语言做关键词或正则路由。Loader 成功后，下一步会临时隐藏 Loader，使用 `tool_choice=auto` 交给 Provider，再由 Runner 验证至少调用一个真实工具，避免把“已经加载”误当成“已经核验”。用户在输入框明确 `@tool:name` 时只按准确名称预加载，并在整轮保持这个工具作用域。保留在协议历史中的内置 function call 会自动恢复同名 Schema。工具模式的空响应或 SSE 尾部工具校验错误可以从流式切到非流式重试一次；只有本轮已成功执行真实工具时，空正文重试才可进入无工具收敛。
+内置 Tool 使用分层渐进披露。可写会话首轮采用 PI 风格的小核心：`read`、`shell`、`edit`、`write`；只读会话首轮提供 `read`、`grep`、`find`、`ls`。存在已启用 Skill 时额外直接提供 `load_skill`，避免先加载工具再加载正文的双重往返；`current_time`、`calculate`、`web_search`、`web_fetch` 和其余文件检索能力通过 `load_tools` 的短能力目录按需加入。组是工具自身的声明式元数据，代码不读取用户自然语言做关键词或正则路由。Loader 成功后，下一步会临时隐藏 Loader，使用 `tool_choice=auto` 交给 Provider，再由 Runner 验证至少调用一个真实工具，避免把“已经加载”误当成“已经核验”。用户在输入框明确 `@tool:name` 时只按准确名称预加载，并在整轮保持这个工具作用域。保留在协议历史中的内置 function call 会自动恢复同名 Schema。工具模式的空响应或 SSE 尾部工具校验错误可以从流式切到非流式重试一次；只有本轮已成功执行真实工具时，空正文重试才可进入无工具收敛。
 
-`web_research` 是直接可见的高层 Research Tool，在一次受控执行中返回实际读取的 sources、发布时间、抓取时间、可点击 citation 和本次调用内稳定的 source ID；`S1`、`S2` 只是来源编号，不是质量排名。模型必须根据 sources 回答并使用 `[S1]` 等 ID 引用，缺失字段不能补猜。低层搜索和网页读取不再作为模型工具暴露。模型通过 `data_type`、`subject` 和 `time_range_days` 表达语义意图；复杂通用研究还可提交 2–4 条互补 `subqueries`，Runtime 统一去重并按 quick/normal/deep 限制为 2/5/8 条实际查询。Tool 内部确定性执行天气、GitHub、行情或实体 adapter；只有 `data_type=auto` 时才保留词法兼容兜底。Runner 不扫描用户文本，也不替模型选择 Tool。
+`web_search` 只返回候选摘要，`web_fetch` 读取原始网页；Runner 在搜索后提醒模型读取原始来源再回答（见 `web.go`）。`S1` 之类的来源编号只是引用标记，不代表质量排名。
 
 联网研究内部采用 `structured adapters → bounded query plan → API search providers → HTML search fallback → domain sitemap fallback → safe fetch/reader → relevance extraction → evidence packet`。后端 Provider 注册表同时驱动运行时与设置页；管理员可在页面配置并真实测试 Tavily、SearXNG、Brave Search、Firecrawl、Reader 和 GitHub Token，保存后下一轮生效，也可使用对应环境变量。Firecrawl 同时参与候选发现，并在普通 HTTP、HTML 或 PDF 提取失败时提供正文降级。只有 API provider 候选不足时才降级到 DuckDuckGo/Bing HTML。每个来源保留 `discovered_by`，工具结果同时返回实际成功的检索式，便于 Trace 和前端解释“为什么找到它”。`domains` 是抓取前后都校验的硬白名单，`source_scope=official` 会在未指定域名时保守筛选实体官网和官方代码仓库；搜索引擎全部失效且已知域名时，标准 `sitemap.xml` 仍能恢复站内文档发现。候选按跨 provider 共识、问题相关性、来源形态和网站域名多样性排序，抓取失败时继续读取后续候选；短英文实体使用精确拼写与消歧查询，英文相关段落匹配包含轻量词形归一化，版本化文档和正文近重复页面会合并。证据状态按可注册域名区分“跨网站域名”和“同站多页面”，但不同域名不自动代表事实已独立确认。抓取器在连接前解析并校验全部目标 IP，拒绝私网、环回、链路本地和 DNS rebinding；最终工具结果按研究深度限制证据字符预算，避免压垮本地模型上下文。页面和 Bootstrap 只返回密钥配置状态，不回传明文。
 
@@ -184,7 +184,7 @@ Skill 和 MCP 同样先提供简短元数据：模型调用 `load_skill` 后读�
 
 ## 7. Trace 的 Review 标准
 
-当前联网入口是高层 `web_research`：它在一次受控执行中完成结构化数据查询、多 provider 搜索、来源读取、去重、相关段落压缩和证据整理，并返回带稳定 ID 与 URL 的 `sources`。模型不再直接使用低层搜索或网页读取工具。
+当前联网入口是 `web_search` + `web_fetch` 两个简单工具：搜索发现候选，抓取读取原文，由模型决定何时读取。
 
 每次真实模型调用必须能回答：
 

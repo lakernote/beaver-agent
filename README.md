@@ -140,16 +140,6 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 - 支持排队、暂停、继续、停止和重启恢复；默认并发 4、单轮最长 12 小时，均可在设置中调整。
 - Git 项目可按会话创建 worktree；源仓库有未提交修改时不会自动隔离。Codex 会话还支持 thread 继续、读取和分支。
 
-开发环境可以用同一套原生 Function Calling 门禁比较多个模型。命令会按通过率、平均 Token、总耗时和首个可见输出时间排序；API Key 只允许通过指定环境变量读取，不接受命令行明文：
-
-```bash
-go run ./cmd/beaver-eval \
-  -models qwen3:14b-16k,qwen2.5-coder:14b \
-  -runs 3
-```
-
-这是一项模型/Provider 资格测试，不等同于完整 coding-agent 排行榜；真实 Agent 质量还应使用固定仓库任务、隔离工作区和可验证断言评测。
-
 <p align="center">
   <img src="docs/images/model-and-tools.png" alt="Beaver 运行时与模型设置" width="920" />
 </p>
@@ -158,18 +148,15 @@ go run ./cmd/beaver-eval \
 
 内置 Skills 聚焦项目理解、问题分析、代码审查、API 设计、测试与 E2E、事故 RCA、发布工程、文档维护、Git worktree 和网页研究。GitHub、Context7、Playwright、OpenAI Docs 等 MCP 可在设置页启用，供两个 Runtime 共用。
 
-默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。网页研究会先发现候选，再读取原始来源后回答。
+默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。搜索后会提醒模型读取原始来源再回答。
 
-设计取舍和后续测试建设见 [PI 对照复审：搜索边界与 Agent 测试版图](docs/pi-runtime-review.md)。
-
-`web_research` 是模型唯一可见的联网入口。模型根据语义填写数据类型、查询对象、时间范围和研究深度；复杂问题还可给出 2–4 条互补检索式。Runtime 负责限制查询预算，并执行结构化数据读取、多源搜索、安全抓取、去重和引用整理。Tavily、SearXNG、Brave Search、Firecrawl、Reader 与 GitHub Token 可在 **设置 → 工具与 MCP → Web Research** 配置并执行真实连接测试，保存后下一轮立即生效；也可以继续使用环境变量部署。
+联网只有两个简单工具：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。
 
 ### GitHub、GitLab 与 Git 凭据
 
-- 查询公开 GitHub 仓库指标不要求登录。若要提高 `web_research` 的 GitHub API 限额，可在 **设置 → 工具与 MCP → Web Research** 填写 GitHub Token，或为服务进程设置 `GITHUB_TOKEN` / `GH_TOKEN`。页面配置优先于环境变量，保存后下一轮立即生效。
+- 公开仓库信息可通过 `web_fetch` 读取；需要更高限额或私有数据时使用 GitHub MCP 或服务器上的 `gh`。
 - 访问私有仓库、Issue、Pull Request 和 Actions，优先到 **设置 → 工具与 MCP → GitHub** 配置官方 GitHub MCP。Bearer Token 保存在 `~/.beaver/beaver.db`，接口和页面只返回已配置状态，不回传明文；数据库本身不是独立的密钥保险库，应继续依赖目录权限、磁盘加密和低权限服务账号。
 - 本地 clone、diff、commit 等操作直接使用服务器的 `git`。HTTPS 凭据、SSH Key 和 `gh`/`glab` 登录态属于运行 Beaver 的系统账号，不属于模型配置；请以同一个服务账号执行 `gh auth login` 或 `glab auth login`。GitHub/GitLab CLI 未安装时，Beaver 不会自动安装。
-- HTTP/Streamable HTTP MCP 支持 OAuth：设置页会把浏览器授权回调落到 Beaver 服务，Beaver Runtime 将 access/refresh token 保存到 SQLite 独立的 `ea_mcp_oauth_credentials` 表；Codex Runtime 通过 app-server 原生 OAuth 登录，并由 Codex 自己保存凭证。远程 Linux 不需要公网 callback，只要浏览器能访问服务地址（例如 `http://内网IP:8080`）；生产环境应使用 HTTPS 内网域名，并在 OAuth provider 注册最终显示的完整 callback URL。
 
 Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环境变量也会传给子进程。不要使用个人全权限 PAT；生产环境应使用专用账号、最小权限和可轮换凭据。
 
@@ -181,7 +168,7 @@ Shell、Codex 和 stdio MCP 继承服务账号的系统权限，服务进程环�
 
 - 支持多人扫码绑定，并为每个人选择新会话的默认项目。
 - 文字、图片、PDF、代码文件和带微信文字的语音进入与 Web 相同的任务队列；语音没有文字时提示补发说明，不下载音频，也不运行语音识别。
-- “新会话”“状态”“停止”“项目列表”等控制指令不调用模型；微信回传状态和结果，完整 Trace 保留在 Web。
+- 斜杠指令 `/new`、`/status`、`/stop`、`/projects`、`/project 名称`、`/help` 不调用模型；其他文字一律交给 Agent。微信回传状态和结果，完整 Trace 保留在 Web。
 
 ## 部署前注意
 
