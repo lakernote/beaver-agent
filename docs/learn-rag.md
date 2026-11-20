@@ -46,21 +46,9 @@
 
 ## 5. 把它接成 Agent 的工具
 
-RAG 在 Agent 里就是**一个普通的 Tool**——这正是“循环简单、能力靠工具扩展”的好处：
+RAG 在 Agent 里就是**一个普通的 Tool**：模型决定何时检索，工具返回最相关的片段。本项目里 `internal/search` 的真实使用者是长期记忆（[learn-memory.md](learn-memory.md)）：`memory_search` 就是“检索工具”的完整范例，可以直接对照阅读 `internal/builtin/tools/memory.go`。
 
-```go
-// 伪代码：knowledge_search 工具
-Tool{
-    Spec: ToolSpec{Name: "knowledge_search", Description: "在本地知识库中检索相关片段", Parameters: {query: string}},
-    Execute: func(ctx, args) {
-        results := index.Search(args.Query, 5)
-        // 把每个结果格式化为：[来源:行号] 片段文本
-        return NewToolResult(formatted)
-    },
-}
-```
-
-在 `internal/builtin/tools/catalog.go` 里注册即可，模型会在需要私有资料时自己调用。目前 `internal/search` 已被长期记忆（[learn-memory.md](learn-memory.md)）复用；知识库工具尚未注册；接线时需要决定索引哪个目录（例如项目的 `docs/` 或工作区）以及何时重建索引。
+如果你想接入自己的文档库，只需仿照它再写一个工具：启动时 `BuildFromDir(目录)` 建索引，工具里调用 `index.Search(query, 5)`，把 `[来源:行号] 片段` 返回给模型。
 
 ## 6. 练习
 

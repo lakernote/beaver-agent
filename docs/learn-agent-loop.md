@@ -20,7 +20,7 @@
 | 类型 | 作用 |
 | --- | --- |
 | `Message` | 对话中的一条消息，角色为 system / user / assistant / tool；assistant 消息可携带 `ToolCalls` |
-| `Tool` | 一个工具 = `ToolSpec`（名字、描述、JSON Schema，告诉模型怎么用）+ `Execute`（真正干活的 Go 函数） |
+| `Tool` | 一个工具 = `ToolSpec`（名字、描述、JSON Schema，告诉模型怎么用）+ `Run`（真正干活的 Go 函数，返回文本） |
 | `Model` | 只有一个方法 `Generate(ctx, Request) (Response, error)`；OpenAI / Anthropic / Ollama 各写一个适配器 |
 
 Skill 只是提示词，MCP 服务器只是“动态注册的一批 Tool”，所以循环本身不需要为它们加分支。
@@ -56,4 +56,4 @@ Skill 只是提示词，MCP 服务器只是“动态注册的一批 Tool”，�
 3. 把 `defaultMaxSteps` 改成 2，让任务需要 3 步，观察“最后一步不暴露工具”的行为。
 4. 阅读 `internal/builtin/tools/web.go`：它是一个完整的、带注释的工具范例。
 
-下一篇：[学习：RAG](learn-rag.md)。
+下一篇：[学习：任务规划 todo_write](learn-todo.md)。
