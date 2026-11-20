@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/lakernote/beaver-agent/internal/appenv"
 	"github.com/lakernote/beaver-agent/internal/store"
@@ -26,7 +27,9 @@ func TestCodexMemoryContextInjectsRelevantNotes(t *testing.T) {
 	if err := application.memory.Save("", "personal", "部署环境使用 Docker Compose"); err != nil {
 		t.Fatal(err)
 	}
-	session, err := database.CreateSession(store.CreateSessionParams{Title: "t", Runtime: store.RuntimeCodex})
+	session, err := database.CreateSession(store.CreateSessionParams{
+		ID: "codex-memory-session", Title: "t", Runtime: store.RuntimeCodex, CreatedAt: time.Now(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
