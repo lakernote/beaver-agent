@@ -95,7 +95,7 @@ type VideoItem struct {
 
 type Message struct {
 	Sequence     int64         `json:"seq,omitempty"`
-	MessageID    int64         `json:"message_id,omitempty"`
+	MessageID    string        `json:"message_id,omitempty"`
 	FromUserID   string        `json:"from_user_id,omitempty"`
 	ToUserID     string        `json:"to_user_id,omitempty"`
 	ClientID     string        `json:"client_id,omitempty"`
@@ -106,6 +106,39 @@ type Message struct {
 	Items        []MessageItem `json:"item_list,omitempty"`
 	ContextToken string        `json:"context_token,omitempty"`
 	RunID        string        `json:"run_id,omitempty"`
+}
+
+// UnmarshalJSON keeps the uint64 message_id lossless while accepting both
+// numeric and quoted decimal forms used by iLink-compatible gateways.
+func (message *Message) UnmarshalJSON(data []byte) error {
+	type messageAlias Message
+	var wire struct {
+		messageAlias
+		MessageID json.RawMessage `json:"message_id"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*message = Message(wire.messageAlias)
+	rawID := bytes.TrimSpace(wire.MessageID)
+	if len(rawID) == 0 || bytes.Equal(rawID, []byte("null")) {
+		return nil
+	}
+	value := string(rawID)
+	if rawID[0] == '"' {
+		if err := json.Unmarshal(rawID, &value); err != nil {
+			return fmt.Errorf("解析微信 message_id: %w", err)
+		}
+	}
+	if value == "" {
+		return nil
+	}
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return fmt.Errorf("解析微信 message_id %q: %w", value, err)
+	}
+	message.MessageID = strconv.FormatUint(parsed, 10)
+	return nil
 }
 
 type Updates struct {

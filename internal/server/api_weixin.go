@@ -110,30 +110,9 @@ func (server *Server) saveWeixinSettings(response http.ResponseWriter, request *
 	if !decodeJSON(response, request, &input) {
 		return
 	}
-	current, err := server.store.GetWeixinSettings()
-	if err != nil {
+	if _, err := server.weixin.setEnabled(input.Enabled, time.Now()); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
-	}
-	now := time.Now()
-	wasEnabled := current.Enabled
-	current.Enabled = input.Enabled
-	if input.Enabled && !wasEnabled {
-		current.IgnoreBefore = now
-	} else if !input.Enabled {
-		if err := server.store.SuppressPendingWeixinDeliveries(now); err != nil {
-			writeError(response, http.StatusInternalServerError, err.Error())
-			return
-		}
-	}
-	if _, err := server.store.SaveWeixinSettings(current); err != nil {
-		writeError(response, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if input.Enabled {
-		server.weixin.start()
-	} else {
-		server.weixin.stopAll()
 	}
 	server.getWeixin(response, request)
 }
@@ -218,8 +197,7 @@ func (server *Server) updateWeixinAccount(response http.ResponseWriter, request 
 
 func (server *Server) deleteWeixinAccount(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	server.weixin.stopAccount(id)
-	if err := server.store.DeleteWeixinAccount(id); err != nil {
+	if err := server.weixin.deleteAccount(id); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -246,7 +224,7 @@ func (server *Server) retryWeixinDelivery(response http.ResponseWriter, request 
 		writeError(response, http.StatusConflict, "请先启用微信远程和这个成员")
 		return
 	}
-	if account.PendingMessageID == 0 || account.PendingMessageID <= account.DeliveredMessageID {
+	if compareWeixinMessageID(account.PendingMessageID, "") == 0 || compareWeixinMessageID(account.PendingMessageID, account.DeliveredMessageID) <= 0 {
 		writeError(response, http.StatusConflict, "当前没有等待回传的结果")
 		return
 	}
@@ -255,10 +233,10 @@ func (server *Server) retryWeixinDelivery(response http.ResponseWriter, request 
 }
 
 func weixinDeliveryStatus(account store.WeixinAccount, sessionStatus store.SessionStatus, delivering bool) string {
-	if account.PendingMessageID == 0 {
+	if compareWeixinMessageID(account.PendingMessageID, "") == 0 {
 		return "idle"
 	}
-	if account.PendingMessageID <= account.DeliveredMessageID {
+	if compareWeixinMessageID(account.PendingMessageID, account.DeliveredMessageID) <= 0 {
 		return "delivered"
 	}
 	if isActiveSessionStatus(sessionStatus) {

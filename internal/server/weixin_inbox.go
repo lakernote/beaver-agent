@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,14 +72,14 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		return
 	}
 	messageID := message.MessageID
-	if messageID == 0 {
-		messageID = message.Sequence
+	if compareWeixinMessageID(messageID, "") == 0 && message.Sequence > 0 {
+		messageID = strconv.FormatInt(message.Sequence, 10)
 	}
-	if messageID == 0 {
-		messageID = time.Now().UnixNano()
+	if compareWeixinMessageID(messageID, "") == 0 {
+		messageID = strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
 	message.MessageID = messageID
-	if messageID <= account.PendingMessageID || messageID <= account.DeliveredMessageID {
+	if compareWeixinMessageID(messageID, account.PendingMessageID) <= 0 || compareWeixinMessageID(messageID, account.DeliveredMessageID) <= 0 {
 		return
 	}
 	createdAt := time.Time{}
@@ -99,7 +100,7 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		refreshed, refreshErr := manager.server.store.RefreshWeixinReplyContext(account.ID, message.ContextToken, createdAt, time.Now())
 		if refreshErr == nil && refreshed {
 			account.ReplyContextToken = message.ContextToken
-			if account.PendingMessageID > account.DeliveredMessageID {
+			if compareWeixinMessageID(account.PendingMessageID, account.DeliveredMessageID) > 0 {
 				// 先回复本条命令/提示，再唤醒最终结果，避免时间顺序颠倒。
 				defer manager.resumeDelivery(account.ID)
 			}
@@ -109,17 +110,22 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	if err != nil {
 		if errors.Is(err, errWeixinVoiceNeedsText) {
 			_ = manager.server.store.RecordWeixinMessage(account.ID, createdAt, time.Now())
-			manager.send(account, message.FromUserID, message.ContextToken, "这条语音没有取得微信文字，因此没有启动 Agent。\n请补发文字说明后重试。")
+			manager.send(ctx, account, message.FromUserID, message.ContextToken, "这条语音没有取得微信文字，因此没有启动 Agent。\n请补发文字说明后重试。")
 			return
 		}
-		manager.send(account, message.FromUserID, message.ContextToken, "消息处理失败："+err.Error())
+		manager.send(ctx, account, message.FromUserID, message.ContextToken, "消息处理失败："+err.Error())
 		return
 	}
 	if text == "" && len(attachments) == 0 {
-		manager.send(account, message.FromUserID, message.ContextToken, "暂时无法识别这条消息；当前支持文字、带微信文字的语音、图片、PDF 和文本/代码文件。")
+		manager.send(ctx, account, message.FromUserID, message.ContextToken, "暂时无法识别这条消息；当前支持文字、带微信文字的语音、图片、PDF 和文本/代码文件。")
 		return
 	}
-	if manager.handleCommand(account, message, text) {
+	// 停用成员会取消 poller context。附件解码可能耗时，
+	// 所以在任何命令或任务副作用前再检查一次。
+	if ctx.Err() != nil {
+		return
+	}
+	if manager.handleCommand(ctx, account, message, text) {
 		return
 	}
 	if text == "" {
@@ -127,7 +133,7 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	}
 	sessionID, err := manager.submit(account, message, text, attachments, messageID, createdAt)
 	if err != nil {
-		manager.send(account, message.FromUserID, message.ContextToken, "任务未提交："+err.Error())
+		manager.send(ctx, account, message.FromUserID, message.ContextToken, "任务未提交："+err.Error())
 		return
 	}
 	acknowledgement := weixinTaskAcknowledgement("")
@@ -139,7 +145,7 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		active, limit := manager.server.scheduler.snapshot()
 		acknowledgement += fmt.Sprintf("\n⏳ 当前 %d 个任务在运行（并发上限 %d），你的任务正在排队，轮到后会自动开始。", active, limit)
 	}
-	manager.send(account, message.FromUserID, message.ContextToken, acknowledgement)
+	manager.send(ctx, account, message.FromUserID, message.ContextToken, acknowledgement)
 	// 先发送接收确认，再启动结果等待，避免极短任务的最终结果先于确认消息到达。
 	manager.resumeDelivery(account.ID)
 }

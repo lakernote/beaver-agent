@@ -92,7 +92,7 @@ func TestDecodeWeixinImageCreatesSharedAttachment(t *testing.T) {
 	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 0, 'I', 'H', 'D', 'R'}
 	gateway := &fakeWeixinGateway{media: png}
 	manager := &weixinManager{gateway: gateway}
-	text, attachments, err := manager.decodeWeixinMessage(context.Background(), store.WeixinAccount{}, weixin.Message{MessageID: 42, Items: []weixin.MessageItem{{Type: 2, ImageItem: &weixin.ImageItem{Media: &weixin.CDNMedia{FullURL: "https://novac2c.cdn.weixin.qq.com/image"}}}}})
+	text, attachments, err := manager.decodeWeixinMessage(context.Background(), store.WeixinAccount{}, weixin.Message{MessageID: "42", Items: []weixin.MessageItem{{Type: 2, ImageItem: &weixin.ImageItem{Media: &weixin.CDNMedia{FullURL: "https://novac2c.cdn.weixin.qq.com/image"}}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestWeixinSlashCommands(t *testing.T) {
 }
 
 func TestWeixinDeliveryStatus(t *testing.T) {
-	account := store.WeixinAccount{PendingMessageID: 8}
+	account := store.WeixinAccount{PendingMessageID: "8"}
 	if actual := weixinDeliveryStatus(account, "running", false); actual != "processing" {
 		t.Fatalf("运行中的任务状态错误: %q", actual)
 	}
@@ -191,20 +191,26 @@ func TestWeixinDeliveryStatus(t *testing.T) {
 	if actual := weixinDeliveryStatus(account, "idle", false); actual != "pending" {
 		t.Fatalf("待重试状态错误: %q", actual)
 	}
-	account.DeliveredMessageID = 8
+	account.DeliveredMessageID = "8"
 	if actual := weixinDeliveryStatus(account, "idle", false); actual != "delivered" {
 		t.Fatalf("已送达状态错误: %q", actual)
 	}
 }
 
 func TestWeixinDeliveryWakeupDuringExitStartsAnotherPass(t *testing.T) {
-	manager := &weixinManager{delivery: map[string]bool{"account": false}}
+	ctx, cancel := context.WithCancel(context.Background())
+	current := &weixinDelivery{ctx: ctx, cancel: cancel, generation: 1}
+	manager := &weixinManager{
+		delivery:           map[string]*weixinDelivery{"account": current},
+		deliveryGeneration: map[string]uint64{"account": 1},
+		deliveryStopped:    make(map[string]bool),
+	}
 	firstPass := make(chan struct{})
 	releaseFirstPass := make(chan struct{})
 	done := make(chan struct{})
 	passes := 0
 	go func() {
-		manager.runDelivery("account", func(string) bool {
+		manager.runDelivery(ctx, "account", 1, func(context.Context, string, uint64) bool {
 			passes++
 			if passes == 1 {
 				close(firstPass)
@@ -229,6 +235,28 @@ func TestWeixinDeliveryWakeupDuringExitStartsAnotherPass(t *testing.T) {
 	manager.mu.Unlock()
 	if exists {
 		t.Fatal("delivery ownership was not released")
+	}
+}
+
+func TestWeixinDeliveryExitReleasesOwnershipWithWakeDecision(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	current := &weixinDelivery{ctx: ctx, cancel: cancel, generation: 7}
+	manager := &weixinManager{
+		delivery:           map[string]*weixinDelivery{"account": current},
+		deliveryGeneration: map[string]uint64{"account": 7},
+		deliveryStopped:    make(map[string]bool),
+	}
+	if manager.consumeDeliveryWakeOrRelease(ctx, "account", 7) {
+		t.Fatal("worker without a wake request should exit")
+	}
+	manager.mu.Lock()
+	_, exists := manager.delivery["account"]
+	manager.mu.Unlock()
+	if exists {
+		t.Fatal("exit decision returned before releasing delivery ownership")
+	}
+	if ctx.Err() == nil {
+		t.Fatal("released delivery context was not canceled")
 	}
 }
 
@@ -310,7 +338,7 @@ func TestSavingEnabledWeixinChannelDoesNotSuppressPendingResult(t *testing.T) {
 	if err := database.SaveWeixinAccount(store.WeixinAccount{ID: "bot-pending", Label: "小王", UserID: "user-pending", Token: "token-pending", BaseURL: weixin.DefaultBaseURL, Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if err := database.SetWeixinTask("bot-pending", "session-pending", 88, "context-pending", now, now); err != nil {
+	if err := database.SetWeixinTask("bot-pending", "session-pending", "88", "context-pending", now, now); err != nil {
 		t.Fatal(err)
 	}
 	request, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/v1/channels/weixin", bytes.NewBufferString(`{"enabled":true}`))
@@ -330,8 +358,46 @@ func TestSavingEnabledWeixinChannelDoesNotSuppressPendingResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-pending" {
+	if account.DeliveredMessageID != "" || account.ReplyContextToken != "context-pending" {
 		t.Fatalf("重复保存启用状态不应吞掉待回传结果: %+v", account)
+	}
+}
+
+func TestConcurrentWeixinChannelTogglesKeepLifecycleInSync(t *testing.T) {
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
+	defer application.Shutdown(context.Background())
+
+	var workers sync.WaitGroup
+	for index := 0; index < 20; index++ {
+		for _, enabled := range []bool{true, false} {
+			workers.Add(1)
+			go func(enabled bool) {
+				defer workers.Done()
+				if _, err := application.weixin.setEnabled(enabled, time.Now()); err != nil {
+					t.Errorf("set enabled=%v: %v", enabled, err)
+				}
+			}(enabled)
+		}
+	}
+	workers.Wait()
+	settings, err := database.GetWeixinSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	application.weixin.mu.Lock()
+	stopped := application.weixin.channelStopped
+	application.weixin.mu.Unlock()
+	if stopped == settings.Enabled {
+		t.Fatalf("persisted enabled=%v but channelStopped=%v", settings.Enabled, stopped)
 	}
 }
 
@@ -361,7 +427,7 @@ func TestWeixinAPIShowsCurrentTaskAndRetriesDelivery(t *testing.T) {
 	if err := database.SaveWeixinAccount(store.WeixinAccount{ID: "bot-current", Label: "值班同学", UserID: "user-current", Token: "token-current", BaseURL: weixin.DefaultBaseURL, Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if err := database.SetWeixinTask("bot-current", "session-current", 99, "context-current", now, now); err != nil {
+	if err := database.SetWeixinTask("bot-current", "session-current", "99", "context-current", now, now); err != nil {
 		t.Fatal(err)
 	}
 
@@ -393,7 +459,7 @@ func TestWeixinAPIShowsCurrentTaskAndRetriesDelivery(t *testing.T) {
 		if loadErr != nil {
 			t.Fatal(loadErr)
 		}
-		if account.DeliveredMessageID == 99 {
+		if account.DeliveredMessageID == "99" {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -473,6 +539,60 @@ func (gateway *typingRecordingGateway) SendTyping(_ context.Context, _ weixin.Ac
 	return nil
 }
 
+type lifecycleTypingGateway struct {
+	fakeWeixinGateway
+	typingStarted  chan struct{}
+	typingCanceled chan struct{}
+	typingStopped  chan struct{}
+	sent           chan string
+}
+
+func (gateway *lifecycleTypingGateway) TypingTicket(context.Context, weixin.Account, string, string) (string, error) {
+	return "typing-ticket", nil
+}
+
+func (gateway *lifecycleTypingGateway) SendTyping(ctx context.Context, _ weixin.Account, _ string, _ string, typing bool) error {
+	if !typing {
+		gateway.typingStopped <- struct{}{}
+		return nil
+	}
+	gateway.typingStarted <- struct{}{}
+	<-ctx.Done()
+	gateway.typingCanceled <- struct{}{}
+	return ctx.Err()
+}
+
+func (gateway *lifecycleTypingGateway) SendText(_ context.Context, _ weixin.Account, _ string, _ string, text string) error {
+	gateway.sent <- text
+	return nil
+}
+
+func waitWeixinDelivery(t *testing.T, manager *weixinManager, accountID string, after uint64) *weixinDelivery {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		manager.mu.Lock()
+		current := manager.delivery[accountID]
+		manager.mu.Unlock()
+		if current != nil && current.generation > after {
+			return current
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("delivery generation after %d did not start", after)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func waitWeixinDeliveryDone(t *testing.T, current *weixinDelivery) {
+	t.Helper()
+	select {
+	case <-current.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("delivery generation did not stop")
+	}
+}
+
 func newWeixinDeliveryFixture(t *testing.T) (*Server, *store.Store, string, string) {
 	t.Helper()
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
@@ -501,7 +621,7 @@ func newWeixinDeliveryFixture(t *testing.T) (*Server, *store.Store, string, stri
 	if err := database.SaveWeixinAccount(store.WeixinAccount{ID: accountID, Label: "成员", UserID: "delivery-user", Token: "token", BaseURL: "https://example.test", Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if err := database.SetWeixinTask(accountID, sessionID, 42, "context-A", now, now); err != nil {
+	if err := database.SetWeixinTask(accountID, sessionID, "42", "context-A", now, now); err != nil {
 		t.Fatal(err)
 	}
 	return application, database, accountID, sessionID
@@ -513,7 +633,7 @@ func TestWeixinDeliverySkipsSupersededPendingGeneration(t *testing.T) {
 	application.weixin.gateway = gateway
 	now := time.Now().UTC()
 	retry := application.weixin.deliverPendingWithWait(accountID, func(string, string) {
-		if err := database.SetWeixinTask(accountID, sessionID, 43, "context-B", now, now); err != nil {
+		if err := database.SetWeixinTask(accountID, sessionID, "43", "context-B", now, now); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -526,7 +646,7 @@ func TestWeixinDeliverySkipsSupersededPendingGeneration(t *testing.T) {
 	default:
 	}
 	account, err := database.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-B" {
+	if err != nil || account.PendingMessageID != "43" || account.DeliveredMessageID != "" || account.ReplyContextToken != "context-B" {
 		t.Fatalf("new pending generation changed: %+v err=%v", account, err)
 	}
 }
@@ -545,7 +665,7 @@ func TestWeixinDeliveryCASPreservesMessageArrivingDuringSend(t *testing.T) {
 		t.Fatal("delivery did not reach gateway")
 	}
 	now := time.Now().UTC()
-	if err := database.SetWeixinTask(accountID, sessionID, 43, "context-B", now, now); err != nil {
+	if err := database.SetWeixinTask(accountID, sessionID, "43", "context-B", now, now); err != nil {
 		t.Fatal(err)
 	}
 	close(gateway.release)
@@ -566,7 +686,7 @@ func TestWeixinDeliveryCASPreservesMessageArrivingDuringSend(t *testing.T) {
 		t.Fatal("frozen result was not sent")
 	}
 	account, err := database.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-B" {
+	if err != nil || account.PendingMessageID != "43" || account.DeliveredMessageID != "" || account.ReplyContextToken != "context-B" {
 		t.Fatalf("old delivery cleared new generation: %+v err=%v", account, err)
 	}
 }
@@ -580,7 +700,7 @@ func TestWeixinNewWaitsForPendingFinalResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := weixin.Message{FromUserID: account.UserID, ContextToken: "context-new"}
-	if !application.weixin.handleCommand(account, message, "/new") {
+	if !application.weixin.handleCommand(context.Background(), account, message, "/new") {
 		t.Fatal("/new was not handled")
 	}
 	select {
@@ -601,7 +721,7 @@ func TestWeixinInboundCommandRefreshesReplyContextWithoutPendingTask(t *testing.
 	application, database, accountID, _ := newWeixinDeliveryFixture(t)
 	gateway := &recordingGateway{sent: make(chan string, 2)}
 	application.weixin.gateway = gateway
-	marked, err := database.MarkWeixinDelivered(accountID, 42, time.Now())
+	marked, err := database.MarkWeixinDelivered(accountID, "42", time.Now())
 	if err != nil || !marked {
 		t.Fatalf("mark initial delivery: marked=%v err=%v", marked, err)
 	}
@@ -615,12 +735,51 @@ func TestWeixinInboundCommandRefreshesReplyContextWithoutPendingTask(t *testing.
 	}
 	createdAt := time.Now().Add(time.Second)
 	application.weixin.handleMessage(context.Background(), account, settings, weixin.Message{
-		MessageID: 43, MessageType: 1, FromUserID: account.UserID, ContextToken: "context-help",
+		MessageID: "43", MessageType: 1, FromUserID: account.UserID, ContextToken: "context-help",
 		CreatedAtMS: createdAt.UnixMilli(), Items: []weixin.MessageItem{{Type: 1, TextItem: &weixin.TextItem{Text: "/help"}}},
 	})
 	account, err = database.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID != 42 || account.DeliveredMessageID != 42 || account.ReplyContextToken != "context-help" {
+	if err != nil || account.PendingMessageID != "42" || account.DeliveredMessageID != "42" || account.ReplyContextToken != "context-help" {
 		t.Fatalf("inbound command did not refresh independent reply context: %+v err=%v", account, err)
+	}
+}
+
+func TestWeixinInboundWithoutContextTokenPreservesLatestReplyContext(t *testing.T) {
+	application, database, accountID, _ := newWeixinDeliveryFixture(t)
+	gateway := &recordingGateway{sent: make(chan string, 2)}
+	application.weixin.gateway = gateway
+	// Keep the submitted turn queued so delivery cannot race the state assertion.
+	application.scheduler.mu.Lock()
+	application.scheduler.active = application.scheduler.limit
+	application.scheduler.mu.Unlock()
+	now := time.Now().UTC()
+	const sessionID = "empty-context-session"
+	if _, err := database.CreateSession(store.CreateSessionParams{
+		ID: sessionID, Title: "空回复凭据", Runtime: store.RuntimeCodex,
+		ProfileID: store.DefaultCodexProfileID, Workspace: t.TempDir(), CreatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.SetWeixinCurrentSession(accountID, sessionID, now); err != nil {
+		t.Fatal(err)
+	}
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, err := database.GetWeixinSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const messageID = "18446744073709551615"
+	application.weixin.handleMessage(context.Background(), account, settings, weixin.Message{
+		MessageID: messageID, MessageType: 1, FromUserID: account.UserID,
+		CreatedAtMS: now.Add(time.Second).UnixMilli(),
+		Items:       []weixin.MessageItem{{Type: 1, TextItem: &weixin.TextItem{Text: "继续检查"}}},
+	})
+	account, err = database.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID != messageID || account.ReplyContextToken != "context-A" {
+		t.Fatalf("empty inbound token erased latest reply context: %+v err=%v", account, err)
 	}
 }
 
@@ -666,6 +825,199 @@ func TestWeixinWaitShowsAndStopsTyping(t *testing.T) {
 	}
 }
 
+func TestStoppingWeixinAccountCancelsFinalSendAndOldGeneration(t *testing.T) {
+	application, database, accountID, _ := newWeixinDeliveryFixture(t)
+	gateway := &blockingRecordingGateway{started: make(chan struct{}), release: make(chan struct{}), sent: make(chan string, 2)}
+	application.weixin.gateway = gateway
+	application.weixin.resumeDelivery(accountID)
+	first := waitWeixinDelivery(t, application.weixin, accountID, 0)
+	select {
+	case <-gateway.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first delivery did not reach the gateway")
+	}
+
+	application.weixin.stopAccount(accountID)
+	waitWeixinDeliveryDone(t, first)
+	select {
+	case value := <-gateway.sent:
+		t.Fatalf("canceled generation sent a final result: %q", value)
+	default:
+	}
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil || compareWeixinMessageID(account.DeliveredMessageID, account.PendingMessageID) >= 0 {
+		t.Fatalf("canceled generation marked the result delivered: %+v err=%v", account, err)
+	}
+
+	// 同一成员重新启用后会创建新代。旧代的 defer 只能观察自己的
+	// generation + ctx，既不会借用新 ctx 发送，也不会删除新代所有权。
+	application.weixin.restartAccount(accountID)
+	second := waitWeixinDelivery(t, application.weixin, accountID, first.generation)
+	close(gateway.release)
+	select {
+	case value := <-gateway.sent:
+		if !strings.Contains(value, "A 的最终答案") {
+			t.Fatalf("new generation sent an unexpected result: %q", value)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("new delivery generation did not send the pending result")
+	}
+	waitWeixinDeliveryDone(t, second)
+	account, err = database.GetWeixinAccount(accountID)
+	if err != nil || account.DeliveredMessageID != account.PendingMessageID {
+		t.Fatalf("new generation did not commit delivery: %+v err=%v", account, err)
+	}
+	select {
+	case value := <-gateway.sent:
+		t.Fatalf("old generation was revived by the new context: %q", value)
+	default:
+	}
+}
+
+func TestWeixinLifecycleStopsTypingForDisableGlobalStopAndDelete(t *testing.T) {
+	tests := []struct {
+		name string
+		stop func(*testing.T, *Server, *store.Store, string)
+	}{
+		{
+			name: "disable member",
+			stop: func(t *testing.T, application *Server, database *store.Store, accountID string) {
+				t.Helper()
+				account, err := database.GetWeixinAccount(accountID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := database.UpdateWeixinAccount(accountID, account.Label, false, account.ProjectID, time.Now()); err != nil {
+					t.Fatal(err)
+				}
+				application.weixin.restartAccount(accountID)
+			},
+		},
+		{
+			name: "disable channel",
+			stop: func(t *testing.T, application *Server, database *store.Store, _ string) {
+				t.Helper()
+				if _, err := database.SaveWeixinSettings(store.WeixinSettings{Enabled: false}); err != nil {
+					t.Fatal(err)
+				}
+				application.weixin.stopAll()
+			},
+		},
+		{
+			name: "delete member",
+			stop: func(t *testing.T, application *Server, database *store.Store, accountID string) {
+				t.Helper()
+				application.weixin.stopAccount(accountID)
+				if err := database.DeleteWeixinAccount(accountID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			application, database, accountID, sessionID := newWeixinDeliveryFixture(t)
+			gateway := &lifecycleTypingGateway{
+				typingStarted: make(chan struct{}, 2), typingCanceled: make(chan struct{}, 2),
+				typingStopped: make(chan struct{}, 2), sent: make(chan string, 2),
+			}
+			application.weixin.gateway = gateway
+			application.tasks.set(sessionID, "typing-lifecycle", func() {})
+			application.weixin.resumeDelivery(accountID)
+			current := waitWeixinDelivery(t, application.weixin, accountID, 0)
+			select {
+			case <-gateway.typingStarted:
+			case <-time.After(2 * time.Second):
+				t.Fatal("typing did not start")
+			}
+
+			test.stop(t, application, database, accountID)
+			select {
+			case <-gateway.typingCanceled:
+			case <-time.After(2 * time.Second):
+				t.Fatal("typing request did not observe account cancellation")
+			}
+			waitWeixinDeliveryDone(t, current)
+			application.tasks.clear(sessionID, "typing-lifecycle")
+			select {
+			case text := <-gateway.sent:
+				t.Fatalf("stopped account sent a final result: %q", text)
+			default:
+			}
+			select {
+			case <-gateway.typingStopped:
+				t.Fatal("old generation sent typing cleanup after it was invalidated")
+			default:
+			}
+		})
+	}
+}
+
+func TestStoppingWeixinAccountCancelsAutomationSend(t *testing.T) {
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
+	defer application.Shutdown(context.Background())
+	now := time.Now().UTC()
+	const accountID = "automation-cancel-account"
+	if err := database.SaveWeixinAccount(store.WeixinAccount{
+		ID: accountID, Label: "成员", UserID: "automation-user", Token: "token",
+		BaseURL: "https://example.test", Enabled: true, ReplyContextToken: "reply-token",
+		IgnoreBefore: now, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.SaveWeixinSettings(store.WeixinSettings{Enabled: true, IgnoreBefore: now}); err != nil {
+		t.Fatal(err)
+	}
+	gateway := &blockingRecordingGateway{started: make(chan struct{}), release: make(chan struct{}), sent: make(chan string, 1)}
+	application.weixin.gateway = gateway
+	application.weixin.start()
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		result <- application.weixin.sendChunks(account, account.UserID, account.ReplyContextToken, "automation result")
+	}()
+	select {
+	case <-gateway.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation send did not reach the gateway")
+	}
+	application.weixin.stopAccount(accountID)
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("automation cancellation error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation send did not observe account cancellation")
+	}
+	select {
+	case text := <-gateway.sent:
+		t.Fatalf("stopped account sent automation text: %q", text)
+	default:
+	}
+
+	// QR 重新绑定会直接把持久化开关改回启用，然后只重启该成员。
+	// 内存中的 channelStopped 不能让这个合法重启永久失效。
+	application.weixin.stopAll()
+	application.weixin.restartAccount(accountID)
+	if _, ok := application.weixin.outboundContext(accountID); !ok {
+		t.Fatal("persisted enabled channel did not restart the account outbound context")
+	}
+}
+
 func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {
@@ -689,6 +1041,7 @@ func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 	if _, err := database.SaveWeixinSettings(store.WeixinSettings{Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
+	application.weixin.start()
 	task := store.AutomationTask{Name: "每日巡检", NotifyWeixin: []string{weixinMemberID("user-a")}}
 	application.notifyAutomationMembers(task, "⏰ 定时任务完成 · 每日巡检\n\n一切正常")
 	select {

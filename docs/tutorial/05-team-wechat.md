@@ -118,7 +118,7 @@ go test ./internal/server -run 'TestTaskResourceKeys' -v
 
 重复、历史或非当前用户的消息不应下载附件、更不应启动 Agent。过滤越靠前，越少产生不必要的网络、存储与模型成本。
 
-消息 ID 会与 `PendingMessageID`、`DeliveredMessageID` 比较，防止相同更新重复执行。启用通道时的 `IgnoreBefore` 还会阻止离线期间积压的旧消息突然变成新任务。
+消息 ID 会与 `PendingMessageID`、`DeliveredMessageID` 比较，防止相同更新重复执行。iLink 线上的 `message_id` 是 `uint64`，且不同兼容实现可能发 JSON number 或 string；协议层会同时接受两种形式，校验后统一保存为十进制字符串。不把它放进 `int64` 或浮点数，才能无损处理 `18446744073709551615` 这样的最大值。启用通道时的 `IgnoreBefore` 还会阻止离线期间积压的旧消息突然变成新任务。
 
 ### 5.2 语音为什么不自行做识别
 
@@ -175,15 +175,16 @@ go test ./internal/server -run TestWeixinSlashCommands -v
 
 ## 8. 为什么投递要循环
 
-`resumeDelivery(accountID)` 保证同一账号只有一个投递协程。`delivery[accountID]` 的 bool 还是一个“再跑一轮”的唤醒位：活跃协程存在时的新请求不会只返回，而会把它设为 true。投递逻辑可概括为：
+`resumeDelivery(accountID)` 保证同一账号只有一个活跃投递代。`delivery[accountID]` 保存该 worker 的 `context`、单调递增的 `generation` 和“再跑一轮”的 `wake` 位：活跃 worker 存在时的新请求不会再启一个协程，而是留下唤醒信号。投递逻辑可概括为：
 
 ```go
-for {
-    for manager.deliverPending(accountID) {
+worker := currentDelivery(accountID) // 不可变的 ctx + generation 快照
+for worker.isCurrent() {
+    for worker.isCurrent() && manager.deliverPending(worker) {
     }
     // 与 resumeDelivery 共用同一把锁：有唤醒就清零并继续，
-    // 没有唤醒才删除所有权并退出。
-    if consumeWakeupOrRelease(accountID) == released {
+    // 没有唤醒才按 generation 释放所有权并退出。
+    if consumeWakeupOrRelease(worker) == released {
         return
     }
 }
@@ -198,10 +199,10 @@ T3  A 刚结束，用户又提交追问 B
 T4a 投递侧先冻结 A：发送 A；发送期间 B 到达时，条件更新不会清掉 B
 T4b 提交侧先完整登记 B：A 已被最新单槽覆盖，不再发送 A
 T5  两条分支都会等待并发送 B
-T7  没有更多待发结果且没有新唤醒，原子释放所有权后退出
+T6  没有更多待发结果且没有新唤醒，原子释放所有权后退出
 ```
 
-只循环 `deliverPending` 仍不够：最后一次检查返回“没有待发结果”到协程删除所有权之间，还有一个很窄的退出窗口。唤醒位与所有权释放共用 `manager.mu`，保证新请求要么被旧协程再处理一轮，要么在所有权删除后启动新协程。
+只循环 `deliverPending` 仍不够：最后一次检查返回“没有待发结果”到协程删除所有权之间，还有一个很窄的退出窗口。唤醒位与所有权释放共用 `manager.mu`，保证新请求要么被旧协程再处理一轮，要么在所有权删除后启动新协程。释放时还必须比对 `generation`：旧协程的 `defer` 即使晚到，也不能删掉已经启动的新一代。
 
 同一 Session 连续两轮还有代际竞态。`accountDeliveryGate` 让“提交新轮次 + 更新 pending 槽”和“读取 pending + 冻结最终文本”对同一成员互斥；网络发送不持锁。发送完成后，`MarkWeixinDelivered` 只在数据库里的 `pending_message_id` 仍等于本次快照时推进 `DeliveredMessageID`。因此绝不允许“拿 B 的回复凭据发送 A”或“把尚未结束的 B 提前标成已送达”。
 
@@ -209,13 +210,15 @@ T7  没有更多待发结果且没有新唤醒，原子释放所有权后退出
 
 每条通过过滤的有效入站消息都会独立更新 `ReplyContextToken`，不改变 pending/delivered 代际；因此 `/status`、`/help` 或普通文字都能为尚未送达的结果提供更新的回复凭据。`deliverPending` 在发送前读取最新凭据和冻结文本，分段发送失败会有限重试，成功后才用条件更新推进 `DeliveredMessageID`。
 
+停用成员、全局关闭通道或删除绑定时，管理器会同时取消该成员的 poller 和当前投递代。typing、进度、最终结果和 Automation 都只使用启动时捕获的上下文；旧请求被取消后不会去管理器里拿新上下文，因此停用后快速重启也不会让旧协程“借尸还魂”。
+
 微信只投递最终可见文字，不把完整 Trace 发到聊天中。详细模型、工具和错误事件仍留在 Web 会话页面。
 
 运行相关测试：
 
 ```bash
-go test ./internal/server -run 'TestWeixin(FinalText|Acknowledgement|MessageFiltering|APIShowsCurrentTask|DeliveryWakeup|DeliverySkips|DeliveryCAS|NewWaits|InboundCommand|WaitShows)|TestLongTaskPushesProgress' -v
-go test ./internal/weixin -run 'TestGatewayTypingProtocol' -v
+go test ./internal/server -run 'TestWeixin(FinalText|Acknowledgement|MessageFiltering|APIShowsCurrentTask|DeliveryWakeup|DeliverySkips|DeliveryCAS|NewWaits|InboundCommand|WaitShows|Lifecycle)|TestStoppingWeixin|TestLongTaskPushesProgress' -v
+go test ./internal/weixin -run 'Test(GatewayTypingProtocolAndBusinessError|MessageIDAcceptsNumberAndStringWithoutUint64Loss)' -v
 ```
 
 ## 9. Automation 也是创建会话

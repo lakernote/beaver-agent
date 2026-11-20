@@ -10,7 +10,7 @@ import (
 	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
-func (manager *weixinManager) submit(account store.WeixinAccount, message weixin.Message, text string, attachments []store.Attachment, messageID int64, createdAt time.Time) (string, error) {
+func (manager *weixinManager) submit(account store.WeixinAccount, message weixin.Message, text string, attachments []store.Attachment, messageID string, createdAt time.Time) (string, error) {
 	// 同一会话会被连续复用。提交必须与投递侧冻结上一轮结果互斥，否则新轮
 	// 已写入历史但 pending 槽尚未更新时，投递侧可能把两代数据拼在一起。
 	gate := manager.accountDeliveryGate(account.ID)

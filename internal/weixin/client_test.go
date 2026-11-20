@@ -109,6 +109,22 @@ func TestGatewayTypingProtocolAndBusinessError(t *testing.T) {
 	}
 }
 
+func TestMessageIDAcceptsNumberAndStringWithoutUint64Loss(t *testing.T) {
+	const messageID = "18446744073709551615"
+	for _, payload := range []string{
+		`{"ret":0,"msgs":[{"message_id":18446744073709551615,"message_type":1}]}`,
+		`{"ret":0,"msgs":[{"message_id":"18446744073709551615","message_type":1}]}`,
+	} {
+		var updates Updates
+		if err := json.Unmarshal([]byte(payload), &updates); err != nil {
+			t.Fatalf("unmarshal %s: %v", payload, err)
+		}
+		if len(updates.Messages) != 1 || updates.Messages[0].MessageID != messageID || updates.Messages[0].MessageType != 1 {
+			t.Fatalf("message_id was not preserved: %+v", updates.Messages)
+		}
+	}
+}
+
 func TestDecryptMediaSupportsWeixinKeyEncodings(t *testing.T) {
 	key := []byte("0123456789abcdef")
 	plain := []byte("weixin attachment")

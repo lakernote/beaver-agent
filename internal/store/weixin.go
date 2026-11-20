@@ -57,8 +57,8 @@ func (store *Store) SaveWeixinAccount(value WeixinAccount) error {
 	ON CONFLICT(user_id) DO UPDATE SET
 		id=excluded.id,label=excluded.label,token=excluded.token,base_url=excluded.base_url,
 		enabled=excluded.enabled,sync_buf='',project_id=excluded.project_id,ignore_before=excluded.ignore_before,
-		last_seen_at='',last_message_at='',last_sequence=0,pending_message_id=0,
-		delivered_message_id=0,reply_context_token='',updated_at=excluded.updated_at`,
+		last_seen_at='',last_message_at='',last_sequence=0,pending_message_id='',
+		delivered_message_id='',reply_context_token='',updated_at=excluded.updated_at`,
 		value.ID, value.Label, value.UserID, value.Token, value.BaseURL, boolInt(value.Enabled),
 		value.SyncBuffer, value.CurrentSessionID, value.ProjectID, formatOptionalTime(value.IgnoreBefore),
 		formatOptionalTime(value.LastSeenAt), formatOptionalTime(value.LastMessageAt), value.LastSequence,
@@ -156,6 +156,9 @@ func (store *Store) RecordWeixinMessage(id string, messageAt, now time.Time) err
 // RefreshWeixinReplyContext stores the newest credential independently from task
 // delivery generations, so normal replies and automation notifications can share it.
 func (store *Store) RefreshWeixinReplyContext(id, contextToken string, messageAt, now time.Time) (bool, error) {
+	if messageAt.IsZero() {
+		messageAt = now
+	}
 	result, err := store.db.Exec(`UPDATE weixin_accounts SET reply_context_token=?,last_message_at=?,updated_at=? WHERE id=?`,
 		contextToken, formatOptionalTime(messageAt), formatTime(now), id)
 	if err != nil {
@@ -165,14 +168,19 @@ func (store *Store) RefreshWeixinReplyContext(id, contextToken string, messageAt
 	return changed > 0, err
 }
 
-func (store *Store) SetWeixinTask(id, sessionID string, messageID int64, contextToken string, messageAt, now time.Time) error {
+func (store *Store) SetWeixinTask(id, sessionID, messageID, contextToken string, messageAt, now time.Time) error {
+	if messageAt.IsZero() {
+		messageAt = now
+	}
+	emptyContextToken := strings.TrimSpace(contextToken) == ""
 	_, err := store.db.Exec(`UPDATE weixin_accounts SET current_session_id=?,pending_message_id=?,
-		reply_context_token=?,last_message_at=?,updated_at=? WHERE id=?`, sessionID, messageID,
-		contextToken, formatOptionalTime(messageAt), formatTime(now), id)
+		reply_context_token=CASE WHEN ?=1 THEN reply_context_token ELSE ? END,
+		last_message_at=?,updated_at=? WHERE id=?`, sessionID, messageID, boolInt(emptyContextToken), contextToken,
+		formatOptionalTime(messageAt), formatTime(now), id)
 	return err
 }
 
-func (store *Store) MarkWeixinDelivered(id string, messageID int64, now time.Time) (bool, error) {
+func (store *Store) MarkWeixinDelivered(id, messageID string, now time.Time) (bool, error) {
 	result, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=?,updated_at=?
 		WHERE id=? AND pending_message_id=?`, messageID, formatTime(now), id, messageID)
 	if err != nil {

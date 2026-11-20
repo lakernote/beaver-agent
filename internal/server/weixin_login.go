@@ -168,14 +168,15 @@ func (manager *weixinManager) pollLogin(ctx context.Context, id string) {
 			}
 			message := "绑定成功"
 			// 通道未启用时轮询不会启动，成员发消息没人处理；绑定成功就顺手启用。
-			if settings, err := manager.server.store.GetWeixinSettings(); err == nil && !settings.Enabled {
-				settings.Enabled, settings.IgnoreBefore = true, now
-				if _, err := manager.server.store.SaveWeixinSettings(settings); err == nil {
-					message = "绑定成功，微信通道已自动启用"
-				}
+			changed, enableErr := manager.setEnabled(true, now)
+			if enableErr == nil && changed {
+				message = "绑定成功，微信通道已自动启用"
 			}
 			manager.updateLogin(id, "confirmed", message, baseURL)
-			manager.restartAccount(account.ID)
+			if enableErr != nil {
+				// 若保存通道开关失败，已启用的旧配置仍可以尝试恢复该成员。
+				manager.restartAccount(account.ID)
+			}
 			return
 		case "expired":
 			manager.updateLogin(id, "expired", "二维码已过期，请重新生成", "")

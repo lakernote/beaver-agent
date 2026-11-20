@@ -183,8 +183,8 @@ CREATE TABLE IF NOT EXISTS weixin_accounts (
   last_seen_at TEXT NOT NULL DEFAULT '',
   last_message_at TEXT NOT NULL DEFAULT '',
   last_sequence INTEGER NOT NULL DEFAULT 0,
-  pending_message_id INTEGER NOT NULL DEFAULT 0,
-  delivered_message_id INTEGER NOT NULL DEFAULT 0,
+  pending_message_id TEXT NOT NULL DEFAULT '',
+  delivered_message_id TEXT NOT NULL DEFAULT '',
   reply_context_token TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

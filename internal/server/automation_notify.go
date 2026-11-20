@@ -45,6 +45,10 @@ func (server *Server) notifyAutomationMembers(task store.AutomationTask, text st
 			if err != nil || !account.Enabled {
 				continue
 			}
+			if strings.TrimSpace(account.ReplyContextToken) == "" {
+				log.Printf("定时任务通知微信跳过 task=%s member=%s: 成员尚无可用回复凭据", task.ID, account.Label)
+				continue
+			}
 			// 主动推送沿用成员最近一条消息的 context_token；token 过期时微信可能拒收，
 			// 此时让成员给机器人发任意一条消息即可刷新。
 			if err := server.weixin.sendChunks(account, account.UserID, account.ReplyContextToken, text); err != nil {

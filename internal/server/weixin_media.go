@@ -99,7 +99,7 @@ func downloadedWeixinAttachment(name, declared string, data []byte) (store.Attac
 	return store.Attachment{ID: newID(), Name: name, MIMEType: mimeType, Kind: kind, Size: int64(len(data)), Data: data}, nil
 }
 
-func weixinImageName(messageID int64, data []byte) string {
+func weixinImageName(messageID string, data []byte) string {
 	extension := ".img"
 	switch strings.Split(http.DetectContentType(data), ";")[0] {
 	case "image/png":
@@ -111,7 +111,7 @@ func weixinImageName(messageID int64, data []byte) string {
 	case "image/webp":
 		extension = ".webp"
 	}
-	return fmt.Sprintf("weixin-image-%d%s", messageID, extension)
+	return fmt.Sprintf("weixin-image-%s%s", messageID, extension)
 }
 
 func defaultWeixinMediaPrompt(attachments []store.Attachment) string {

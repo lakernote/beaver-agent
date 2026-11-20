@@ -277,8 +277,8 @@ type WeixinAccount struct {
 	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
 	LastMessageAt      time.Time `json:"lastMessageAt,omitempty"`
 	LastSequence       int64     `json:"-"`
-	PendingMessageID   int64     `json:"-"`
-	DeliveredMessageID int64     `json:"-"`
+	PendingMessageID   string    `json:"-"`
+	DeliveredMessageID string    `json:"-"`
 	ReplyContextToken  string    `json:"-"`
 	CreatedAt          time.Time `json:"createdAt"`
 	UpdatedAt          time.Time `json:"updatedAt"`
