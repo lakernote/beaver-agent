@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/lakernote/beaver-agent/internal/agent"
+	"github.com/lakernote/beaver-agent/internal/redact"
 	"github.com/lakernote/beaver-agent/internal/store"
-	"github.com/lakernote/beaver-agent/internal/tracevalue"
 )
 
 func (server *Server) newTraceObserver(id string, turn int, usage *store.Usage, onTraceError func(error)) agent.Observer {
@@ -117,7 +117,7 @@ func userTurnCount(messages []store.Message) int {
 // 凭据字段。Trace 会展示 Codex JSONL 原始包络，不能因此把 token/password
 // 等秘密长期写进 SQLite。
 func redactTraceAttachmentData(value string) string {
-	return tracevalue.Sanitize(value)
+	return redact.Sanitize(value)
 }
 
 // modelRequestShape 只提取 Trace 所需的结构数据，不在运行时重新估算 Token。

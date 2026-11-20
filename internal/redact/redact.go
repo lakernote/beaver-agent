@@ -1,5 +1,5 @@
-// Package tracevalue prepares structured runtime values for persistent traces.
-package tracevalue
+// Package redact 在写入 Trace 前脱敏并截断结构化值（去掉附件数据与凭据字段）。
+package redact
 
 import (
 	"encoding/json"

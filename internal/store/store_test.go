@@ -85,7 +85,7 @@ func TestOpenMigratesLegacyCompactionSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = database.Exec(`CREATE TABLE ea_compactions (
+	_, err = database.Exec(`CREATE TABLE compactions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		session_id TEXT NOT NULL,
 		seq INTEGER NOT NULL,
@@ -110,7 +110,7 @@ func TestOpenMigratesLegacyCompactionSchema(t *testing.T) {
 	}
 	defer store.Close()
 	var columns int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_compactions') WHERE name='split_turn'`).Scan(&columns); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('compactions') WHERE name='split_turn'`).Scan(&columns); err != nil {
 		t.Fatal(err)
 	}
 	if columns != 1 {
@@ -489,13 +489,13 @@ func TestPurgeExpiredSessionsCascadesHistoryButKeepsActiveSessions(t *testing.T)
 		t.Fatalf("活动会话不应被清理: %v", err)
 	}
 	var count int
-	if err := value.db.QueryRow(`SELECT COUNT(*) FROM ea_messages WHERE session_id='expired'`).Scan(&count); err != nil || count != 0 {
+	if err := value.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE session_id='expired'`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("过期会话消息未级联清理: count=%d err=%v", count, err)
 	}
-	if err := value.db.QueryRow(`SELECT COUNT(*) FROM ea_events WHERE session_id='expired'`).Scan(&count); err != nil || count != 0 {
+	if err := value.db.QueryRow(`SELECT COUNT(*) FROM events WHERE session_id='expired'`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("过期会话 Trace 未级联清理: count=%d err=%v", count, err)
 	}
-	if err := value.db.QueryRow(`SELECT COUNT(*) FROM ea_attachments WHERE message_id NOT IN (SELECT id FROM ea_messages)`).Scan(&count); err != nil || count != 0 {
+	if err := value.db.QueryRow(`SELECT COUNT(*) FROM attachments WHERE message_id NOT IN (SELECT id FROM messages)`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("过期会话附件未级联清理: count=%d err=%v", count, err)
 	}
 }

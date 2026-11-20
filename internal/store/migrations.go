@@ -6,11 +6,11 @@ func (store *Store) init() error {
 	schema := `
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
-CREATE TABLE IF NOT EXISTS ea_settings (
+CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value_json BLOB NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_auth_users (
+CREATE TABLE IF NOT EXISTS auth_users (
   username TEXT PRIMARY KEY,
   password_salt BLOB NOT NULL,
   password_hash BLOB NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS ea_auth_users (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_skills (
+CREATE TABLE IF NOT EXISTS skills (
   name TEXT PRIMARY KEY,
   description TEXT NOT NULL,
   content TEXT NOT NULL,
@@ -26,25 +26,25 @@ CREATE TABLE IF NOT EXISTS ea_skills (
   builtin INTEGER NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_mcp (
+CREATE TABLE IF NOT EXISTS mcp (
   id TEXT PRIMARY KEY,
   config_json BLOB NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_projects (
+CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   is_default INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_project_directories (
-  project_id TEXT NOT NULL REFERENCES ea_projects(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS project_directories (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   path TEXT NOT NULL,
   position INTEGER NOT NULL,
   PRIMARY KEY(project_id, path)
 );
-CREATE TABLE IF NOT EXISTS ea_automation_tasks (
+CREATE TABLE IF NOT EXISTS automation_tasks (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   prompt TEXT NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS ea_automation_tasks (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_sessions (
+CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
 	  project_id TEXT NOT NULL DEFAULT '',
@@ -98,9 +98,9 @@ CREATE TABLE IF NOT EXISTS ea_sessions (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_messages (
+CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL REFERENCES ea_sessions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   seq INTEGER NOT NULL,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
@@ -111,9 +111,9 @@ CREATE TABLE IF NOT EXISTS ea_messages (
   created_at TEXT NOT NULL,
   UNIQUE(session_id, seq)
 );
-CREATE TABLE IF NOT EXISTS ea_attachments (
+CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
-  message_id INTEGER NOT NULL REFERENCES ea_messages(id) ON DELETE CASCADE,
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   kind TEXT NOT NULL,
@@ -121,17 +121,17 @@ CREATE TABLE IF NOT EXISTS ea_attachments (
   data BLOB NOT NULL,
   created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_events (
+CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL REFERENCES ea_sessions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   seq INTEGER NOT NULL,
   event_json BLOB NOT NULL,
   created_at TEXT NOT NULL,
   UNIQUE(session_id, seq)
 );
-CREATE TABLE IF NOT EXISTS ea_tool_operations (
+CREATE TABLE IF NOT EXISTS tool_operations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL REFERENCES ea_sessions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   runtime TEXT NOT NULL,
   turn INTEGER NOT NULL,
   step INTEGER NOT NULL DEFAULT 0,
@@ -150,13 +150,13 @@ CREATE TABLE IF NOT EXISTS ea_tool_operations (
   updated_at TEXT NOT NULL,
   UNIQUE(session_id, runtime, turn, activity_id)
 );
-CREATE TABLE IF NOT EXISTS ea_model_capability_tests (
+CREATE TABLE IF NOT EXISTS model_capability_tests (
   fingerprint TEXT PRIMARY KEY,
   tested_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS ea_compactions (
+CREATE TABLE IF NOT EXISTS compactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id TEXT NOT NULL REFERENCES ea_sessions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   seq INTEGER NOT NULL,
   summary TEXT NOT NULL,
   through_message_id INTEGER NOT NULL,
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS ea_compactions (
   created_at TEXT NOT NULL,
   UNIQUE(session_id, seq)
 );
-CREATE TABLE IF NOT EXISTS ea_weixin_accounts (
+CREATE TABLE IF NOT EXISTS weixin_accounts (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
   user_id TEXT NOT NULL UNIQUE,
@@ -187,21 +187,24 @@ CREATE TABLE IF NOT EXISTS ea_weixin_accounts (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-	CREATE INDEX IF NOT EXISTS idx_ea_sessions_updated ON ea_sessions(updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ea_projects_default ON ea_projects(is_default DESC, name);
-CREATE INDEX IF NOT EXISTS idx_ea_automation_due ON ea_automation_tasks(enabled, trigger_type, next_run_at);
-	CREATE INDEX IF NOT EXISTS idx_ea_messages_session ON ea_messages(session_id, seq);
-	CREATE INDEX IF NOT EXISTS idx_ea_messages_session_id ON ea_messages(session_id, id);
-	CREATE INDEX IF NOT EXISTS idx_ea_attachments_message ON ea_attachments(message_id);
-	CREATE INDEX IF NOT EXISTS idx_ea_events_session ON ea_events(session_id, seq);
-	CREATE INDEX IF NOT EXISTS idx_ea_events_session_id ON ea_events(session_id, id);
-CREATE INDEX IF NOT EXISTS idx_ea_events_created ON ea_events(created_at);
-CREATE INDEX IF NOT EXISTS idx_ea_tool_operations_session ON ea_tool_operations(session_id, turn, id);
-CREATE INDEX IF NOT EXISTS idx_ea_tool_operations_status ON ea_tool_operations(status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_ea_model_capability_tests_tested ON ea_model_capability_tests(tested_at);
-CREATE INDEX IF NOT EXISTS idx_ea_compactions_session ON ea_compactions(session_id, seq);
-CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(enabled, updated_at);
+	CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_default ON projects(is_default DESC, name);
+CREATE INDEX IF NOT EXISTS idx_automation_due ON automation_tasks(enabled, trigger_type, next_run_at);
+	CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
+	CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id, id);
+	CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
+	CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, seq);
+	CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id, id);
+CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
+CREATE INDEX IF NOT EXISTS idx_tool_operations_session ON tool_operations(session_id, turn, id);
+CREATE INDEX IF NOT EXISTS idx_tool_operations_status ON tool_operations(status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_model_capability_tests_tested ON model_capability_tests(tested_at);
+CREATE INDEX IF NOT EXISTS idx_compactions_session ON compactions(session_id, seq);
+CREATE INDEX IF NOT EXISTS idx_weixin_accounts_enabled ON weixin_accounts(enabled, updated_at);
 `
+	if err := store.renameLegacyTables(); err != nil {
+		return fmt.Errorf("迁移旧表名: %w", err)
+	}
 	_, err := store.db.Exec(schema)
 	if err != nil {
 		return fmt.Errorf("初始化 SQLite: %w", err)
@@ -209,82 +212,82 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 	// 旧版本数据库由 CREATE TABLE IF NOT EXISTS 不会自动补列；这里做一次
 	// 幂等迁移，保证已有会话也能保存 split-turn 检查点。
 	var splitTurnColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_compactions') WHERE name='split_turn'`).Scan(&splitTurnColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('compactions') WHERE name='split_turn'`).Scan(&splitTurnColumn); err != nil {
 		return err
 	}
 	if splitTurnColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_compactions ADD COLUMN split_turn INTEGER NOT NULL DEFAULT 0`); err != nil {
-			return fmt.Errorf("迁移 ea_compactions.split_turn: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE compactions ADD COLUMN split_turn INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("迁移 compactions.split_turn: %w", err)
 		}
 	}
 	var toolResultColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_messages') WHERE name='tool_result_json'`).Scan(&toolResultColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='tool_result_json'`).Scan(&toolResultColumn); err != nil {
 		return err
 	}
 	if toolResultColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_messages ADD COLUMN tool_result_json BLOB NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 ea_messages.tool_result_json: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE messages ADD COLUMN tool_result_json BLOB NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("迁移 messages.tool_result_json: %w", err)
 		}
 	}
 	var pendingModelColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name='pending_model_json'`).Scan(&pendingModelColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='pending_model_json'`).Scan(&pendingModelColumn); err != nil {
 		return err
 	}
 	if pendingModelColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN pending_model_json BLOB NOT NULL DEFAULT X''`); err != nil {
-			return fmt.Errorf("迁移 ea_sessions.pending_model_json: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN pending_model_json BLOB NOT NULL DEFAULT X''`); err != nil {
+			return fmt.Errorf("迁移 sessions.pending_model_json: %w", err)
 		}
 	}
 	var toolGuaranteeColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_tool_operations') WHERE name='guarantee'`).Scan(&toolGuaranteeColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tool_operations') WHERE name='guarantee'`).Scan(&toolGuaranteeColumn); err != nil {
 		return err
 	}
 	if toolGuaranteeColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_tool_operations ADD COLUMN guarantee TEXT NOT NULL DEFAULT 'observed'`); err != nil {
-			return fmt.Errorf("迁移 ea_tool_operations.guarantee: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE tool_operations ADD COLUMN guarantee TEXT NOT NULL DEFAULT 'observed'`); err != nil {
+			return fmt.Errorf("迁移 tool_operations.guarantee: %w", err)
 		}
 	}
 	// 会话工作区是会话上下文的一部分。SQLite 的 IF NOT EXISTS 不会给已经存在的
 	// 表补列，因此用幂等迁移保证升级后的现有数据库可以直接打开。
 	var workspaceColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name='workspace'`).Scan(&workspaceColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='workspace'`).Scan(&workspaceColumn); err != nil {
 		return err
 	}
 	if workspaceColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN workspace TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 ea_sessions.workspace: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN workspace TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("迁移 sessions.workspace: %w", err)
 		}
 	}
 	var runtimeColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name='runtime'`).Scan(&runtimeColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='runtime'`).Scan(&runtimeColumn); err != nil {
 		return err
 	}
 	if runtimeColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN runtime TEXT NOT NULL DEFAULT 'beaver'`); err != nil {
-			return fmt.Errorf("迁移 ea_sessions.runtime: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN runtime TEXT NOT NULL DEFAULT 'beaver'`); err != nil {
+			return fmt.Errorf("迁移 sessions.runtime: %w", err)
 		}
 	}
 	var profileColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name='profile_id'`).Scan(&profileColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='profile_id'`).Scan(&profileColumn); err != nil {
 		return err
 	}
 	if profileColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN profile_id TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 ea_sessions.profile_id: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN profile_id TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("迁移 sessions.profile_id: %w", err)
 		}
 	}
 	var channelColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name='channel'`).Scan(&channelColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='channel'`).Scan(&channelColumn); err != nil {
 		return err
 	}
 	if channelColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN channel TEXT NOT NULL DEFAULT 'web'`); err != nil {
-			return fmt.Errorf("迁移 ea_sessions.channel: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT 'web'`); err != nil {
+			return fmt.Errorf("迁移 sessions.channel: %w", err)
 		}
 	}
 	// Older databases did not record the source channel. The account pointer is
 	// the only unambiguous relation available for existing WeChat sessions.
-	if _, err := store.db.Exec(`UPDATE ea_sessions SET channel='weixin' WHERE id IN (SELECT current_session_id FROM ea_weixin_accounts WHERE current_session_id <> '') AND channel='web'`); err != nil {
+	if _, err := store.db.Exec(`UPDATE sessions SET channel='weixin' WHERE id IN (SELECT current_session_id FROM weixin_accounts WHERE current_session_id <> '') AND channel='web'`); err != nil {
 		return fmt.Errorf("迁移微信会话来源: %w", err)
 	}
 	for _, column := range []struct {
@@ -300,22 +303,22 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 		{name: "owner_id", definition: "TEXT NOT NULL DEFAULT ''"}, // 会话所属成员（微信账号 ID），用于隔离个人记忆
 	} {
 		var exists int
-		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_sessions') WHERE name=?`, column.name).Scan(&exists); err != nil {
+		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name=?`, column.name).Scan(&exists); err != nil {
 			return err
 		}
 		if exists == 0 {
-			if _, err := store.db.Exec(`ALTER TABLE ea_sessions ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
-				return fmt.Errorf("迁移 ea_sessions.%s: %w", column.name, err)
+			if _, err := store.db.Exec(`ALTER TABLE sessions ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+				return fmt.Errorf("迁移 sessions.%s: %w", column.name, err)
 			}
 		}
 	}
 	var weixinProjectColumn int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_weixin_accounts') WHERE name='project_id'`).Scan(&weixinProjectColumn); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('weixin_accounts') WHERE name='project_id'`).Scan(&weixinProjectColumn); err != nil {
 		return err
 	}
 	if weixinProjectColumn == 0 {
-		if _, err := store.db.Exec(`ALTER TABLE ea_weixin_accounts ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`); err != nil {
-			return fmt.Errorf("迁移 ea_weixin_accounts.project_id: %w", err)
+		if _, err := store.db.Exec(`ALTER TABLE weixin_accounts ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("迁移 weixin_accounts.project_id: %w", err)
 		}
 	}
 	for _, column := range []struct {
@@ -329,17 +332,17 @@ CREATE INDEX IF NOT EXISTS idx_ea_weixin_accounts_enabled ON ea_weixin_accounts(
 		{name: "cron", definition: "TEXT NOT NULL DEFAULT ''"},
 	} {
 		var exists int
-		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('ea_automation_tasks') WHERE name=?`, column.name).Scan(&exists); err != nil {
+		if err := store.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('automation_tasks') WHERE name=?`, column.name).Scan(&exists); err != nil {
 			return err
 		}
 		if exists == 0 {
-			if _, err := store.db.Exec(`ALTER TABLE ea_automation_tasks ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
-				return fmt.Errorf("迁移 ea_automation_tasks.%s: %w", column.name, err)
+			if _, err := store.db.Exec(`ALTER TABLE automation_tasks ADD COLUMN ` + column.name + ` ` + column.definition); err != nil {
+				return fmt.Errorf("迁移 automation_tasks.%s: %w", column.name, err)
 			}
 		}
 	}
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_settings WHERE key='model'`).Scan(&count); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key='model'`).Scan(&count); err != nil {
 		return err
 	}
 	if count == 0 {

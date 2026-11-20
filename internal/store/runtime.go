@@ -9,7 +9,7 @@ import (
 // 以及检查点之后的消息尾部。它不会把页面 Trace 或已经被检查点覆盖的原始消息
 // 读入内存；完整原文仍可通过 Session 和历史分页接口读取。
 func (store *Store) RuntimeSession(id string) (Session, error) {
-	row := store.db.QueryRow(`SELECT `+sessionSelectColumns+` FROM ea_sessions WHERE id=?`, id)
+	row := store.db.QueryRow(`SELECT `+sessionSelectColumns+` FROM sessions WHERE id=?`, id)
 	value, err := scanSession(row)
 	if err != nil {
 		return Session{}, err
@@ -33,10 +33,10 @@ func (store *Store) RuntimeSession(id string) (Session, error) {
 
 func (store *Store) messagesAfter(id string, afterID int64) ([]Message, int, int, error) {
 	var count, userTurns int
-	if err := store.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN role='user' THEN 1 ELSE 0 END),0) FROM ea_messages WHERE session_id=?`, id).Scan(&count, &userTurns); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN role='user' THEN 1 ELSE 0 END),0) FROM messages WHERE session_id=?`, id).Scan(&count, &userTurns); err != nil {
 		return nil, 0, 0, err
 	}
-	rows, err := store.db.Query(`SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM ea_messages WHERE session_id=? AND id>? ORDER BY seq`, id, afterID)
+	rows, err := store.db.Query(`SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM messages WHERE session_id=? AND id>? ORDER BY seq`, id, afterID)
 	if err != nil {
 		return nil, 0, 0, err
 	}

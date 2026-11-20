@@ -1,4 +1,4 @@
-package tracevalue
+package redact
 
 import (
 	"strings"

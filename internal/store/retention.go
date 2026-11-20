@@ -9,7 +9,7 @@ import "time"
 func (store *Store) PurgeExpiredSessions(now time.Time, retentionDays int) (int64, error) {
 	settings := normalizeRuntimeSettings(RuntimeSettings{RetentionDays: retentionDays})
 	cutoff := now.AddDate(0, 0, -settings.RetentionDays)
-	result, err := store.db.Exec(`DELETE FROM ea_sessions
+	result, err := store.db.Exec(`DELETE FROM sessions
 WHERE updated_at < ? AND status NOT IN ('queued', 'running', 'paused')`, formatTime(cutoff))
 	if err != nil {
 		return 0, err

@@ -157,7 +157,7 @@ type Event struct {
 	CreatedAt           time.Time `json:"createdAt"`
 }
 
-// Compaction 是长会话的上下文检查点。原始消息仍保留在 ea_messages；运行时只用
+// Compaction 是长会话的上下文检查点。原始消息仍保留在 messages；运行时只用
 // Summary 替代 ThroughMessageID 及以前的消息，再拼接最近原始消息。
 type Compaction struct {
 	ID               int64  `json:"id"`

@@ -1509,7 +1509,7 @@ func overwriteSetting(t *testing.T, databasePath, key, value string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO ea_settings(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, key, value); err != nil {
+	if _, err := database.Exec(`INSERT INTO settings(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, key, value); err != nil {
 		_ = database.Close()
 		t.Fatal(err)
 	}

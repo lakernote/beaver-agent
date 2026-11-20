@@ -10,15 +10,15 @@ import (
 
 func (store *Store) messagesWindow(id string, limit int, before int64) ([]Message, int, int, bool, bool, error) {
 	var count, userTurns int
-	if err := store.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN role='user' THEN 1 ELSE 0 END),0) FROM ea_messages WHERE session_id=?`, id).Scan(&count, &userTurns); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN role='user' THEN 1 ELSE 0 END),0) FROM messages WHERE session_id=?`, id).Scan(&count, &userTurns); err != nil {
 		return nil, 0, 0, false, false, err
 	}
-	query := `SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM ea_messages WHERE session_id=? ORDER BY seq`
+	query := `SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM messages WHERE session_id=? ORDER BY seq`
 	args := []any{id}
 	truncated := false
 	hasMore := false
 	if limit > 0 {
-		query = `SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM ea_messages WHERE session_id=?`
+		query = `SELECT id,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at FROM messages WHERE session_id=?`
 		if before > 0 {
 			query += ` AND id < ?`
 			args = append(args, before)
@@ -98,7 +98,7 @@ func (store *Store) messageAttachmentsForIDs(sessionID string, messageIDs []int6
 		query += `,a.data`
 	}
 	query += `
-	FROM ea_attachments a JOIN ea_messages m ON m.id=a.message_id
+	FROM attachments a JOIN messages m ON m.id=a.message_id
 		WHERE m.session_id=?`
 	args := []any{sessionID}
 	if messageIDs != nil {
@@ -137,22 +137,22 @@ func (store *Store) messageAttachmentsForIDs(sessionID string, messageIDs []int6
 // Attachment 按 ID 读取一份附件数据，供本地页面预览或下载。
 func (store *Store) Attachment(id string) (Attachment, error) {
 	var value Attachment
-	err := store.db.QueryRow(`SELECT id,name,mime_type,kind,size,data FROM ea_attachments WHERE id=?`, id).
+	err := store.db.QueryRow(`SELECT id,name,mime_type,kind,size,data FROM attachments WHERE id=?`, id).
 		Scan(&value.ID, &value.Name, &value.MIMEType, &value.Kind, &value.Size, &value.Data)
 	return value, err
 }
 
 func (store *Store) eventsWindow(id string, limit int, before int64) ([]Event, int, bool, bool, error) {
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_events WHERE session_id=?`, id).Scan(&count); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM events WHERE session_id=?`, id).Scan(&count); err != nil {
 		return nil, 0, false, false, err
 	}
-	query := `SELECT id,event_json,created_at FROM ea_events WHERE session_id=? ORDER BY seq`
+	query := `SELECT id,event_json,created_at FROM events WHERE session_id=? ORDER BY seq`
 	args := []any{id}
 	truncated := false
 	hasMore := false
 	if limit > 0 {
-		query = `SELECT id,event_json,created_at FROM ea_events WHERE session_id=?`
+		query = `SELECT id,event_json,created_at FROM events WHERE session_id=?`
 		if before > 0 {
 			query += ` AND id < ?`
 			args = append(args, before)
@@ -210,7 +210,7 @@ func (store *Store) ListEventsAfter(id string, after int64, limit int) ([]Event,
 	if limit <= 0 || limit > 1000 {
 		limit = 300
 	}
-	rows, err := store.db.Query(`SELECT id,event_json,created_at FROM ea_events WHERE session_id=? AND id>? ORDER BY id LIMIT ?`, id, after, limit)
+	rows, err := store.db.Query(`SELECT id,event_json,created_at FROM events WHERE session_id=? AND id>? ORDER BY id LIMIT ?`, id, after, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +269,8 @@ func appendMessagesTx(tx *sql.Tx, id string, values []Message) error {
 		if toolResult != "" && !json.Valid([]byte(toolResult)) {
 			return fmt.Errorf("tool result 不是有效 JSON")
 		}
-		inserted, err := tx.Exec(`INSERT INTO ea_messages(session_id,seq,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at)
-VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM ea_messages WHERE session_id=?),1),?,?,?,?,?,?,?)`, id, id, value.Role, value.Content, data, toolResult, value.ToolCallID, value.Name, formatTime(value.CreatedAt))
+		inserted, err := tx.Exec(`INSERT INTO messages(session_id,seq,role,content,tool_calls_json,tool_result_json,tool_call_id,name,created_at)
+VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM messages WHERE session_id=?),1),?,?,?,?,?,?,?)`, id, id, value.Role, value.Content, data, toolResult, value.ToolCallID, value.Name, formatTime(value.CreatedAt))
 		if err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM ea_messages WHERE session_id=?),1),?,?
 			return err
 		}
 		for _, attachment := range value.Attachments {
-			if _, err := tx.Exec(`INSERT INTO ea_attachments(id,message_id,name,mime_type,kind,size,data,created_at) VALUES(?,?,?,?,?,?,?,?)`,
+			if _, err := tx.Exec(`INSERT INTO attachments(id,message_id,name,mime_type,kind,size,data,created_at) VALUES(?,?,?,?,?,?,?,?)`,
 				attachment.ID, messageID, attachment.Name, attachment.MIMEType, attachment.Kind, attachment.Size, attachment.Data, formatTime(value.CreatedAt)); err != nil {
 				return err
 			}
@@ -308,13 +308,13 @@ func appendEventTx(tx *sql.Tx, id string, value Event) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`INSERT INTO ea_events(session_id,seq,event_json,created_at)
-VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM ea_events WHERE session_id=?),1),?,?)`, id, id, data, formatTime(value.CreatedAt))
+	_, err = tx.Exec(`INSERT INTO events(session_id,seq,event_json,created_at)
+VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM events WHERE session_id=?),1),?,?)`, id, id, data, formatTime(value.CreatedAt))
 	return err
 }
 
 func (store *Store) compactions(id string) ([]Compaction, error) {
-	rows, err := store.db.Query(`SELECT id,summary,through_message_id,split_turn,source_messages,compacted_messages,usage_json,created_at FROM ea_compactions WHERE session_id=? ORDER BY seq`, id)
+	rows, err := store.db.Query(`SELECT id,summary,through_message_id,split_turn,source_messages,compacted_messages,usage_json,created_at FROM compactions WHERE session_id=? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -351,8 +351,8 @@ func (store *Store) AppendCompaction(id string, value Compaction) error {
 	if value.SplitTurn {
 		splitTurn = 1
 	}
-	_, err = store.db.Exec(`INSERT INTO ea_compactions(session_id,seq,summary,through_message_id,split_turn,source_messages,compacted_messages,usage_json,created_at)
-	VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM ea_compactions WHERE session_id=?),1),?,?,?,?,?,?,?)`,
+	_, err = store.db.Exec(`INSERT INTO compactions(session_id,seq,summary,through_message_id,split_turn,source_messages,compacted_messages,usage_json,created_at)
+	VALUES(?,COALESCE((SELECT MAX(seq)+1 FROM compactions WHERE session_id=?),1),?,?,?,?,?,?,?)`,
 		id, id, value.Summary, value.ThroughMessageID, splitTurn, value.SourceMessages, value.CompactedMessages, usage, formatTime(value.CreatedAt))
 	return err
 }

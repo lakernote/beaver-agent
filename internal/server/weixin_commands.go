@@ -1,6 +1,15 @@
 package server
 
-import "strings"
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
+)
 
 // weixinCommand 是微信控制命令的解析结果。
 //
@@ -34,4 +43,99 @@ func parseWeixinCommand(text string) weixinCommand {
 		return weixinCommand{Name: command}
 	}
 	return weixinCommand{}
+}
+
+func (manager *weixinManager) handleCommand(account store.WeixinAccount, message weixin.Message, text string) bool {
+	command := parseWeixinCommand(text)
+	switch command.Name {
+	case "help":
+		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n/new 开始独立的新会话\n/status 查看当前进度\n/stop 中断当前任务\n/projects 查看可用项目\n/project 项目名 设置后续新会话的源文件夹\n发送 .md/.txt 文件并附文字 /kb，加入团队知识库")
+		return true
+	case "new":
+		if session, err := manager.currentSession(account); err == nil && isActiveSessionStatus(session.Status) {
+			manager.send(account, message.FromUserID, message.ContextToken, "当前任务仍在执行。请先发送 /stop，任务结束后再开始新会话。")
+			return true
+		}
+		_ = manager.server.store.SetWeixinCurrentSession(account.ID, "", time.Now())
+		manager.send(account, message.FromUserID, message.ContextToken, "已切换到新会话。下一条消息会创建一个独立任务。")
+		return true
+	case "status":
+		session, err := manager.currentSession(account)
+		if errors.Is(err, sql.ErrNoRows) || strings.TrimSpace(account.CurrentSessionID) == "" {
+			manager.send(account, message.FromUserID, message.ContextToken, "当前没有会话。直接发送任务即可开始。")
+		} else if err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "暂时无法读取任务状态，请稍后重试。")
+		} else {
+			progress := manager.server.tasks.progress(session.ID)
+			if progress == "" {
+				progress = weixinSessionStatus(session.Status)
+			}
+			manager.send(account, message.FromUserID, message.ContextToken, fmt.Sprintf("💬 当前会话：%s\n状态：%s\n🧭 进度：%s\n⚙️ 运行时：%s", session.Title, weixinSessionStatus(session.Status), progress, weixinRuntimeLabel(session.Runtime)))
+		}
+		return true
+	case "stop":
+		session, err := manager.currentSession(account)
+		if err != nil || !isActiveSessionStatus(session.Status) {
+			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送 /new可开始独立任务。")
+			return true
+		}
+		changed, cancelErr := manager.server.sessionsRepository().CancelSession(session.ID, time.Now())
+		if cancelErr != nil || !changed {
+			manager.send(account, message.FromUserID, message.ContextToken, "任务已经结束，未执行停止。")
+			return true
+		}
+		manager.server.tasks.cancel(session.ID)
+		manager.send(account, message.FromUserID, message.ContextToken, "⏹️ 已停止当前任务。")
+		return true
+	case "projects":
+		projects, err := manager.server.projects()
+		if err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "暂时无法读取项目列表，请稍后重试。")
+			return true
+		}
+		lines := []string{"可用项目："}
+		for _, project := range projects {
+			mark := ""
+			if project.ID == account.ProjectID || (account.ProjectID == "" && project.Default) {
+				mark = "（当前）"
+			}
+			lines = append(lines, "- "+project.Name+mark)
+		}
+		lines = append(lines, "发送 /project 项目名可切换。")
+		manager.send(account, message.FromUserID, message.ContextToken, strings.Join(lines, "\n"))
+		return true
+	case "current_project":
+		project, err := manager.weixinProject(account)
+		if err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "暂时无法读取当前项目，请稍后重试。")
+		} else {
+			manager.send(account, message.FromUserID, message.ContextToken, fmt.Sprintf("当前项目：%s\n主源文件夹：%s\n共 %d 个源文件夹。", project.Name, project.Directories[0], len(project.Directories)))
+		}
+		return true
+	case "project":
+		projects, err := manager.server.projects()
+		if err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "暂时无法切换项目，请稍后重试。")
+			return true
+		}
+		var selected *store.Project
+		for index := range projects {
+			if strings.EqualFold(strings.TrimSpace(projects[index].Name), command.Argument) {
+				selected = &projects[index]
+				break
+			}
+		}
+		if selected == nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "没有找到项目“"+command.Argument+"”。发送 /projects查看可用项目。")
+			return true
+		}
+		if err := manager.server.store.SetWeixinProject(account.ID, selected.ID, time.Now()); err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "项目切换失败，请稍后重试。")
+			return true
+		}
+		manager.send(account, message.FromUserID, message.ContextToken, "已选择项目“"+selected.Name+"”。当前会话不变；发送 /new后，新任务会使用这个项目的源文件夹。")
+		return true
+	default:
+		return false
+	}
 }

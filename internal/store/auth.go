@@ -24,7 +24,7 @@ const (
 // once at startup; it is never stored in plaintext or returned by the API.
 func (store *Store) EnsureAdmin() error {
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_auth_users WHERE username=?`, defaultAdminUsername).Scan(&count); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM auth_users WHERE username=?`, defaultAdminUsername).Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
@@ -45,10 +45,10 @@ const passwordGeneratedKey = "admin_password_generated"
 
 func (store *Store) setPasswordGenerated(generated bool) error {
 	if !generated {
-		_, err := store.db.Exec(`DELETE FROM ea_settings WHERE key=?`, passwordGeneratedKey)
+		_, err := store.db.Exec(`DELETE FROM settings WHERE key=?`, passwordGeneratedKey)
 		return err
 	}
-	_, err := store.db.Exec(`INSERT INTO ea_settings(key,value_json) VALUES(?,'true') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, passwordGeneratedKey)
+	_, err := store.db.Exec(`INSERT INTO settings(key,value_json) VALUES(?,'true') ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, passwordGeneratedKey)
 	return err
 }
 
@@ -56,7 +56,7 @@ func (store *Store) setPasswordGenerated(generated bool) error {
 // Beaver generated (initial or reset), so the UI can ask the user to change it.
 func (store *Store) PasswordIsGenerated() bool {
 	var count int
-	_ = store.db.QueryRow(`SELECT COUNT(*) FROM ea_settings WHERE key=?`, passwordGeneratedKey).Scan(&count)
+	_ = store.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key=?`, passwordGeneratedKey).Scan(&count)
 	return count > 0
 }
 
@@ -75,7 +75,7 @@ func (store *Store) ResetAdminPassword() (string, error) {
 		return "", fmt.Errorf("生成密码盐失败: %w", err)
 	}
 	hashValue := derivePassword(password, salt, passwordIterations)
-	result, err := store.db.Exec(`UPDATE ea_auth_users SET password_salt=?,password_hash=?,password_iterations=?,updated_at=? WHERE username=?`, salt, hashValue, passwordIterations, formatTime(time.Now()), defaultAdminUsername)
+	result, err := store.db.Exec(`UPDATE auth_users SET password_salt=?,password_hash=?,password_iterations=?,updated_at=? WHERE username=?`, salt, hashValue, passwordIterations, formatTime(time.Now()), defaultAdminUsername)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +113,7 @@ func (store *Store) createUser(username, password string, now time.Time) error {
 		return fmt.Errorf("生成密码盐失败: %w", err)
 	}
 	hashValue := derivePassword(password, salt, passwordIterations)
-	_, err := store.db.Exec(`INSERT INTO ea_auth_users(username,password_salt,password_hash,password_iterations,created_at,updated_at) VALUES(?,?,?,?,?,?)`, username, salt, hashValue, passwordIterations, formatTime(now), formatTime(now))
+	_, err := store.db.Exec(`INSERT INTO auth_users(username,password_salt,password_hash,password_iterations,created_at,updated_at) VALUES(?,?,?,?,?,?)`, username, salt, hashValue, passwordIterations, formatTime(now), formatTime(now))
 	return err
 }
 
@@ -125,7 +125,7 @@ func (store *Store) Authenticate(username, password string) (bool, error) {
 	}
 	var salt, expected []byte
 	var iterations int
-	err := store.db.QueryRow(`SELECT password_salt,password_hash,password_iterations FROM ea_auth_users WHERE username=?`, username).Scan(&salt, &expected, &iterations)
+	err := store.db.QueryRow(`SELECT password_salt,password_hash,password_iterations FROM auth_users WHERE username=?`, username).Scan(&salt, &expected, &iterations)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -155,7 +155,7 @@ func (store *Store) ChangePassword(username, currentPassword, newPassword string
 		return fmt.Errorf("生成密码盐失败: %w", err)
 	}
 	hashValue := derivePassword(newPassword, salt, passwordIterations)
-	result, err := store.db.Exec(`UPDATE ea_auth_users SET password_salt=?,password_hash=?,password_iterations=?,updated_at=? WHERE username=?`, salt, hashValue, passwordIterations, formatTime(time.Now()), username)
+	result, err := store.db.Exec(`UPDATE auth_users SET password_salt=?,password_hash=?,password_iterations=?,updated_at=? WHERE username=?`, salt, hashValue, passwordIterations, formatTime(time.Now()), username)
 	if err != nil {
 		return err
 	}

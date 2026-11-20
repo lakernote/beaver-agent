@@ -27,8 +27,8 @@ func runMemoryTool(t *testing.T, tools []agent.Tool, name, args string) string {
 
 func TestMemoryToolsAreBoundToOwner(t *testing.T) {
 	store := memory.New(t.TempDir())
-	alice := memoryTools(Memory{Store: store, Owner: "alice"})
-	bob := memoryTools(Memory{Store: store, Owner: "bob"})
+	alice := memoryTools(MemoryScope{Store: store, Owner: "alice"})
+	bob := memoryTools(MemoryScope{Store: store, Owner: "bob"})
 
 	runMemoryTool(t, alice, "memory_save", `{"text":"Alice 的服务器在上海机房"}`)
 	if got := runMemoryTool(t, alice, "memory_search", `{"query":"服务器 机房"}`); !strings.Contains(got, "上海") {
@@ -55,7 +55,7 @@ func TestCatalogIncludesMemoryGroupOnlyWhenProvided(t *testing.T) {
 	if has(CatalogWithPermissions(env, nil, permissions.Default())) {
 		t.Fatal("未提供记忆存储时不应暴露记忆工具")
 	}
-	withMemory := CatalogWithExtras(env, nil, permissions.Default(), Extras{Memory: &Memory{Store: memory.New(t.TempDir()), Owner: "a"}})
+	withMemory := CatalogWithExtras(env, nil, permissions.Default(), Extras{Memory: &MemoryScope{Store: memory.New(t.TempDir()), Owner: "a"}})
 	if !has(withMemory) {
 		t.Fatal("提供记忆存储后应暴露记忆工具")
 	}

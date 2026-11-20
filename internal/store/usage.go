@@ -43,7 +43,7 @@ func (store *Store) UsageAggregates(period string, since, until time.Time) ([]Us
 	}
 	rows, err := store.db.Query(`
 SELECT e.session_id, e.event_json, e.created_at, s.runtime, s.model, s.profile_id
-FROM ea_events e JOIN ea_sessions s ON s.id=e.session_id
+FROM events e JOIN sessions s ON s.id=e.session_id
 WHERE e.created_at >= ? AND e.created_at < ?
 ORDER BY e.created_at`, formatTime(since), formatTime(until))
 	if err != nil {

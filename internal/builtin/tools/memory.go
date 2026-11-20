@@ -10,10 +10,10 @@ import (
 	"github.com/lakernote/beaver-agent/internal/memory"
 )
 
-// Memory 把记忆存储和“当前会话属于谁”绑在一起。
+// MemoryScope 把记忆存储和“当前会话属于谁”绑在一起。
 // 每个会话创建一份，所以工具参数里不需要（也不允许）模型指定 owner，
 // 模型无法越权读取别人的个人记忆。
-type Memory struct {
+type MemoryScope struct {
 	Store *memory.Store
 	Owner string
 }
@@ -26,7 +26,7 @@ const (
 
 // memoryTools 返回三个工具：保存、检索、遗忘。
 // 记忆是“稳定且以后还会用到”的事实（偏好、约定、环境信息），不是聊天流水账。
-func memoryTools(mem Memory) []agent.Tool {
+func memoryTools(mem MemoryScope) []agent.Tool {
 	scopeSchema := map[string]any{
 		"type": "string", "enum": []string{memory.ScopePersonal, memory.ScopeTeam},
 		"description": "personal=只有当前成员可见（默认）；team=团队所有成员可见，仅用于团队共同约定",

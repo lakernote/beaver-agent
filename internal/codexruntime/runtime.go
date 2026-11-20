@@ -23,7 +23,7 @@ import (
 
 	"github.com/lakernote/beaver-agent/internal/appenv"
 	"github.com/lakernote/beaver-agent/internal/permissions"
-	"github.com/lakernote/beaver-agent/internal/tracevalue"
+	"github.com/lakernote/beaver-agent/internal/redact"
 )
 
 const installDocsURL = "https://developers.openai.com/codex/cli"
@@ -1180,7 +1180,7 @@ func itemDuration(item map[string]any) time.Duration {
 }
 
 func marshalItemValue(value any) string {
-	return tracevalue.Marshal(value, maxTraceValueBytes)
+	return redact.Marshal(value, maxTraceValueBytes)
 }
 
 func truncateUTF8(value string, limit int) string {

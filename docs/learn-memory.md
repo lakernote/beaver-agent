@@ -34,7 +34,7 @@
 
 关键点是**身份不由模型传入**：
 
-1. 微信创建会话时，用 `SetSessionOwner` 把会话和微信账号绑定（`ea_sessions.owner_id`）。
+1. 微信创建会话时，用 `SetSessionOwner` 把会话和微信账号绑定（`sessions.owner_id`）。
 2. 每轮运行时 `runBeaverTurn` 读出 owner，构造 `tools.Memory{Store, Owner}`，工具闭包里已经固定了 owner。
 3. 工具参数只有 `text`/`query`/`scope`，模型没法指定“读 bob 的记忆”。`owner` 还会被 `safeName` 净化，防止 `../` 目录穿越。
 

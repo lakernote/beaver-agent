@@ -41,7 +41,7 @@ func (store *Store) CreateSession(params CreateSessionParams) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	_, err = store.db.Exec(`INSERT INTO ea_sessions(id,title,project_id,status,error,runtime,channel,profile_id,model,reasoning_effort,permissions_json,workspace,source_workspace,worktree_branch,workspace_notice,response_id,provider_key,created_at,updated_at) VALUES(?,?,?,'idle','',?,?,?,?,?,?,?,?,'','','','',?,?)`,
+	_, err = store.db.Exec(`INSERT INTO sessions(id,title,project_id,status,error,runtime,channel,profile_id,model,reasoning_effort,permissions_json,workspace,source_workspace,worktree_branch,workspace_notice,response_id,provider_key,created_at,updated_at) VALUES(?,?,?,'idle','',?,?,?,?,?,?,?,?,'','','','',?,?)`,
 		params.ID, params.Title, params.ProjectID, params.Runtime, params.Channel, params.ProfileID, params.Model, params.ReasoningEffort, policyJSON, params.Workspace, params.Workspace, formatTime(params.CreatedAt), formatTime(params.CreatedAt))
 	if err != nil {
 		return Session{}, err
@@ -58,7 +58,7 @@ func (store *Store) listSessionsPage(limit int, beforeUpdatedAt, beforeID string
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
-	query := `SELECT ` + sessionSelectColumns + ` FROM ea_sessions`
+	query := `SELECT ` + sessionSelectColumns + ` FROM sessions`
 	args := []any{}
 	if strings.TrimSpace(beforeUpdatedAt) != "" && strings.TrimSpace(beforeID) != "" {
 		query += ` WHERE updated_at < ? OR (updated_at = ? AND id < ?)`
@@ -124,7 +124,7 @@ func (store *Store) LoadSession(id string) (Session, error) {
 // another conversation can still be resumed in that same execution directory.
 func (store *Store) CountOtherSessionsUsingWorkspace(id, workspace string) (int, error) {
 	var count int
-	err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_sessions WHERE id<>? AND workspace=?`, id, workspace).Scan(&count)
+	err := store.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id<>? AND workspace=?`, id, workspace).Scan(&count)
 	return count, err
 }
 
@@ -135,7 +135,7 @@ func (store *Store) LoadSessionWindow(id string, messageLimit, eventLimit int) (
 }
 
 func (store *Store) sessionWindowBefore(id string, messageLimit, eventLimit int, messageBefore, eventBefore int64) (Session, error) {
-	row := store.db.QueryRow(`SELECT `+sessionSelectColumns+` FROM ea_sessions WHERE id=?`, id)
+	row := store.db.QueryRow(`SELECT `+sessionSelectColumns+` FROM sessions WHERE id=?`, id)
 	value, err := scanSession(row)
 	if err != nil {
 		return Session{}, err
@@ -164,14 +164,14 @@ func (store *Store) sessionWindowBefore(id string, messageLimit, eventLimit int,
 // SetSessionOwner 记录会话属于哪个成员（微信账号 ID）。Web 和定时任务会话没有 owner，
 // 视为管理员。owner 只用于隔离个人记忆，不参与权限判断。
 func (store *Store) SetSessionOwner(sessionID, owner string) error {
-	_, err := store.db.Exec(`UPDATE ea_sessions SET owner_id=? WHERE id=?`, owner, sessionID)
+	_, err := store.db.Exec(`UPDATE sessions SET owner_id=? WHERE id=?`, owner, sessionID)
 	return err
 }
 
 // SessionOwner 返回会话所属成员；没有 owner 时返回空字符串。
 func (store *Store) SessionOwner(sessionID string) (string, error) {
 	var owner string
-	err := store.db.QueryRow(`SELECT owner_id FROM ea_sessions WHERE id=?`, sessionID).Scan(&owner)
+	err := store.db.QueryRow(`SELECT owner_id FROM sessions WHERE id=?`, sessionID).Scan(&owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}

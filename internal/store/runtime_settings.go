@@ -40,7 +40,7 @@ func DefaultRuntimeSettings() RuntimeSettings {
 func (store *Store) GetRuntimeSettings() (RuntimeSettings, error) {
 	value := DefaultRuntimeSettings()
 	var data []byte
-	err := store.db.QueryRow(`SELECT value_json FROM ea_settings WHERE key=?`, runtimeSettingsKey).Scan(&data)
+	err := store.db.QueryRow(`SELECT value_json FROM settings WHERE key=?`, runtimeSettingsKey).Scan(&data)
 	if err != nil {
 		// A missing row is expected for databases created before this setting.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -60,7 +60,7 @@ func (store *Store) SaveRuntimeSettings(value RuntimeSettings) (RuntimeSettings,
 	if err != nil {
 		return RuntimeSettings{}, err
 	}
-	_, err = store.db.Exec(`INSERT INTO ea_settings(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, runtimeSettingsKey, data)
+	_, err = store.db.Exec(`INSERT INTO settings(key,value_json) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, runtimeSettingsKey, data)
 	return value, err
 }
 

@@ -8,7 +8,7 @@ import (
 const automationTaskSelectColumns = `id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,created_at,updated_at`
 
 func (store *Store) CreateAutomationTask(value AutomationTask) (AutomationTask, error) {
-	_, err := store.db.Exec(`INSERT INTO ea_automation_tasks(id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := store.db.Exec(`INSERT INTO automation_tasks(id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		value.ID, value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), formatAutomationOptionalTime(value.LastRunAt), value.LastStatus, value.LastError, value.LastSessionID, formatTime(value.CreatedAt), formatTime(value.UpdatedAt))
 	if err != nil {
 		return AutomationTask{}, err
@@ -17,7 +17,7 @@ func (store *Store) CreateAutomationTask(value AutomationTask) (AutomationTask, 
 }
 
 func (store *Store) UpdateAutomationTask(value AutomationTask) (AutomationTask, error) {
-	result, err := store.db.Exec(`UPDATE ea_automation_tasks SET name=?,prompt=?,project_id=?,workspace=?,profile_id=?,trigger_type=?,interval_minutes=?,repeat=?,schedule_time=?,schedule_weekday=?,schedule_enabled=?,cron=?,enabled=?,next_run_at=?,updated_at=? WHERE id=?`,
+	result, err := store.db.Exec(`UPDATE automation_tasks SET name=?,prompt=?,project_id=?,workspace=?,profile_id=?,trigger_type=?,interval_minutes=?,repeat=?,schedule_time=?,schedule_weekday=?,schedule_enabled=?,cron=?,enabled=?,next_run_at=?,updated_at=? WHERE id=?`,
 		value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), formatTime(value.UpdatedAt), value.ID)
 	if err != nil {
 		return AutomationTask{}, err
@@ -30,12 +30,12 @@ func (store *Store) UpdateAutomationTask(value AutomationTask) (AutomationTask, 
 }
 
 func (store *Store) GetAutomationTask(id string) (AutomationTask, error) {
-	row := store.db.QueryRow(`SELECT `+automationTaskSelectColumns+` FROM ea_automation_tasks WHERE id=?`, id)
+	row := store.db.QueryRow(`SELECT `+automationTaskSelectColumns+` FROM automation_tasks WHERE id=?`, id)
 	return scanAutomationTask(row)
 }
 
 func (store *Store) ListAutomationTasks() ([]AutomationTask, error) {
-	rows, err := store.db.Query(`SELECT ` + automationTaskSelectColumns + ` FROM ea_automation_tasks ORDER BY enabled DESC,name COLLATE NOCASE,id`)
+	rows, err := store.db.Query(`SELECT ` + automationTaskSelectColumns + ` FROM automation_tasks ORDER BY enabled DESC,name COLLATE NOCASE,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (store *Store) ListAutomationTasks() ([]AutomationTask, error) {
 }
 
 func (store *Store) ListDueAutomationTasks(now time.Time) ([]AutomationTask, error) {
-	rows, err := store.db.Query(`SELECT `+automationTaskSelectColumns+` FROM ea_automation_tasks WHERE enabled=1 AND schedule_enabled=1 AND next_run_at<>'' AND next_run_at<=? ORDER BY next_run_at,id`, formatTime(now))
+	rows, err := store.db.Query(`SELECT `+automationTaskSelectColumns+` FROM automation_tasks WHERE enabled=1 AND schedule_enabled=1 AND next_run_at<>'' AND next_run_at<=? ORDER BY next_run_at,id`, formatTime(now))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (store *Store) ListDueAutomationTasks(now time.Time) ([]AutomationTask, err
 }
 
 func (store *Store) MarkAutomationTaskRun(id string, runAt time.Time, nextRunAt *time.Time) (bool, error) {
-	result, err := store.db.Exec(`UPDATE ea_automation_tasks SET last_run_at=?,last_status='queued',last_error='',next_run_at=?,updated_at=? WHERE id=? AND enabled=1`, formatTime(runAt), formatAutomationOptionalTime(nextRunAt), formatTime(runAt), id)
+	result, err := store.db.Exec(`UPDATE automation_tasks SET last_run_at=?,last_status='queued',last_error='',next_run_at=?,updated_at=? WHERE id=? AND enabled=1`, formatTime(runAt), formatAutomationOptionalTime(nextRunAt), formatTime(runAt), id)
 	if err != nil {
 		return false, err
 	}
@@ -78,7 +78,7 @@ func (store *Store) MarkAutomationTaskRun(id string, runAt time.Time, nextRunAt 
 }
 
 func (store *Store) RecordAutomationTaskResult(id string, status AutomationStatus, errorMessage, sessionID string, updatedAt time.Time) error {
-	_, err := store.db.Exec(`UPDATE ea_automation_tasks SET last_status=?,last_error=?,last_session_id=?,updated_at=? WHERE id=?`, status, errorMessage, sessionID, formatTime(updatedAt), id)
+	_, err := store.db.Exec(`UPDATE automation_tasks SET last_status=?,last_error=?,last_session_id=?,updated_at=? WHERE id=?`, status, errorMessage, sessionID, formatTime(updatedAt), id)
 	return err
 }
 
@@ -86,7 +86,7 @@ func (store *Store) RecordAutomationTaskResult(id string, status AutomationStatu
 // session created for a scheduled task. The session id is the ownership link;
 // a later, unrelated session must never overwrite the task status.
 func (store *Store) RecordAutomationSessionResult(sessionID string, status AutomationStatus, errorMessage string, updatedAt time.Time) error {
-	_, err := store.db.Exec(`UPDATE ea_automation_tasks SET last_status=?,last_error=?,updated_at=? WHERE last_session_id=?`, status, errorMessage, formatTime(updatedAt), sessionID)
+	_, err := store.db.Exec(`UPDATE automation_tasks SET last_status=?,last_error=?,updated_at=? WHERE last_session_id=?`, status, errorMessage, formatTime(updatedAt), sessionID)
 	return err
 }
 
@@ -95,28 +95,28 @@ func (store *Store) RecordAutomationSessionResult(sessionID string, status Autom
 // linked session still exists; the session remains the source of truth for the
 // actual execution state.
 func (store *Store) ReconcileAutomationTasks(now time.Time) error {
-	_, err := store.db.Exec(`UPDATE ea_automation_tasks
+	_, err := store.db.Exec(`UPDATE automation_tasks
 		SET last_status=CASE
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='queued' THEN 'queued'
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='running' THEN 'running'
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='idle' THEN 'completed'
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='failed' THEN 'failed'
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='canceled' THEN 'canceled'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='queued' THEN 'queued'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='running' THEN 'running'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='idle' THEN 'completed'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='failed' THEN 'failed'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='canceled' THEN 'canceled'
 			ELSE 'failed'
 		END,
 		last_error=CASE
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id)='failed' THEN COALESCE((SELECT error FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id),'任务执行失败')
-			WHEN (SELECT status FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id) IS NULL THEN '关联会话不存在，任务未完成'
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id)='failed' THEN COALESCE((SELECT error FROM sessions WHERE id=automation_tasks.last_session_id),'任务执行失败')
+			WHEN (SELECT status FROM sessions WHERE id=automation_tasks.last_session_id) IS NULL THEN '关联会话不存在，任务未完成'
 			ELSE ''
 		END,
-		last_session_id=CASE WHEN EXISTS (SELECT 1 FROM ea_sessions WHERE id=ea_automation_tasks.last_session_id) THEN last_session_id ELSE '' END,
+		last_session_id=CASE WHEN EXISTS (SELECT 1 FROM sessions WHERE id=automation_tasks.last_session_id) THEN last_session_id ELSE '' END,
 		updated_at=?
 		WHERE last_status IN ('queued','running') AND last_session_id<>''`, formatTime(now))
 	return err
 }
 
 func (store *Store) DeleteAutomationTask(id string) error {
-	result, err := store.db.Exec(`DELETE FROM ea_automation_tasks WHERE id=?`, id)
+	result, err := store.db.Exec(`DELETE FROM automation_tasks WHERE id=?`, id)
 	if err != nil {
 		return err
 	}

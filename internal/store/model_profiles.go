@@ -72,17 +72,17 @@ func (store *Store) saveModelProfile(value ModelSettings, activate bool) error {
 }
 
 // ListModelProfiles 返回所有模型配置以及当前用于创建新会话的配置 ID。
-// 旧版本只有 ea_settings.model；首次读取时将它无损包装成 default profile。
+// 旧版本只有 settings.model；首次读取时将它无损包装成 default profile。
 func (store *Store) ListModelProfiles() ([]ModelProfile, string, error) {
 	var data []byte
-	err := store.db.QueryRow(`SELECT value_json FROM ea_settings WHERE key='model_profiles'`).Scan(&data)
+	err := store.db.QueryRow(`SELECT value_json FROM settings WHERE key='model_profiles'`).Scan(&data)
 	if err == nil {
 		var profiles []ModelProfile
 		if err := json.Unmarshal(data, &profiles); err != nil {
 			return nil, "", err
 		}
 		activeID := ""
-		_ = store.db.QueryRow(`SELECT value_json FROM ea_settings WHERE key='model_active_profile'`).Scan(&activeID)
+		_ = store.db.QueryRow(`SELECT value_json FROM settings WHERE key='model_active_profile'`).Scan(&activeID)
 		activeID = strings.Trim(activeID, `" `)
 		if activeID == "" && len(profiles) > 0 {
 			activeID = profiles[0].ID
@@ -158,7 +158,7 @@ func (store *Store) DeleteModelProfile(id string) error {
 		return errors.New("至少保留一套模型配置")
 	}
 	var references int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM ea_sessions WHERE profile_id=?`, id).Scan(&references); err != nil {
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE profile_id=?`, id).Scan(&references); err != nil {
 		return err
 	}
 	if references > 0 {
@@ -208,7 +208,7 @@ func (store *Store) ClearCodexProvider(provider string) error {
 
 func (store *Store) legacyModelSettings() (ModelSettings, error) {
 	var data []byte
-	if err := store.db.QueryRow(`SELECT value_json FROM ea_settings WHERE key='model'`).Scan(&data); err != nil {
+	if err := store.db.QueryRow(`SELECT value_json FROM settings WHERE key='model'`).Scan(&data); err != nil {
 		return ModelSettings{}, err
 	}
 	var result ModelSettings
@@ -258,13 +258,13 @@ func (store *Store) saveModelProfiles(profiles []ModelProfile, activeID string, 
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.Exec(`INSERT INTO ea_settings(key,value_json) VALUES('model_profiles',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, data); err != nil {
+	if _, err = tx.Exec(`INSERT INTO settings(key,value_json) VALUES('model_profiles',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, data); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(`INSERT INTO ea_settings(key,value_json) VALUES('model_active_profile',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, activeData); err != nil {
+	if _, err = tx.Exec(`INSERT INTO settings(key,value_json) VALUES('model_active_profile',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, activeData); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(`INSERT INTO ea_settings(key,value_json) VALUES('model',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, legacyData); err != nil {
+	if _, err = tx.Exec(`INSERT INTO settings(key,value_json) VALUES('model',?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json`, legacyData); err != nil {
 		return err
 	}
 	return tx.Commit()

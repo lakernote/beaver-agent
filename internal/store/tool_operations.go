@@ -76,7 +76,7 @@ func (store *Store) BeginToolOperation(sessionID string, value ToolOperation) er
 		value.StartedAt = time.Now()
 	}
 	value.Guarantee = normalizeToolGuarantee(value)
-	result, err := store.db.Exec(`INSERT OR IGNORE INTO ea_tool_operations(
+	result, err := store.db.Exec(`INSERT OR IGNORE INTO tool_operations(
 session_id,runtime,turn,step,activity_id,name,activity_kind,activity_source,display_name,input,output,status,guarantee,error,started_at,completed_at,updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,'executing',?,'',?,'',?)`,
 		sessionID, value.Runtime, value.Turn, value.Step, value.ActivityID, value.Name,
@@ -111,19 +111,19 @@ func (store *Store) SettleToolOperation(sessionID string, value ToolOperation) e
 		value.StartedAt = value.CompletedAt
 	}
 	value.Guarantee = normalizeToolGuarantee(value)
-	_, err := store.db.Exec(`INSERT INTO ea_tool_operations(
+	_, err := store.db.Exec(`INSERT INTO tool_operations(
 session_id,runtime,turn,step,activity_id,name,activity_kind,activity_source,display_name,input,output,status,guarantee,error,started_at,completed_at,updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(session_id,runtime,turn,activity_id) DO UPDATE SET
 step=excluded.step,name=excluded.name,activity_kind=excluded.activity_kind,activity_source=excluded.activity_source,
-display_name=CASE WHEN ea_tool_operations.status='executing' THEN excluded.display_name ELSE ea_tool_operations.display_name END,
-input=CASE WHEN ea_tool_operations.status='executing' AND excluded.input<>'' THEN excluded.input ELSE ea_tool_operations.input END,
-output=CASE WHEN ea_tool_operations.status='executing' THEN excluded.output ELSE ea_tool_operations.output END,
-status=CASE WHEN ea_tool_operations.status='executing' THEN excluded.status ELSE ea_tool_operations.status END,
-guarantee=ea_tool_operations.guarantee,
-error=CASE WHEN ea_tool_operations.status='executing' THEN excluded.error ELSE ea_tool_operations.error END,
-completed_at=CASE WHEN ea_tool_operations.status='executing' THEN excluded.completed_at ELSE ea_tool_operations.completed_at END,
-updated_at=CASE WHEN ea_tool_operations.status='executing' THEN excluded.updated_at ELSE ea_tool_operations.updated_at END`,
+display_name=CASE WHEN tool_operations.status='executing' THEN excluded.display_name ELSE tool_operations.display_name END,
+input=CASE WHEN tool_operations.status='executing' AND excluded.input<>'' THEN excluded.input ELSE tool_operations.input END,
+output=CASE WHEN tool_operations.status='executing' THEN excluded.output ELSE tool_operations.output END,
+status=CASE WHEN tool_operations.status='executing' THEN excluded.status ELSE tool_operations.status END,
+guarantee=tool_operations.guarantee,
+error=CASE WHEN tool_operations.status='executing' THEN excluded.error ELSE tool_operations.error END,
+completed_at=CASE WHEN tool_operations.status='executing' THEN excluded.completed_at ELSE tool_operations.completed_at END,
+updated_at=CASE WHEN tool_operations.status='executing' THEN excluded.updated_at ELSE tool_operations.updated_at END`,
 		sessionID, value.Runtime, value.Turn, value.Step, value.ActivityID, value.Name,
 		value.ActivityKind, value.ActivitySource, value.DisplayName, value.Input, value.Output,
 		value.Status, value.Guarantee, value.Error, formatTime(value.StartedAt), formatTime(value.CompletedAt), formatTime(value.CompletedAt))
@@ -132,7 +132,7 @@ updated_at=CASE WHEN ea_tool_operations.status='executing' THEN excluded.updated
 
 func (store *Store) ListToolOperations(sessionID string) ([]ToolOperation, error) {
 	rows, err := store.db.Query(`SELECT id,session_id,runtime,turn,step,activity_id,name,activity_kind,activity_source,display_name,input,output,status,guarantee,error,started_at,completed_at,updated_at
-FROM ea_tool_operations WHERE session_id=? ORDER BY id`, sessionID)
+FROM tool_operations WHERE session_id=? ORDER BY id`, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (store *Store) MarkUnfinishedToolOperationsUnknown(sessionID string, runtim
 
 func markUnfinishedToolOperationsUnknownTx(tx *sql.Tx, sessionID string, runtime Runtime, turn int, reason string, now time.Time) error {
 	query := `SELECT id,session_id,runtime,turn,step,activity_id,name,activity_kind,activity_source,display_name,input
-FROM ea_tool_operations WHERE status='executing'`
+FROM tool_operations WHERE status='executing'`
 	args := []any{}
 	if sessionID != "" {
 		query += ` AND session_id=?`
@@ -210,7 +210,7 @@ FROM ea_tool_operations WHERE status='executing'`
 		reason = "工具执行未返回确定结果；为避免重复副作用不会自动重放"
 	}
 	for _, operation := range unfinished {
-		if _, err := tx.Exec(`UPDATE ea_tool_operations SET status='unknown',error=?,completed_at=?,updated_at=? WHERE id=? AND status='executing'`, reason, formatTime(now), formatTime(now), operation.ID); err != nil {
+		if _, err := tx.Exec(`UPDATE tool_operations SET status='unknown',error=?,completed_at=?,updated_at=? WHERE id=? AND status='executing'`, reason, formatTime(now), formatTime(now), operation.ID); err != nil {
 			return err
 		}
 		if err := appendEventTx(tx, operation.SessionID, Event{

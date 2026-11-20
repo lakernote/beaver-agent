@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lakernote/beaver-agent/internal/redact"
 	"github.com/lakernote/beaver-agent/internal/store"
-	"github.com/lakernote/beaver-agent/internal/tracevalue"
 )
 
 const (
@@ -344,7 +344,7 @@ func parseCodexSessionLogLine(line int, raw []byte) codexSessionLogLine {
 			}
 		}
 	}
-	result.Payload = tracevalue.Marshal(string(raw), codexSessionLogPayloadLimit)
+	result.Payload = redact.Marshal(string(raw), codexSessionLogPayloadLimit)
 	return result
 }
 

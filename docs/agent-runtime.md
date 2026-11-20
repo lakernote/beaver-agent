@@ -54,9 +54,9 @@ Chat Completions、Ollama Chat 和 Anthropic Messages 每轮发送完整历史�
 
 Function Calling 是 Beaver 的硬能力边界。Adapter 只读取协议原生结构：Chat Completions 的 `tool_calls`、Responses 的 `function_call`、Ollama Chat 的 `message.tool_calls`、Anthropic Messages 的 `tool_use`。Runtime 不从普通文本中猜测、提取或修复 JSON/XML 伪工具调用；不满足该边界的模型会在“测试当前模型”中直接报错，不进入兼容分支。
 
-工具结果不是一个无类型字符串。`ToolResult` 分别保存文本/图片/音频/资源等 `ContentBlock`、任意 JSON `StructuredContent`、`isError`、结构化错误与压缩元数据。`ea_messages.tool_result_json` 保存类型和 Artifact 引用，`content` 只是兼容旧工具和只接受字符串协议的确定性投影。二进制块单独写入 `ea_attachments`，页面窗口只返回元数据，Runtime 重建模型上下文时才加载字节。入口还设置 256 个块、单块 8 MiB、总计 16 MiB 的可用性上限；超限会成为明确的 `tool_result_too_large`，不会静默裁剪或把无界 Base64 写进消息 JSON。
+工具结果不是一个无类型字符串。`ToolResult` 分别保存文本/图片/音频/资源等 `ContentBlock`、任意 JSON `StructuredContent`、`isError`、结构化错误与压缩元数据。`messages.tool_result_json` 保存类型和 Artifact 引用，`content` 只是兼容旧工具和只接受字符串协议的确定性投影。二进制块单独写入 `attachments`，页面窗口只返回元数据，Runtime 重建模型上下文时才加载字节。入口还设置 256 个块、单块 8 MiB、总计 16 MiB 的可用性上限；超限会成为明确的 `tool_result_too_large`，不会静默裁剪或把无界 Base64 写进消息 JSON。
 
-用户消息可以携带附件。文本和代码附件会转成文本内容块；图片会转成 Chat Completions 的 `image_url` 或 Responses 的 `input_image`；PDF 会转成 `file` 或 `input_file`。附件原文保存在 `ea_attachments`，会话接口只返回元数据，页面需要内容时再通过附件接口读取，避免列表接口携带大段 Base64。
+用户消息可以携带附件。文本和代码附件会转成文本内容块；图片会转成 Chat Completions 的 `image_url` 或 Responses 的 `input_image`；PDF 会转成 `file` 或 `input_file`。附件原文保存在 `attachments`，会话接口只返回元数据，页面需要内容时再通过附件接口读取，避免列表接口携带大段 Base64。
 
 页面的“上下文”使用 Provider 最近一次真实上报的 Input Token，而不是用字符数伪造精确 Token。模型窗口可在配置中填写；Ollama 会从 `/api/ps` 读取当前已加载模型真正使用的窗口，避免把理论上限误当成运行值。
 
@@ -101,7 +101,7 @@ OpenRouter 等兼容网关可能在 Tool Call 旁返回 `reasoning` 或 `reasoni
                                            普通 Agent 循环
 ```
 
-检查点保存到 `ea_compactions`，包含摘要、消息边界、原始消息数量、Usage 和时间。`ea_messages` 不删除任何原文。再次压缩时会把旧检查点和新增长历史一起更新；压缩调用作为 `compaction_start` / `compaction_end` 进入 Trace，Token 和耗时计入会话总账。触发前可以参考最近一次真实 Input Token 加上新消息估算，但页面仍只把 Provider 上报值显示为真实 Token。
+检查点保存到 `compactions`，包含摘要、消息边界、原始消息数量、Usage 和时间。`messages` 不删除任何原文。再次压缩时会把旧检查点和新增长历史一起更新；压缩调用作为 `compaction_start` / `compaction_end` 进入 Trace，Token 和耗时计入会话总账。触发前可以参考最近一次真实 Input Token 加上新消息估算，但页面仍只把 Provider 上报值显示为真实 Token。
 
 已通过入口大小校验的工具结果，会根据“当前请求距离上下文阈值还差多少 Token”计算本次模型副本的保留预算，不再固定裁剪 1200 字符。普通文本按动态预算保留头尾；结构化 JSON 保留有效 JSON、字段/数组采样和 `_beaver_truncation` 元数据（原始、保留 Token 与省略项数）。完整的已接收内容仍留在 SQLite/Artifact；只有输入本身达到阈值时才调用模型生成检查点。每次请求还会按剩余上下文动态收紧该次 `max_output_tokens`。
 
@@ -163,7 +163,7 @@ mcp__<server_id>__<remote_tool_name>
 
 Server 另外记录 `compaction_start` 和 `compaction_end`，使独立的摘要模型调用同样可审计。
 
-`ea_tool_operations` 是独立于展示 Trace 的副作用账本。Beaver 在执行工具前同步写入，标记 `pre_effect`；账本写入失败则工具不会执行。Codex 工具由 app-server 内部执行，Beaver 只能把收到的生命周期通知标记为 `observed`，不能宣称 pre-effect 保证；缺少稳定 Activity ID 且有多个并行同名同参调用时使用 `uncorrelated`，不以 FIFO 猜测归属，未收敛的开始记录在本轮结束时转为 `unknown`。
+`tool_operations` 是独立于展示 Trace 的副作用账本。Beaver 在执行工具前同步写入，标记 `pre_effect`；账本写入失败则工具不会执行。Codex 工具由 app-server 内部执行，Beaver 只能把收到的生命周期通知标记为 `observed`，不能宣称 pre-effect 保证；缺少稳定 Activity ID 且有多个并行同名同参调用时使用 `uncorrelated`，不以 FIFO 猜测归属，未收敛的开始记录在本轮结束时转为 `unknown`。
 
 Trace 使用三个不同层级，不能混为一谈：
 
@@ -173,7 +173,7 @@ Trace 使用三个不同层级，不能混为一谈：
 
 模型请求的开始和结束是两个 Event，但属于同一个 Step/Attempt。流式 Delta 是一次模型响应的传输片段，也不会增加 Step。
 
-应用层把真实模型请求、响应、工具参数、结果、错误、耗时和 Token 保存到 `ea_events`。页面默认显示汇总，展开事件后格式化 JSON。附件 Base64 在写入 Trace 前会替换为省略标记，只保留名称、类型和大小，避免把二进制内容重复写入审计记录。Trace 不依赖“根因”“处理人”或“修复”这些业务字段，所以能用于任意任务。
+应用层把真实模型请求、响应、工具参数、结果、错误、耗时和 Token 保存到 `events`。页面默认显示汇总，展开事件后格式化 JSON。附件 Base64 在写入 Trace 前会替换为省略标记，只保留名称、类型和大小，避免把二进制内容重复写入审计记录。Trace 不依赖“根因”“处理人”或“修复”这些业务字段，所以能用于任意任务。
 
 缓存 Token 仅在 Provider 响应真实包含缓存字段时统计。已兼容 OpenAI `prompt_tokens_details.cached_tokens` / `input_tokens_details.cached_tokens`、DeepSeek `prompt_cache_hit_tokens` 以及常见的 cache read/write 兼容字段。“未上报”与“已上报 0”是两种不同状态。OpenAI 请求使用稳定 `prompt_cache_key`；其他兼容服务不发送厂商专属字段。
 

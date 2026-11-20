@@ -8,12 +8,12 @@ import (
 // TouchSession moves a session containing a channel-only message to the top of
 // the recent list without changing its task lifecycle state.
 func (store *Store) TouchSession(id string, now time.Time) error {
-	_, err := store.db.Exec(`UPDATE ea_sessions SET updated_at=? WHERE id=?`, formatTime(now), id)
+	_, err := store.db.Exec(`UPDATE sessions SET updated_at=? WHERE id=?`, formatTime(now), id)
 	return err
 }
 
 func (store *Store) QueueSession(id, model string, now time.Time) error {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='queued',error='',model=?,pending_model_json=X'',updated_at=? WHERE id=? AND status NOT IN ('queued','running','paused')`, model, formatTime(now), id)
+	result, err := store.db.Exec(`UPDATE sessions SET status='queued',error='',model=?,pending_model_json=X'',updated_at=? WHERE id=? AND status NOT IN ('queued','running','paused')`, model, formatTime(now), id)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (store *Store) EnqueueTurnWithSettings(id string, settings ModelSettings, v
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE ea_sessions SET status='queued',error='',model=?,pending_model_json=?,updated_at=? WHERE id=? AND status NOT IN ('queued','running','paused')`, settings.Model, snapshot, formatTime(now), id)
+	result, err := tx.Exec(`UPDATE sessions SET status='queued',error='',model=?,pending_model_json=?,updated_at=? WHERE id=? AND status NOT IN ('queued','running','paused')`, settings.Model, snapshot, formatTime(now), id)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (store *Store) EnqueueTurnWithSettings(id string, settings ModelSettings, v
 }
 
 func (store *Store) MarkRunning(id string, now time.Time) error {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='running',updated_at=? WHERE id=? AND status='queued'`, formatTime(now), id)
+	result, err := store.db.Exec(`UPDATE sessions SET status='running',updated_at=? WHERE id=? AND status='queued'`, formatTime(now), id)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (store *Store) MarkRunning(id string, now time.Time) error {
 }
 
 func (store *Store) FinishSession(id, responseID, providerKey string, usage Usage, now time.Time) error {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='idle',error='',response_id=?,provider_key=?,pending_model_json=X'',
+	result, err := store.db.Exec(`UPDATE sessions SET status='idle',error='',response_id=?,provider_key=?,pending_model_json=X'',
 input_tokens=input_tokens+?,output_tokens=output_tokens+?,cached_tokens=cached_tokens+?,cache_write_tokens=cache_write_tokens+?,total_tokens=total_tokens+?,
 model_duration_ms=model_duration_ms+?,tool_duration_ms=tool_duration_ms+?,model_calls=model_calls+?,tool_calls=tool_calls+?,updated_at=? WHERE id=? AND status='running'`,
 		responseID, providerKey, usage.InputTokens, usage.OutputTokens, usage.CachedTokens, usage.CacheWriteTokens, usage.TotalTokens,
@@ -96,7 +96,7 @@ model_duration_ms=model_duration_ms+?,tool_duration_ms=tool_duration_ms+?,model_
 func (store *Store) FailSession(id string, runError error, usage Usage, now time.Time) error {
 	// 即使用户主动取消，也要保留已经发生的模型/工具调用和耗时；但 canceled
 	// 状态与用户可读错误不能被后台退出覆盖。
-	_, err := store.db.Exec(`UPDATE ea_sessions SET
+	_, err := store.db.Exec(`UPDATE sessions SET
 status=CASE WHEN status IN ('canceled','paused') THEN status ELSE 'failed' END,
 error=CASE WHEN status IN ('canceled','paused') THEN error ELSE ? END,
 	pending_model_json=CASE WHEN status='paused' THEN pending_model_json ELSE X'' END,
@@ -110,7 +110,7 @@ model_duration_ms=model_duration_ms+?,tool_duration_ms=tool_duration_ms+?,model_
 // PauseQueuedSession 只暂停尚未获得执行槽的任务，因此恢复时不会重复任何
 // 已经执行过的模型请求、命令或文件写入。
 func (store *Store) PauseQueuedSession(id string, now time.Time) (bool, error) {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='paused',error='',updated_at=? WHERE id=? AND status='queued'`, formatTime(now), id)
+	result, err := store.db.Exec(`UPDATE sessions SET status='paused',error='',updated_at=? WHERE id=? AND status='queued'`, formatTime(now), id)
 	if err != nil {
 		return false, err
 	}
@@ -119,7 +119,7 @@ func (store *Store) PauseQueuedSession(id string, now time.Time) (bool, error) {
 }
 
 func (store *Store) ResumePausedSession(id string, now time.Time) (bool, error) {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='queued',error='',updated_at=? WHERE id=? AND status='paused'`, formatTime(now), id)
+	result, err := store.db.Exec(`UPDATE sessions SET status='queued',error='',updated_at=? WHERE id=? AND status='paused'`, formatTime(now), id)
 	if err != nil {
 		return false, err
 	}
@@ -129,7 +129,7 @@ func (store *Store) ResumePausedSession(id string, now time.Time) (bool, error) 
 
 // CancelSession 只取消仍在排队或运行的任务，返回是否真的改变了状态。
 func (store *Store) CancelSession(id string, now time.Time) (bool, error) {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET status='canceled',error='用户已停止任务',pending_model_json=X'',updated_at=? WHERE id=? AND status IN ('queued','running','paused')`, formatTime(now), id)
+	result, err := store.db.Exec(`UPDATE sessions SET status='canceled',error='用户已停止任务',pending_model_json=X'',updated_at=? WHERE id=? AND status IN ('queued','running','paused')`, formatTime(now), id)
 	if err != nil {
 		return false, err
 	}
@@ -138,7 +138,7 @@ func (store *Store) CancelSession(id string, now time.Time) (bool, error) {
 }
 
 func (store *Store) DeleteSession(id string) error {
-	_, err := store.db.Exec(`DELETE FROM ea_sessions WHERE id=?`, id)
+	_, err := store.db.Exec(`DELETE FROM sessions WHERE id=?`, id)
 	return err
 }
 
@@ -154,14 +154,14 @@ func (store *Store) RecoverRunning(now time.Time) error {
 	if err := markUnfinishedToolOperationsUnknownTx(tx, "", "", 0, reason, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE ea_sessions SET status='failed',error='服务重启时任务正在运行，已标记为中断；可确认工作区状态后重新发送消息',pending_model_json=X'',updated_at=? WHERE status='running'`, formatTime(now)); err != nil {
+	if _, err := tx.Exec(`UPDATE sessions SET status='failed',error='服务重启时任务正在运行，已标记为中断；可确认工作区状态后重新发送消息',pending_model_json=X'',updated_at=? WHERE status='running'`, formatTime(now)); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func (store *Store) ListQueuedSessions() ([]Session, error) {
-	rows, err := store.db.Query(`SELECT ` + sessionSelectColumns + ` FROM ea_sessions WHERE status='queued' ORDER BY updated_at,id`)
+	rows, err := store.db.Query(`SELECT ` + sessionSelectColumns + ` FROM sessions WHERE status='queued' ORDER BY updated_at,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +178,12 @@ func (store *Store) ListQueuedSessions() ([]Session, error) {
 }
 
 func (store *Store) SetSessionWorkspace(id, workspace, sourceWorkspace, branch, notice string) error {
-	_, err := store.db.Exec(`UPDATE ea_sessions SET workspace=?,source_workspace=?,worktree_branch=?,workspace_notice=? WHERE id=?`, workspace, sourceWorkspace, branch, notice, id)
+	_, err := store.db.Exec(`UPDATE sessions SET workspace=?,source_workspace=?,worktree_branch=?,workspace_notice=? WHERE id=?`, workspace, sourceWorkspace, branch, notice, id)
 	return err
 }
 
 func (store *Store) SetSessionContinuation(id, responseID string) error {
-	_, err := store.db.Exec(`UPDATE ea_sessions SET response_id=? WHERE id=?`, responseID, id)
+	_, err := store.db.Exec(`UPDATE sessions SET response_id=? WHERE id=?`, responseID, id)
 	return err
 }
 
@@ -191,14 +191,14 @@ func (store *Store) SetSessionContinuation(id, responseID string) error {
 // changing recency ordering. This is needed when Codex resolves an omitted
 // model override from its layered configuration during thread/start.
 func (store *Store) SetSessionModel(id, model string) error {
-	_, err := store.db.Exec(`UPDATE ea_sessions SET model=? WHERE id=?`, model, id)
+	_, err := store.db.Exec(`UPDATE sessions SET model=? WHERE id=?`, model, id)
 	return err
 }
 
 // UpdateSessionMetadata 更新会话的管理信息，不改变 updated_at，避免仅重命名或
 // 整理文件夹就把旧会话移动到“最近”顶部。
 func (store *Store) UpdateSessionMetadata(id, title, projectID string) error {
-	result, err := store.db.Exec(`UPDATE ea_sessions SET title=?,project_id=? WHERE id=?`, title, projectID, id)
+	result, err := store.db.Exec(`UPDATE sessions SET title=?,project_id=? WHERE id=?`, title, projectID, id)
 	if err != nil {
 		return err
 	}

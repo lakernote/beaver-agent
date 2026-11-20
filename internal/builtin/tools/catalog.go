@@ -74,7 +74,7 @@ func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource,
 
 // Extras 是需要服务端提供存储才能工作的可选能力；字段为 nil 时对应工具不会出现。
 type Extras struct {
-	Memory    *Memory          // 绑定了成员身份的长期记忆
+	Memory    *MemoryScope     // 绑定了成员身份的长期记忆
 	Knowledge *knowledge.Store // 团队共享知识库
 }
 
@@ -134,7 +134,7 @@ func InfoList(environment *appenv.Environment, skills SkillSource) []Info {
 
 func InfoListWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
 	// 页面展示用：用一个占位的记忆存储，让记忆工具出现在工具列表里。
-	entries := catalogEntries(environment, skills, policy, Extras{Memory: &Memory{Store: memory.New("")}, Knowledge: knowledge.New("")})
+	entries := catalogEntries(environment, skills, policy, Extras{Memory: &MemoryScope{Store: memory.New("")}, Knowledge: knowledge.New("")})
 	result := make([]Info, 0, len(entries))
 	for _, item := range entries {
 		result = append(result, Info{
