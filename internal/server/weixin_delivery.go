@@ -50,46 +50,86 @@ func (manager *weixinManager) runDelivery(accountID string, deliver func(string)
 	}
 }
 
-// deliverPending 等当前任务结束后，把最终结果发给成员；成功发送返回 true。
+// deliverPending 等当前任务结束后处理一代结果；返回 true 表示应立即检查下一代。
 func (manager *weixinManager) deliverPending(accountID string) bool {
+	return manager.deliverPendingWithWait(accountID, manager.waitWithProgress)
+}
+
+func (manager *weixinManager) deliverPendingWithWait(accountID string, wait func(string, string)) bool {
 	account, err := manager.server.store.GetWeixinAccount(accountID)
 	if err != nil || account.PendingMessageID == 0 || account.PendingMessageID <= account.DeliveredMessageID || account.CurrentSessionID == "" {
 		return false
 	}
-	manager.waitWithProgress(account.ID, account.CurrentSessionID)
+	pendingMessageID := account.PendingMessageID
+	pendingSessionID := account.CurrentSessionID
+	pendingContextToken := account.PendingContextToken
+	wait(account.ID, pendingSessionID)
 	if manager.server.ctx.Err() != nil {
 		return false
 	}
+
+	// 与 submit 共用成员级短锁：要么冻结这一代的终态文本，要么完整看到
+	// 下一代的 session + pending 槽。锁只覆盖本地读取，绝不覆盖微信网络请求。
+	gate := manager.accountDeliveryGate(accountID)
+	gate.Lock()
 	account, err = manager.server.store.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID <= account.DeliveredMessageID {
+	if err != nil {
+		gate.Unlock()
+		return false
+	}
+	if account.PendingMessageID != pendingMessageID || account.CurrentSessionID != pendingSessionID || account.PendingContextToken != pendingContextToken {
+		gate.Unlock()
+		return true
+	}
+	if account.PendingMessageID <= account.DeliveredMessageID {
+		gate.Unlock()
 		return false
 	}
 	settings, _ := manager.server.store.GetWeixinSettings()
 	if !settings.Enabled || !account.Enabled {
+		gate.Unlock()
 		return false
 	}
-	session, err := manager.server.store.LoadSessionWindow(account.CurrentSessionID, 40, 1)
+	session, err := manager.server.store.LoadSessionWindow(pendingSessionID, 40, 1)
 	if err != nil {
+		gate.Unlock()
+		return false
+	}
+	if isActiveSessionStatus(session.Status) {
+		gate.Unlock()
 		return false
 	}
 	answer := finalSessionText(session)
 	if answer == "" {
 		answer = "任务已结束，但没有可发送的文字结果。"
 	}
-	if err := manager.sendChunks(account, account.UserID, account.PendingContextToken, answer); err != nil {
+	// account、token 和 answer 从此都是这一代的不可变快照。
+	gate.Unlock()
+
+	if err := manager.sendChunks(account, account.UserID, pendingContextToken, answer); err != nil {
 		log.Printf("微信远程：发送最终结果失败 account=%s: %v", account.ID, err)
 		return false
 	}
-	_ = manager.server.store.MarkWeixinDelivered(account.ID, account.PendingMessageID, time.Now())
+	marked, err := manager.server.store.MarkWeixinDelivered(account.ID, pendingMessageID, time.Now())
+	if err != nil {
+		log.Printf("微信远程：标记最终结果送达失败 account=%s message=%d: %v", account.ID, pendingMessageID, err)
+		return false
+	}
+	// 发送期间若新消息覆盖了 pending 槽，CAS 会失败；旧结果已经发出，但绝不
+	// 清空新 token 或把新一代提前标成送达，立即进入下一轮即可。
+	if !marked {
+		return true
+	}
 	return true
 }
 
 // 长任务期间的主动进度：每隔 interval 推送一次，最多 max 条，进度没变化就不打扰。
-// 条数有上限：iLink 对同一条入站消息的 context_token 只允许约 10 次回复（社区实测，见
-// Tencent/openclaw-weixin issue #81，非官方文档），超出返回 ret=-2。
-// 接收确认 1 条 + 进度最多 3 条，剩下的额度留给分段的最终结果。
+// 腾讯没有公开 iLink 的限制说明，下面是 Tencent/openclaw-weixin 社区 issue 里的实测，且互相并不一致：
+// #81 同一条入站消息只能回复约 10 次；#286 context_token 只在入站后约 1.5–2 分钟内可靠；
+// #270 疑似有按时间累计的配额；#309 主动推送在成员约 11–15 小时没发消息后被拒。
+// 所以第一条进度放在 1 分钟（赶在 2 分钟窗口内），总条数很少，剩下的额度留给最终结果。
 var (
-	weixinProgressInterval = 2 * time.Minute
+	weixinProgressInterval = time.Minute
 	weixinProgressMax      = 3
 )
 
@@ -146,6 +186,9 @@ func (manager *weixinManager) sendChunks(account store.WeixinAccount, userID, co
 }
 
 func finalSessionText(session store.Session) string {
+	if isActiveSessionStatus(session.Status) {
+		return ""
+	}
 	if session.Status == store.SessionFailed {
 		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送 /status 查看会话，或发送 /new 开始独立任务。", session.Title, strings.TrimSpace(session.Error))
 	}

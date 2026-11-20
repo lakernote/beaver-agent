@@ -48,7 +48,7 @@ func (server *Server) notifyAutomationMembers(task store.AutomationTask, text st
 			// 主动推送沿用成员最近一条消息的 context_token；token 过期时微信可能拒收，
 			// 此时让成员给机器人发任意一条消息即可刷新。
 			if err := server.weixin.sendChunks(account, account.UserID, account.PendingContextToken, text); err != nil {
-				log.Printf("定时任务通知微信失败 task=%s member=%s: %v（成员约 24–48 小时没给机器人发消息时，context_token 会过期，发任意一条消息即可恢复）", task.ID, account.Label, err)
+				log.Printf("定时任务通知微信失败 task=%s member=%s: %v（成员一段时间没给机器人发消息时 context_token 会失效，发任意一条消息即可恢复）", task.ID, account.Label, err)
 			}
 		}
 	}()

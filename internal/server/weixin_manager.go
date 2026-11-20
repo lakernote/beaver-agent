@@ -20,7 +20,8 @@ type weixinManager struct {
 	pollers map[string]weixinPoller
 	// delivery 的 bool 表示活跃投递协程结束前又收到了一次唤醒请求。
 	// 记录这个请求，才能避免“旧协程正退出、新请求看到它仍存在”时漏掉追问。
-	delivery map[string]bool
+	delivery     map[string]bool
+	deliveryGate map[string]*sync.Mutex
 }
 
 type weixinPoller struct {
@@ -29,7 +30,27 @@ type weixinPoller struct {
 }
 
 func newWeixinManager(server *Server, gateway weixin.Gateway) *weixinManager {
-	return &weixinManager{server: server, gateway: gateway, logins: make(map[string]*weixinLogin), pollers: make(map[string]weixinPoller), delivery: make(map[string]bool)}
+	return &weixinManager{
+		server: server, gateway: gateway,
+		logins: make(map[string]*weixinLogin), pollers: make(map[string]weixinPoller),
+		delivery: make(map[string]bool), deliveryGate: make(map[string]*sync.Mutex),
+	}
+}
+
+// accountDeliveryGate 只串行同一成员的“提交新轮次”和“冻结待发送结果”。
+// 网络发送不持有这把锁；发送期间到达的新轮次由数据库 CAS 保护。
+func (manager *weixinManager) accountDeliveryGate(accountID string) *sync.Mutex {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.deliveryGate == nil {
+		manager.deliveryGate = make(map[string]*sync.Mutex)
+	}
+	gate := manager.deliveryGate[accountID]
+	if gate == nil {
+		gate = &sync.Mutex{}
+		manager.deliveryGate[accountID] = gate
+	}
+	return gate
 }
 
 func (manager *weixinManager) start() {

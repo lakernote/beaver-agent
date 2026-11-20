@@ -62,11 +62,31 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n/new 开始独立的新会话\n/status 查看当前进度\n/stop 中断当前任务\n/projects 查看可用项目\n/project 项目名 设置后续新会话的源文件夹")
 		return true
 	case "new":
-		if session, err := manager.currentSession(account); err == nil && isActiveSessionStatus(session.Status) {
+		gate := manager.accountDeliveryGate(account.ID)
+		gate.Lock()
+		fresh, err := manager.server.store.GetWeixinAccount(account.ID)
+		if err != nil {
+			gate.Unlock()
+			manager.send(account, message.FromUserID, message.ContextToken, "暂时无法读取会话状态，请稍后重试。")
+			return true
+		}
+		if session, loadErr := manager.currentSession(fresh); loadErr == nil && isActiveSessionStatus(session.Status) {
+			gate.Unlock()
 			manager.send(account, message.FromUserID, message.ContextToken, "当前任务仍在执行。请先发送 /stop，任务结束后再开始新会话。")
 			return true
 		}
-		_ = manager.server.store.SetWeixinCurrentSession(account.ID, "", time.Now())
+		if fresh.PendingMessageID > fresh.DeliveredMessageID {
+			gate.Unlock()
+			manager.resumeDelivery(account.ID)
+			manager.send(account, message.FromUserID, message.ContextToken, "上一条任务的结果正在回传。收到结果后请再发送 /new，避免切换会话时漏掉最终答复。")
+			return true
+		}
+		err = manager.server.store.SetWeixinCurrentSession(account.ID, "", time.Now())
+		gate.Unlock()
+		if err != nil {
+			manager.send(account, message.FromUserID, message.ContextToken, "切换会话失败，请稍后重试。")
+			return true
+		}
 		manager.send(account, message.FromUserID, message.ContextToken, "已切换到新会话。下一条消息会创建一个独立任务。")
 		return true
 	case "status":
@@ -86,7 +106,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 	case "stop":
 		session, err := manager.currentSession(account)
 		if err != nil || !isActiveSessionStatus(session.Status) {
-			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送 /new可开始独立任务。")
+			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送 /new 可开始独立任务。")
 			return true
 		}
 		changed, cancelErr := manager.server.store.CancelSession(session.ID, time.Now())

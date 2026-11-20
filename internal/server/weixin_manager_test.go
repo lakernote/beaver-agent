@@ -428,6 +428,123 @@ func (gateway *recordingGateway) SendText(_ context.Context, _ weixin.Account, u
 	return nil
 }
 
+type blockingRecordingGateway struct {
+	fakeWeixinGateway
+	started chan struct{}
+	release chan struct{}
+	sent    chan string
+	once    sync.Once
+}
+
+func (gateway *blockingRecordingGateway) SendText(ctx context.Context, _ weixin.Account, userID, _ string, text string) error {
+	gateway.once.Do(func() { close(gateway.started) })
+	select {
+	case <-gateway.release:
+		gateway.sent <- userID + "|" + text
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func newWeixinDeliveryFixture(t *testing.T) (*Server, *store.Store, string, string) {
+	t.Helper()
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
+	t.Cleanup(func() { _ = application.Shutdown(context.Background()) })
+	now := time.Now().UTC()
+	if _, err := database.SaveWeixinSettings(store.WeixinSettings{Enabled: true, IgnoreBefore: now}); err != nil {
+		t.Fatal(err)
+	}
+	const sessionID = "delivery-session"
+	if _, err := database.CreateSession(store.CreateSessionParams{ID: sessionID, Title: "连续追问", Runtime: store.RuntimeBeaver, Model: "fixture", Workspace: t.TempDir(), CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.AppendMessage(sessionID, store.Message{Role: "assistant", Content: "A 的最终答案", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	const accountID = "delivery-account"
+	if err := database.SaveWeixinAccount(store.WeixinAccount{ID: accountID, Label: "成员", UserID: "delivery-user", Token: "token", BaseURL: "https://example.test", Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.SetWeixinTask(accountID, sessionID, 42, "context-A", now, now); err != nil {
+		t.Fatal(err)
+	}
+	return application, database, accountID, sessionID
+}
+
+func TestWeixinDeliverySkipsSupersededPendingGeneration(t *testing.T) {
+	application, database, accountID, sessionID := newWeixinDeliveryFixture(t)
+	gateway := &recordingGateway{sent: make(chan string, 2)}
+	application.weixin.gateway = gateway
+	now := time.Now().UTC()
+	retry := application.weixin.deliverPendingWithWait(accountID, func(string, string) {
+		if err := database.SetWeixinTask(accountID, sessionID, 43, "context-B", now, now); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !retry {
+		t.Fatal("superseded generation should trigger another delivery pass")
+	}
+	select {
+	case got := <-gateway.sent:
+		t.Fatalf("superseded generation sent stale result: %q", got)
+	default:
+	}
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-B" {
+		t.Fatalf("new pending generation changed: %+v err=%v", account, err)
+	}
+}
+
+func TestWeixinDeliveryCASPreservesMessageArrivingDuringSend(t *testing.T) {
+	application, database, accountID, sessionID := newWeixinDeliveryFixture(t)
+	gateway := &blockingRecordingGateway{started: make(chan struct{}), release: make(chan struct{}), sent: make(chan string, 2)}
+	application.weixin.gateway = gateway
+	done := make(chan bool, 1)
+	go func() {
+		done <- application.weixin.deliverPendingWithWait(accountID, func(string, string) {})
+	}()
+	select {
+	case <-gateway.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("delivery did not reach gateway")
+	}
+	now := time.Now().UTC()
+	if err := database.SetWeixinTask(accountID, sessionID, 43, "context-B", now, now); err != nil {
+		t.Fatal(err)
+	}
+	close(gateway.release)
+	select {
+	case retry := <-done:
+		if !retry {
+			t.Fatal("new generation should trigger another delivery pass")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("delivery did not finish")
+	}
+	select {
+	case got := <-gateway.sent:
+		if !strings.Contains(got, "A 的最终答案") {
+			t.Fatalf("unexpected frozen result: %q", got)
+		}
+	default:
+		t.Fatal("frozen result was not sent")
+	}
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-B" {
+		t.Fatalf("old delivery cleared new generation: %+v err=%v", account, err)
+	}
+}
+
 func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {

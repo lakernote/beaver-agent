@@ -161,10 +161,14 @@ func (store *Store) SetWeixinTask(id, sessionID string, messageID int64, context
 	return err
 }
 
-func (store *Store) MarkWeixinDelivered(id string, messageID int64, now time.Time) error {
-	_, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=?,pending_context_token='',updated_at=? WHERE id=?`,
-		messageID, formatTime(now), id)
-	return err
+func (store *Store) MarkWeixinDelivered(id string, messageID int64, now time.Time) (bool, error) {
+	result, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=?,pending_context_token='',updated_at=?
+		WHERE id=? AND pending_message_id=?`, messageID, formatTime(now), id, messageID)
+	if err != nil {
+		return false, err
+	}
+	changed, err := result.RowsAffected()
+	return changed > 0, err
 }
 
 func scanWeixinAccount(scanner interface{ Scan(...any) error }) (WeixinAccount, error) {
