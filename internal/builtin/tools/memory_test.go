@@ -55,7 +55,7 @@ func TestCatalogIncludesMemoryGroupOnlyWhenProvided(t *testing.T) {
 	if has(CatalogWithPermissions(env, nil, permissions.Default())) {
 		t.Fatal("未提供记忆存储时不应暴露记忆工具")
 	}
-	withMemory := CatalogWithMemory(env, nil, permissions.Default(), &Memory{Store: memory.New(t.TempDir()), Owner: "a"})
+	withMemory := CatalogWithExtras(env, nil, permissions.Default(), Extras{Memory: &Memory{Store: memory.New(t.TempDir()), Owner: "a"}})
 	if !has(withMemory) {
 		t.Fatal("提供记忆存储后应暴露记忆工具")
 	}

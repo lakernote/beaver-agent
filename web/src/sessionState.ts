@@ -1,5 +1,5 @@
 import type { Bootstrap, Session, SessionHistoryPage } from './types'
-export type Page = 'chat' | 'automations' | 'runtime' | 'tasks' | 'models' | 'skills' | 'tools' | 'usage' | 'weixin' | 'security' | 'settings'
+export type Page = 'chat' | 'automations' | 'runtime' | 'tasks' | 'models' | 'skills' | 'knowledge' | 'tools' | 'usage' | 'weixin' | 'security' | 'settings'
 export const isActive = (status?: Session['status']) => status === 'queued' || status === 'running'
 export const isAutomationSession = (session: Session) => session.channel === 'automation' || session.title.startsWith('自动化 · ')
 export const sessionDisplayTitle = (session: Session) => isAutomationSession(session) ? session.title.replace(/^自动化 · /, '') : session.title

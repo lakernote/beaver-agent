@@ -105,6 +105,10 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		manager.send(account, message.FromUserID, message.ContextToken, "暂时无法识别这条消息；当前支持文字、带微信文字的语音、图片、PDF 和文本/代码文件。")
 		return
 	}
+	if strings.EqualFold(strings.TrimSpace(text), "/kb") {
+		manager.send(account, message.FromUserID, message.ContextToken, manager.ingestKnowledge(attachments))
+		return
+	}
 	if manager.handleCommand(account, message, text) {
 		return
 	}
@@ -149,4 +153,22 @@ func messageText(message weixin.Message) string {
 		}
 	}
 	return strings.Join(values, "\n")
+}
+
+// ingestKnowledge 处理“发送文件并附文字 /kb”：把 .md/.txt 文件存入团队知识库。
+func (manager *weixinManager) ingestKnowledge(attachments []store.Attachment) string {
+	if len(attachments) == 0 {
+		return "请把 .md 或 .txt 文件和文字 /kb 一起发送，即可加入团队知识库。"
+	}
+	knowledgeWriteMu.Lock()
+	defer knowledgeWriteMu.Unlock()
+	var lines []string
+	for _, attachment := range attachments {
+		if name, err := manager.server.knowledgeStore().Add(attachment.Name, attachment.Data); err != nil {
+			lines = append(lines, "❌ "+attachment.Name+"："+err.Error())
+		} else {
+			lines = append(lines, "✅ 已加入知识库："+name)
+		}
+	}
+	return strings.Join(lines, "\n")
 }

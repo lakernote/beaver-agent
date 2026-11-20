@@ -49,8 +49,9 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 	if err != nil {
 		return err
 	}
-	toolCatalog := builtintools.CatalogWithMemory(runEnvironment, catalog, policy, &builtintools.Memory{
-		Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner,
+	toolCatalog := builtintools.CatalogWithExtras(runEnvironment, catalog, policy, builtintools.Extras{
+		Memory:    &builtintools.Memory{Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner},
+		Knowledge: server.knowledgeStore(),
 	})
 	toolLoader, err := builtintools.NewLoader(toolCatalog)
 	if err != nil {

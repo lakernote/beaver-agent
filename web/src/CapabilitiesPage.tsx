@@ -8,7 +8,7 @@ import { UsagePage } from './UsagePage'
 import { CodexSettings, CodexStatus, BeaverSettings, MCPSettings, RuntimeOperationsSettings } from './settings/SettingsPanels'
 import { useModelConfiguration } from './settings/useModelConfiguration'
 
-export type SettingsSection = 'runtime' | 'tasks' | 'models' | 'skills' | 'tools' | 'usage' | 'weixin' | 'security'
+export type SettingsSection = 'runtime' | 'tasks' | 'models' | 'skills' | 'knowledge' | 'tools' | 'usage' | 'weixin' | 'security'
 type CapabilitiesSection = 'runtime' | 'tools' | 'settings'
 
 function runtimeLabel(runtime: ModelSettings['runtime']) {

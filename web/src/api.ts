@@ -1,4 +1,4 @@
-import type { AttachmentInput, Bootstrap, CodexModelCatalog, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, RuntimePermissionSettings, Session, SessionHistoryPage, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
+import type { AttachmentInput, Bootstrap, CodexModelCatalog, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, RuntimePermissionSettings, Session, SessionHistoryPage, KnowledgeDoc, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
 import type { AutomationTask } from './types/automation'
 
 export class APIError extends Error {
@@ -99,6 +99,9 @@ export const api = {
   codexConfig: () => request<CodexProviderConfig>('/api/v1/codex/config'),
   saveCodexConfig: (config: CodexProviderConfigInput) => request<CodexProviderConfig>('/api/v1/codex/config', { method: 'PUT', body: JSON.stringify(config) }),
   deleteCodexProvider: (id: string) => request<CodexProviderConfig>(`/api/v1/codex/config/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  knowledge: () => request<KnowledgeDoc[]>('/api/v1/knowledge'),
+  uploadKnowledge: (name: string, content: string) => request<{ name: string }>('/api/v1/knowledge', { method: 'POST', body: JSON.stringify({ name, content }) }),
+  deleteKnowledge: (name: string) => request<void>(`/api/v1/knowledge/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   saveSkill: (skill: Skill) => request<Skill>(`/api/v1/skills/${encodeURIComponent(skill.name)}`, { method: 'PUT', body: JSON.stringify(skill) }),
   resetSkill: (name: string) => request<void>(`/api/v1/skills/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   saveMCP: (mcp: MCPConfig) => request<MCPConfig>(`/api/v1/mcp/${encodeURIComponent(mcp.id)}`, { method: 'PUT', body: JSON.stringify(mcp) }),
