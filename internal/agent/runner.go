@@ -87,7 +87,49 @@ func (runner *Runner) AddTools(tools []Tool) error {
 	return nil
 }
 
-// Run 执行一次任务。最后一步会停止暴露工具，要求模型基于已有结果收敛回答。
+// runState 保存一次 Run 中随步骤变化的全部状态。
+// 把它们集中在一处，Run 的主循环就只剩“选工具 → 问模型 → 跑工具”三件事。
+type runState struct {
+	messages           []Message // 完整对话历史（含本轮新增的 assistant / tool 消息）
+	pending            []Message // 本步需要发给模型的“增量”消息，供支持 continuation 的 Provider 使用
+	previousResponseID string
+	usage              Usage
+
+	requiredToolNames []string                  // 用户通过 @tool 指定的工具，本轮只暴露它们
+	failedCalls       map[string]failedToolCall // 已失败的调用，防止原样重复
+
+	consecutiveFailedToolSteps int  // 连续“所有工具都失败”的步数
+	forceConverge              bool // 为 true 时下一步不再给工具，逼模型收敛回答
+	requireLoadedToolCall      bool // Loader 刚加载完能力，下一步必须调用真实工具
+	hasCurrentRealToolResult   bool // 本次 Run 是否成功执行过真实工具
+
+	pendingSourceVerification      bool // 只拿到搜索摘要，还没读过原始来源
+	sourceVerificationReminderSent bool // 纠偏提醒最多发一次
+}
+
+// syncFrom 用 PrepareRequest（如上下文压缩）改写后的请求同步状态。
+func (state *runState) syncFrom(request Request) {
+	state.messages = append([]Message(nil), request.Messages...)
+	state.pending = append([]Message(nil), request.NewMessages...)
+	state.previousResponseID = strings.TrimSpace(request.PreviousResponseID)
+}
+
+// stepToolStats 汇总一步内所有工具调用的结果，用来决定下一步的策略。
+type stepToolStats struct {
+	failed                                int
+	loader, real, discovery, verification bool
+}
+
+// Run 执行一次任务，这就是整个 Agent 循环：
+//
+//	for 每一步 {
+//	    1. 决定本步暴露哪些工具
+//	    2. 调用模型（含重试）
+//	    3. 没有工具调用 -> 得到最终回答，结束
+//	    4. 有工具调用   -> 逐个执行，把结果追加到历史，进入下一步
+//	}
+//
+// 最后一步会停止暴露工具，要求模型基于已有结果收敛回答。
 func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, error) {
 	if runner == nil || runner.Model == nil {
 		return RunResult{}, errors.New("Agent 尚未初始化")
@@ -104,63 +146,29 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 		toolTimeout = defaultToolTimeout
 	}
 
-	messages := append([]Message(nil), input.Messages...)
-	pending := append([]Message(nil), input.NewMessages...)
-	if len(pending) == 0 {
-		pending = append(pending, input.Messages...)
+	state := &runState{
+		messages:           append([]Message(nil), input.Messages...),
+		pending:            append([]Message(nil), input.NewMessages...),
+		previousResponseID: strings.TrimSpace(input.PreviousResponseID),
+		requiredToolNames:  availableRequiredTools(runner.modelToolSpecs, input.RequiredToolNames),
+		failedCalls:        make(map[string]failedToolCall),
 	}
-	previousResponseID := strings.TrimSpace(input.PreviousResponseID)
-	totalUsage := Usage{}
-	consecutiveFailedToolSteps := 0
-	forceConverge := false
-	requireLoadedToolCall := false
-	hasCurrentRealToolResult := false
-	pendingSourceVerification := false
-	sourceVerificationReminderSent := false
-	requiredToolNames := availableRequiredTools(runner.modelToolSpecs, input.RequiredToolNames)
-	failedCalls := make(map[string]failedToolCall)
+	if len(state.pending) == 0 {
+		state.pending = append(state.pending, input.Messages...)
+	}
 
 	for step := 1; step <= maxSteps; step++ {
 		if err := ctx.Err(); err != nil {
 			return RunResult{}, err
 		}
-		tools := runner.modelToolSpecs
-		toolChoice := ToolChoice{Mode: ToolChoiceNone}
-		if len(tools) > 0 {
-			toolChoice = ToolChoice{Mode: ToolChoiceAuto}
-		}
-		if len(requiredToolNames) > 0 {
-			// 用户通过 @tool 明确缩小了本轮工具作用域，后续模型回合也保持
-			// 同一集合。否则首轮只发送一个工具，拿到结果后却突然恢复整套
-			// Schema，既偏离用户选择，也会让无 continuation 的本地模型重复
-			// 付出大量输入 Token。部分 Ollama 模型会忽略 required tool_choice，
-			// 因此仍使用 auto，并由下面的 Runner 校验首轮必须真实调用。
-			tools = filterToolsByName(tools, requiredToolNames)
-			toolChoice = ToolChoice{Mode: ToolChoiceAuto}
-		}
-		if requireLoadedToolCall {
-			// Loader 的结果只代表“能力已可用”，不是用户任务的证据。下一轮临时
-			// 隐藏所有 Loader。仍使用 auto 兼容不同 Provider，再由下面的 Runner
-			// 校验保证模型必须从真实工具中选择至少一个调用。
-			tools = nonLoaderTools(tools)
-			if len(tools) > 0 {
-				toolChoice = ToolChoice{Mode: ToolChoiceAuto}
-			}
-		}
-		if forceConverge {
-			tools = nil
-			toolChoice = ToolChoice{Mode: ToolChoiceNone}
-		}
-		if step == maxSteps {
-			tools = nil
-			toolChoice = ToolChoice{Mode: ToolChoiceNone}
-		}
-		attempt := 1
+
+		// 1. 本步暴露的工具，以及模型是否可以调用它们。
+		tools, toolChoice := runner.chooseTools(state, step == maxSteps)
 		request := Request{
-			Model: runner.ModelName, Messages: messages, NewMessages: pending, Tools: tools,
+			Model: runner.ModelName, Messages: state.messages, NewMessages: state.pending, Tools: tools,
 			ToolChoice: toolChoice, PromptCacheKey: input.PromptCacheKey,
 			Temperature: runner.Temperature, MaxOutputTokens: runner.MaxOutputTokens,
-			ReasoningEffort: runner.ReasoningEffort, PreviousResponseID: previousResponseID,
+			ReasoningEffort: runner.ReasoningEffort, PreviousResponseID: state.previousResponseID,
 			OnTextDelta: input.OnTextDelta,
 		}
 		if input.PrepareRequest != nil {
@@ -170,82 +178,19 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 			}
 			request = prepared
 			if changed {
-				messages = append([]Message(nil), request.Messages...)
-				pending = append([]Message(nil), request.NewMessages...)
-				previousResponseID = strings.TrimSpace(request.PreviousResponseID)
+				state.syncFrom(request)
 			}
 			tools = request.Tools
 		}
-		// PrepareRequest 可能触发压缩、改写历史或直接失败；只有准备成功后
-		// 才记录 model_start，保证 Trace 代表真实即将发出的模型请求。
-		runner.emit(Event{Kind: EventModelStart, Step: step, Attempt: attempt, StartedAt: time.Now()})
-		response, err := runner.Model.Generate(ctx, request)
-		if err == nil {
-			err = ValidateModelResponse(&response)
-		}
-		runner.emit(Event{Kind: EventModelEnd, Step: step, Attempt: attempt, Exchange: response.Exchange, Err: err, Duration: response.Exchange.Duration})
-		// 与成熟 CLI Agent 一致，只重试明确的瞬时故障：429、5xx 或网络临时
-		// 错误。4xx、工具参数和模型内容错误都不会在这里盲目重放。
-		if err != nil && retryableModelError(err) {
-			addUsage(&totalUsage, response.Usage)
-			resetAttemptOutput(input)
-			if waitErr := waitForRetry(ctx, modelRetryDelay(err, attempt)); waitErr != nil {
-				return RunResult{}, waitErr
-			}
-			attempt++
-			runner.emit(Event{Kind: EventModelStart, Step: step, Attempt: attempt, StartedAt: time.Now()})
-			response, err = runner.Model.Generate(ctx, request)
-			if err == nil {
-				err = ValidateModelResponse(&response)
-			}
-			runner.emit(Event{Kind: EventModelEnd, Step: step, Attempt: attempt, Exchange: response.Exchange, Err: err, Duration: response.Exchange.Duration})
-		}
-		// 少数兼容 Provider 会在 stream + tools 组合下只生成隐藏推理，或把工具
-		// 校验错误放进 HTTP 200 的 SSE 尾部。首次调用已经完整进入 Trace；关闭
-		// 流式重试一次。只有当前 Run 已成功执行真实工具时，空正文重试才进入
-		// 无工具收敛；Loader、失败结果和旧轮次工具结果都不能触发收敛。
-		if err != nil && request.OnTextDelta != nil && (errors.Is(err, ErrEmptyModelResponse) || retryWithoutStreaming(err)) {
-			addUsage(&totalUsage, response.Usage)
-			resetAttemptOutput(input)
-			if errors.Is(err, ErrEmptyModelResponse) {
-				request = prepareEmptyResponseRetry(request, hasCurrentRealToolResult)
-			} else {
-				request.OnTextDelta = nil
-			}
-			attempt++
-			runner.emit(Event{Kind: EventModelStart, Step: step, Attempt: attempt, StartedAt: time.Now()})
-			response, err = runner.Model.Generate(ctx, request)
-			if err == nil {
-				err = ValidateModelResponse(&response)
-			}
-			runner.emit(Event{Kind: EventModelEnd, Step: step, Attempt: attempt, Exchange: response.Exchange, Err: err, Duration: response.Exchange.Duration})
-		}
-		if err != nil && input.PrepareRequest != nil && input.IsContextError != nil && input.IsContextError(err) {
-			prepared, changed, prepareErr := input.PrepareRequest(ctx, request, true)
-			if prepareErr != nil {
-				return RunResult{}, fmt.Errorf("%w；自动压缩失败: %v", err, prepareErr)
-			}
-			if changed {
-				resetAttemptOutput(input)
-				request = prepared
-				messages = append([]Message(nil), request.Messages...)
-				pending = append([]Message(nil), request.NewMessages...)
-				previousResponseID = strings.TrimSpace(request.PreviousResponseID)
-				attempt++
-				runner.emit(Event{Kind: EventModelStart, Step: step, Attempt: attempt, StartedAt: time.Now()})
-				response, err = runner.Model.Generate(ctx, request)
-				if err == nil {
-					err = ValidateModelResponse(&response)
-				}
-				runner.emit(Event{Kind: EventModelEnd, Step: step, Attempt: attempt, Exchange: response.Exchange, Err: err, Duration: response.Exchange.Duration})
-			}
-		}
+
+		// 2. 调用模型。
+		response, err := runner.generateWithRecovery(ctx, input, state, request, step)
 		if err != nil {
 			return RunResult{}, err
 		}
-		addUsage(&totalUsage, response.Usage)
+		addUsage(&state.usage, response.Usage)
 		if response.ID != "" {
-			previousResponseID = response.ID
+			state.previousResponseID = response.ID
 		}
 		assistant := response.Message
 		assistant.Role = RoleAssistant
@@ -255,7 +200,7 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 			}
 			assistant.ToolCalls[index] = runner.describeToolCall(call)
 		}
-		messages = append(messages, assistant)
+		state.messages = append(state.messages, assistant)
 		turnMessages := []Message{assistant}
 		if input.OnTurnMessages == nil && input.OnMessage != nil {
 			if err := input.OnMessage(assistant); err != nil {
@@ -263,24 +208,15 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 			}
 		}
 
+		// 3. 模型没有请求工具：这就是最终回答（除非触发下面的纠偏）。
 		if len(assistant.ToolCalls) == 0 {
-			if step == 1 && len(requiredToolNames) > 0 {
-				return RunResult{}, fmt.Errorf("用户明确指定了工具 %s，但模型没有发起工具调用", strings.Join(requiredToolNames, ", "))
+			if step == 1 && len(state.requiredToolNames) > 0 {
+				return RunResult{}, fmt.Errorf("用户明确指定了工具 %s，但模型没有发起工具调用", strings.Join(state.requiredToolNames, ", "))
 			}
-			if requireLoadedToolCall {
+			if state.requireLoadedToolCall {
 				return RunResult{}, errors.New("模型在能力加载后没有调用真实工具")
 			}
-			if pendingSourceVerification && !sourceVerificationReminderSent && step < maxSteps {
-				// Discovery 工具只返回候选线索。给模型一次有界纠偏机会，要求它
-				// 读取原始来源；仍保持 auto，不替模型选择具体工具，也不会循环强制。
-				sourceVerificationReminderSent = true
-				reminder := Message{Role: RoleSystem, Content: sourceVerificationReminder}
-				messages = append(messages, reminder)
-				pending = []Message{reminder}
-				if input.OnTextReset != nil {
-					input.OnTextReset()
-				}
-				runner.emit(Event{Kind: EventGuidance, Step: step, Name: "source_verification", Detail: "搜索结果只提供候选摘要；已提醒模型读取原始来源后再回答", StartedAt: time.Now()})
+			if runner.remindSourceVerification(input, state, step, maxSteps) {
 				continue
 			}
 			if input.OnTurnMessages != nil {
@@ -292,111 +228,30 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 			if answer == "" {
 				return RunResult{}, errors.New("模型既没有返回回答，也没有调用工具")
 			}
-			return RunResult{Answer: answer, Messages: messages, Usage: totalUsage, ResponseID: previousResponseID, Steps: step}, nil
+			return RunResult{Answer: answer, Messages: state.messages, Usage: state.usage, ResponseID: state.previousResponseID, Steps: step}, nil
 		}
 		if len(tools) == 0 {
 			return RunResult{}, errors.New("本步已禁用工具，但模型仍在请求工具")
 		}
 
-		pending = pending[:0]
-		failedToolCalls := 0
-		calledLoader := false
-		calledRealTool := false
-		calledDiscovery := false
-		calledVerification := false
+		// 4. 逐个执行工具，把结果作为 tool 消息追加到历史。
+		state.pending = state.pending[:0]
+		var stats stepToolStats
 		for _, call := range assistant.ToolCalls {
-			key := toolCallKey(call)
-			previous, repeated := failedCalls[key]
-			var output string
-			var toolResult ToolResult
-			var toolErr error
-			var duration time.Duration
-			var lifecycleErr error
-			toolStarted := false
-			if repeated && (!previous.retryable || previous.attempts >= 2) {
-				startedAt := time.Now()
-				toolErr = &ToolError{
-					Code: "duplicate_failed_call", Message: fmt.Sprintf("相同的工具调用 %s 已失败，不会重复执行", call.Name),
-					Hint: "检查上一条错误，修改参数、换用其他工具，或基于已有证据回答", Retryable: false,
-				}
-				output = toolErrorOutput(toolErr)
-				toolResult = toolResultWithError(ToolResult{}, toolErr)
-				duration = time.Since(startedAt)
-			} else {
-				if input.OnToolApproval != nil {
-					approvalStartedAt := time.Now()
-					toolErr = input.OnToolApproval(ctx, call)
-					duration = time.Since(approvalStartedAt)
-					if toolErr != nil {
-						output = toolErrorOutput(toolErr)
-						toolResult = toolResultWithError(ToolResult{}, toolErr)
-					} else {
-						toolResult, toolErr, duration, lifecycleErr, toolStarted = runner.runTool(ctx, step, call, toolTimeout, input.OnToolLifecycle)
-						output = toolResult.ModelText()
-					}
-				} else {
-					toolResult, toolErr, duration, lifecycleErr, toolStarted = runner.runTool(ctx, step, call, toolTimeout, input.OnToolLifecycle)
-					output = toolResult.ModelText()
-				}
+			toolMessage, err := runner.executeToolCall(ctx, input, state, step, call, toolTimeout, &stats)
+			if err != nil {
+				return RunResult{}, err
 			}
-			if lifecycleErr != nil {
-				return RunResult{}, lifecycleErr
-			}
-			// Content remains the compatibility projection; adapters and storage use
-			// the typed result when available, so both views must describe the same value.
-			output = toolResult.ModelText()
-			if toolErr != nil {
-				failedToolCalls++
-				retryable := false
-				var failure *ToolError
-				if errors.As(toolErr, &failure) {
-					retryable = failure.Retryable
-				}
-				failedCalls[key] = failedToolCall{attempts: previous.attempts + 1, retryable: retryable}
-			} else {
-				delete(failedCalls, key)
-				if tool, exists := runner.toolsByName[call.Name]; exists && tool.Spec.Loader {
-					calledLoader = true
-				} else {
-					calledRealTool = true
-					hasCurrentRealToolResult = true
-					if exists && tool.Spec.DiscoveryOnly {
-						calledDiscovery = true
-					} else {
-						calledVerification = true
-					}
-				}
-			}
-			toolResultCopy := toolResult
-			toolMessage := Message{Role: RoleTool, Name: call.Name, ToolCallID: call.ID, Content: output, ToolResult: &toolResultCopy}
-			messages = append(messages, toolMessage)
-			pending = append(pending, toolMessage)
+			state.messages = append(state.messages, toolMessage)
+			state.pending = append(state.pending, toolMessage)
 			turnMessages = append(turnMessages, toolMessage)
 			if input.OnTurnMessages == nil && input.OnMessage != nil {
 				if err := input.OnMessage(toolMessage); err != nil {
 					return RunResult{}, err
 				}
 			}
-			eventKind := EventToolReject
-			if toolStarted {
-				eventKind = EventToolEnd
-			}
-			runner.emit(Event{Kind: eventKind, Step: step, ToolCall: &call, Result: &toolResultCopy, Output: output, Err: toolErr, Duration: duration})
 		}
-		if failedToolCalls == len(assistant.ToolCalls) {
-			consecutiveFailedToolSteps++
-		} else {
-			consecutiveFailedToolSteps = 0
-		}
-		// 连续两步所有工具都失败说明 Agent 没有取得新证据。停止继续暴露工具，
-		// 让模型根据现有错误收敛，而不是用略有不同的参数无限重复同一尝试。
-		forceConverge = consecutiveFailedToolSteps >= 2
-		requireLoadedToolCall = calledLoader && !calledRealTool
-		if calledVerification {
-			pendingSourceVerification = false
-		} else if calledDiscovery {
-			pendingSourceVerification = true
-		}
+		runner.updateStrategy(state, stats, len(assistant.ToolCalls))
 		if input.OnTurnMessages != nil {
 			if err := input.OnTurnMessages(turnMessages); err != nil {
 				return RunResult{}, err
@@ -404,6 +259,205 @@ func (runner *Runner) Run(ctx context.Context, input RunRequest) (RunResult, err
 		}
 	}
 	return RunResult{}, errors.New("Agent 达到最大步数")
+}
+
+// chooseTools 决定本步给模型看哪些工具。规则按优先级叠加：
+//  1. 默认暴露全部工具，tool_choice=auto；没有工具则为 none。
+//  2. 用户用 @tool 指定了工具：只暴露这些，且每一步都保持，避免结果回来后突然恢复整套 Schema 浪费 Token。
+//     部分 Ollama 模型会忽略 required，所以仍用 auto，由 Run 校验首轮必须真的调用。
+//  3. Loader（工具组/MCP 入口）刚加载完能力：本步隐藏所有 Loader，逼模型去用真实工具。
+//  4. 连续失败或已是最后一步：不再暴露工具，要求模型根据已有信息回答。
+func (runner *Runner) chooseTools(state *runState, lastStep bool) ([]ToolSpec, ToolChoice) {
+	tools := runner.modelToolSpecs
+	choice := ToolChoice{Mode: ToolChoiceNone}
+	if len(tools) > 0 {
+		choice = ToolChoice{Mode: ToolChoiceAuto}
+	}
+	if len(state.requiredToolNames) > 0 {
+		tools = filterToolsByName(tools, state.requiredToolNames)
+		choice = ToolChoice{Mode: ToolChoiceAuto}
+	}
+	if state.requireLoadedToolCall {
+		tools = nonLoaderTools(tools)
+		if len(tools) > 0 {
+			choice = ToolChoice{Mode: ToolChoiceAuto}
+		}
+	}
+	if state.forceConverge || lastStep {
+		return nil, ToolChoice{Mode: ToolChoiceNone}
+	}
+	return tools, choice
+}
+
+// callModel 发起一次模型调用并校验响应，同时记录 Trace 事件。
+func (runner *Runner) callModel(ctx context.Context, request Request, step, attempt int) (Response, error) {
+	runner.emit(Event{Kind: EventModelStart, Step: step, Attempt: attempt, StartedAt: time.Now()})
+	response, err := runner.Model.Generate(ctx, request)
+	if err == nil {
+		err = ValidateModelResponse(&response)
+	}
+	runner.emit(Event{Kind: EventModelEnd, Step: step, Attempt: attempt, Exchange: response.Exchange, Err: err, Duration: response.Exchange.Duration})
+	return response, err
+}
+
+// generateWithRecovery 调用模型，并只对三类“明确可恢复”的失败做一次补救：
+//  1. 429 / 5xx / 临时网络错误：等待后原样重试。
+//  2. 空回答或流式+工具组合的兼容问题：关闭流式重试。
+//  3. 上下文超长：让 PrepareRequest 压缩历史后重试。
+//
+// 其他错误（4xx、参数错误、模型内容错误）不会盲目重放。
+func (runner *Runner) generateWithRecovery(ctx context.Context, input RunRequest, state *runState, request Request, step int) (Response, error) {
+	attempt := 1
+	response, err := runner.callModel(ctx, request, step, attempt)
+
+	if err != nil && retryableModelError(err) {
+		addUsage(&state.usage, response.Usage)
+		resetAttemptOutput(input)
+		if waitErr := waitForRetry(ctx, modelRetryDelay(err, attempt)); waitErr != nil {
+			return Response{}, waitErr
+		}
+		attempt++
+		response, err = runner.callModel(ctx, request, step, attempt)
+	}
+
+	// 少数兼容 Provider 在 stream + tools 下只产出隐藏推理，或把校验错误放进 HTTP 200 的 SSE 尾部。
+	// 关闭流式重试一次；只有本次 Run 已成功执行真实工具时，空正文才进入无工具收敛。
+	if err != nil && request.OnTextDelta != nil && (errors.Is(err, ErrEmptyModelResponse) || retryWithoutStreaming(err)) {
+		addUsage(&state.usage, response.Usage)
+		resetAttemptOutput(input)
+		if errors.Is(err, ErrEmptyModelResponse) {
+			request = prepareEmptyResponseRetry(request, state.hasCurrentRealToolResult)
+		} else {
+			request.OnTextDelta = nil
+		}
+		attempt++
+		response, err = runner.callModel(ctx, request, step, attempt)
+	}
+
+	if err != nil && input.PrepareRequest != nil && input.IsContextError != nil && input.IsContextError(err) {
+		prepared, changed, prepareErr := input.PrepareRequest(ctx, request, true)
+		if prepareErr != nil {
+			return Response{}, fmt.Errorf("%w；自动压缩失败: %v", err, prepareErr)
+		}
+		if changed {
+			resetAttemptOutput(input)
+			state.syncFrom(prepared)
+			attempt++
+			response, err = runner.callModel(ctx, prepared, step, attempt)
+		}
+	}
+	return response, err
+}
+
+// remindSourceVerification：Discovery 工具（如 web_search）只返回候选摘要。
+// 模型若直接拿摘要作答，就给它一次有界的纠偏机会去读原始来源。
+// 返回 true 表示已追加提醒，调用方应 continue 进入下一步。
+func (runner *Runner) remindSourceVerification(input RunRequest, state *runState, step, maxSteps int) bool {
+	if !state.pendingSourceVerification || state.sourceVerificationReminderSent || step >= maxSteps {
+		return false
+	}
+	state.sourceVerificationReminderSent = true
+	reminder := Message{Role: RoleSystem, Content: sourceVerificationReminder}
+	state.messages = append(state.messages, reminder)
+	state.pending = []Message{reminder}
+	resetAttemptOutput(input)
+	runner.emit(Event{Kind: EventGuidance, Step: step, Name: "source_verification", Detail: "搜索结果只提供候选摘要；已提醒模型读取原始来源后再回答", StartedAt: time.Now()})
+	return true
+}
+
+// executeToolCall 处理模型请求的一次工具调用，返回要追加到历史里的 tool 消息。
+// 流程：重复失败拦截 -> 审批 -> 真正执行 -> 记录结果。
+// 返回的 error 只表示“生命周期回调失败”这类需要中止整个 Run 的错误；
+// 工具自身的失败会写进 tool 消息，交给模型决定下一步。
+func (runner *Runner) executeToolCall(ctx context.Context, input RunRequest, state *runState, step int, call ToolCall, timeout time.Duration, stats *stepToolStats) (Message, error) {
+	key := toolCallKey(call)
+	previous, repeated := state.failedCalls[key]
+
+	var (
+		toolResult   ToolResult
+		toolErr      error
+		duration     time.Duration
+		lifecycleErr error
+		toolStarted  bool
+	)
+	switch {
+	case repeated && (!previous.retryable || previous.attempts >= 2):
+		// 同样的调用已经失败过，不再执行，提示模型换思路。
+		startedAt := time.Now()
+		toolErr = &ToolError{
+			Code: "duplicate_failed_call", Message: fmt.Sprintf("相同的工具调用 %s 已失败，不会重复执行", call.Name),
+			Hint: "检查上一条错误，修改参数、换用其他工具，或基于已有证据回答", Retryable: false,
+		}
+		toolResult = toolResultWithError(ToolResult{}, toolErr)
+		duration = time.Since(startedAt)
+	default:
+		if input.OnToolApproval != nil {
+			approvalStartedAt := time.Now()
+			toolErr = input.OnToolApproval(ctx, call)
+			duration = time.Since(approvalStartedAt)
+			if toolErr != nil {
+				toolResult = toolResultWithError(ToolResult{}, toolErr)
+			}
+		}
+		if toolErr == nil {
+			toolResult, toolErr, duration, lifecycleErr, toolStarted = runner.runTool(ctx, step, call, timeout, input.OnToolLifecycle)
+		}
+	}
+	if lifecycleErr != nil {
+		return Message{}, lifecycleErr
+	}
+
+	// 记录结果，供下一步决定策略。
+	if toolErr != nil {
+		stats.failed++
+		retryable := false
+		var failure *ToolError
+		if errors.As(toolErr, &failure) {
+			retryable = failure.Retryable
+		}
+		state.failedCalls[key] = failedToolCall{attempts: previous.attempts + 1, retryable: retryable}
+	} else {
+		delete(state.failedCalls, key)
+		tool, exists := runner.toolsByName[call.Name]
+		switch {
+		case exists && tool.Spec.Loader:
+			stats.loader = true
+		case exists && tool.Spec.DiscoveryOnly:
+			stats.real, stats.discovery = true, true
+			state.hasCurrentRealToolResult = true
+		default:
+			stats.real, stats.verification = true, true
+			state.hasCurrentRealToolResult = true
+		}
+	}
+
+	// Content 是兼容用的文本投影；适配器和存储优先使用 ToolResult，两者必须一致。
+	output := toolResult.ModelText()
+	resultCopy := toolResult
+	eventKind := EventToolReject
+	if toolStarted {
+		eventKind = EventToolEnd
+	}
+	runner.emit(Event{Kind: eventKind, Step: step, ToolCall: &call, Result: &resultCopy, Output: output, Err: toolErr, Duration: duration})
+	return Message{Role: RoleTool, Name: call.Name, ToolCallID: call.ID, Content: output, ToolResult: &resultCopy}, nil
+}
+
+// updateStrategy 根据本步工具结果调整下一步策略。
+func (runner *Runner) updateStrategy(state *runState, stats stepToolStats, calls int) {
+	if stats.failed == calls {
+		state.consecutiveFailedToolSteps++
+	} else {
+		state.consecutiveFailedToolSteps = 0
+	}
+	// 连续两步所有工具都失败，说明没有取得新证据：停止暴露工具，让模型根据现有错误收敛，
+	// 而不是用略有不同的参数无限重复。
+	state.forceConverge = state.consecutiveFailedToolSteps >= 2
+	state.requireLoadedToolCall = stats.loader && !stats.real
+	if stats.verification {
+		state.pendingSourceVerification = false
+	} else if stats.discovery {
+		state.pendingSourceVerification = true
+	}
 }
 
 func (runner *Runner) describeToolCall(call ToolCall) ToolCall {
