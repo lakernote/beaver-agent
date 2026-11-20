@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS automation_tasks (
   last_status TEXT NOT NULL DEFAULT '',
   last_error TEXT NOT NULL DEFAULT '',
   last_session_id TEXT NOT NULL DEFAULT '',
+  notify_weixin TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

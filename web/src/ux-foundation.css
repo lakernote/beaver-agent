@@ -162,6 +162,11 @@ button { touch-action: manipulation; }
   font-size: var(--type-label);
   font-weight: 650;
 }
+.automation-notify { display: grid; gap: 8px; margin: 0; padding: 14px; border: 1px solid #e0e7f0; border-radius: 10px; background: #f9fbff; min-width: 0; }
+.automation-notify legend { padding: 0 2px 4px; color: #40516b; font-size: var(--type-label); font-weight: 650; }
+.automation-notify legend small, .automation-notify > small { color: #7f8ca0; font-size: var(--type-caption); font-weight: 400; margin-left: 10px; }
+.automation-notify-list { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.automation-notify-list label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .automation-context-grid legend small { color: #7f8ca0; font-size: var(--type-caption); font-weight: 400; }
 .automation-context-grid label { display: grid; min-width: 0; gap: 7px; }
 .automation-context-grid label > span, .automation-form > label > span, .automation-schedule-head span, .automation-cron-editor > label > span { font-size: var(--type-label); }

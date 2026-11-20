@@ -2,14 +2,15 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
-const automationTaskSelectColumns = `id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,created_at,updated_at`
+const automationTaskSelectColumns = `id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,notify_weixin,created_at,updated_at`
 
 func (store *Store) CreateAutomationTask(value AutomationTask) (AutomationTask, error) {
-	_, err := store.db.Exec(`INSERT INTO automation_tasks(id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		value.ID, value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), formatAutomationOptionalTime(value.LastRunAt), value.LastStatus, value.LastError, value.LastSessionID, formatTime(value.CreatedAt), formatTime(value.UpdatedAt))
+	_, err := store.db.Exec(`INSERT INTO automation_tasks(id,name,prompt,project_id,workspace,profile_id,trigger_type,interval_minutes,repeat,schedule_time,schedule_weekday,schedule_enabled,cron,enabled,next_run_at,last_run_at,last_status,last_error,last_session_id,notify_weixin,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		value.ID, value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), formatAutomationOptionalTime(value.LastRunAt), value.LastStatus, value.LastError, value.LastSessionID, encodeIDs(value.NotifyWeixin), formatTime(value.CreatedAt), formatTime(value.UpdatedAt))
 	if err != nil {
 		return AutomationTask{}, err
 	}
@@ -17,8 +18,8 @@ func (store *Store) CreateAutomationTask(value AutomationTask) (AutomationTask, 
 }
 
 func (store *Store) UpdateAutomationTask(value AutomationTask) (AutomationTask, error) {
-	result, err := store.db.Exec(`UPDATE automation_tasks SET name=?,prompt=?,project_id=?,workspace=?,profile_id=?,trigger_type=?,interval_minutes=?,repeat=?,schedule_time=?,schedule_weekday=?,schedule_enabled=?,cron=?,enabled=?,next_run_at=?,updated_at=? WHERE id=?`,
-		value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), formatTime(value.UpdatedAt), value.ID)
+	result, err := store.db.Exec(`UPDATE automation_tasks SET name=?,prompt=?,project_id=?,workspace=?,profile_id=?,trigger_type=?,interval_minutes=?,repeat=?,schedule_time=?,schedule_weekday=?,schedule_enabled=?,cron=?,enabled=?,next_run_at=?,notify_weixin=?,updated_at=? WHERE id=?`,
+		value.Name, value.Prompt, value.ProjectID, value.Workspace, value.ProfileID, value.TriggerType, value.IntervalMinutes, value.Repeat, value.ScheduleTime, value.ScheduleWeekday, boolInt(value.ScheduleEnabled), value.Cron, boolInt(value.Enabled), formatAutomationOptionalTime(value.NextRunAt), encodeIDs(value.NotifyWeixin), formatTime(value.UpdatedAt), value.ID)
 	if err != nil {
 		return AutomationTask{}, err
 	}
@@ -27,6 +28,26 @@ func (store *Store) UpdateAutomationTask(value AutomationTask) (AutomationTask, 
 		return AutomationTask{}, sql.ErrNoRows
 	}
 	return store.GetAutomationTask(value.ID)
+}
+
+// GetAutomationTaskBySession 返回最近一次运行产生了该会话的任务。
+func (store *Store) GetAutomationTaskBySession(sessionID string) (AutomationTask, error) {
+	row := store.db.QueryRow(`SELECT `+automationTaskSelectColumns+` FROM automation_tasks WHERE last_session_id=?`, sessionID)
+	return scanAutomationTask(row)
+}
+
+func encodeIDs(ids []string) string {
+	if ids == nil {
+		ids = []string{}
+	}
+	data, _ := json.Marshal(ids)
+	return string(data)
+}
+
+func decodeIDs(data string) []string {
+	ids := []string{}
+	_ = json.Unmarshal([]byte(data), &ids)
+	return ids
 }
 
 func (store *Store) GetAutomationTask(id string) (AutomationTask, error) {
@@ -134,9 +155,11 @@ func scanAutomationTask(row automationTaskScanner) (AutomationTask, error) {
 	var enabled int
 	var nextRunAt, lastRunAt, createdAt, updatedAt string
 	var scheduleEnabled int
-	if err := row.Scan(&value.ID, &value.Name, &value.Prompt, &value.ProjectID, &value.Workspace, &value.ProfileID, &value.TriggerType, &value.IntervalMinutes, &value.Repeat, &value.ScheduleTime, &value.ScheduleWeekday, &scheduleEnabled, &value.Cron, &enabled, &nextRunAt, &lastRunAt, &value.LastStatus, &value.LastError, &value.LastSessionID, &createdAt, &updatedAt); err != nil {
+	var notifyWeixin string
+	if err := row.Scan(&value.ID, &value.Name, &value.Prompt, &value.ProjectID, &value.Workspace, &value.ProfileID, &value.TriggerType, &value.IntervalMinutes, &value.Repeat, &value.ScheduleTime, &value.ScheduleWeekday, &scheduleEnabled, &value.Cron, &enabled, &nextRunAt, &lastRunAt, &value.LastStatus, &value.LastError, &value.LastSessionID, &notifyWeixin, &createdAt, &updatedAt); err != nil {
 		return AutomationTask{}, err
 	}
+	value.NotifyWeixin = decodeIDs(notifyWeixin)
 	if value.Repeat == "" {
 		value.Repeat = "interval"
 	}

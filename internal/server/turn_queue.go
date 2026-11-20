@@ -107,6 +107,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 
 func (server *Server) recordAutomationSessionResult(sessionID string, status store.AutomationStatus, errorMessage string) {
 	_ = server.store.RecordAutomationSessionResult(sessionID, status, errorMessage, time.Now())
+	server.notifyAutomationResult(sessionID, status)
 }
 
 func automationStatusForSession(status store.SessionStatus) store.AutomationStatus {

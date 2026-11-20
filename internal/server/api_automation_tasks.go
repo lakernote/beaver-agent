@@ -20,6 +20,8 @@ type automationTaskRequest struct {
 	ProjectID string `json:"projectId"`
 	ProfileID string `json:"profileId,omitempty"`
 	Cron      string `json:"cron,omitempty"`
+	// NotifyWeixin 是任务结束后要通知的微信成员 ID。
+	NotifyWeixin []string `json:"notifyWeixin,omitempty"`
 }
 
 type automationTaskEnabledRequest struct {
@@ -233,6 +235,10 @@ func (server *Server) normalizeAutomationTask(input automationTaskRequest, now t
 			return store.AutomationTask{}, errors.New("所选模型配置不存在")
 		}
 	}
+	notify, err := server.validWeixinMembers(input.NotifyWeixin)
+	if err != nil {
+		return store.AutomationTask{}, err
+	}
 	nextRunAt := (*time.Time)(nil)
 	if enabled && scheduleEnabled {
 		next, err := nextAutomationRun(now, cronExpression)
@@ -241,7 +247,28 @@ func (server *Server) normalizeAutomationTask(input automationTaskRequest, now t
 		}
 		nextRunAt = &next
 	}
-	return store.AutomationTask{Name: name, Prompt: prompt, ProjectID: projectID, Workspace: workspace, ProfileID: strings.TrimSpace(input.ProfileID), TriggerType: triggerType, ScheduleEnabled: scheduleEnabled, Cron: cronExpression, Enabled: enabled, NextRunAt: nextRunAt}, nil
+	return store.AutomationTask{Name: name, Prompt: prompt, ProjectID: projectID, Workspace: workspace, ProfileID: strings.TrimSpace(input.ProfileID), TriggerType: triggerType, ScheduleEnabled: scheduleEnabled, Cron: cronExpression, Enabled: enabled, NextRunAt: nextRunAt, NotifyWeixin: notify}, nil
+}
+
+// validWeixinMembers 去重并确认每个成员都已绑定。
+func (server *Server) validWeixinMembers(ids []string) ([]string, error) {
+	result := []string{}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		if _, err := server.store.GetWeixinAccount(id); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, errors.New("所选微信成员不存在，请重新选择")
+			}
+			return nil, err
+		}
+		seen[id] = true
+		result = append(result, id)
+	}
+	return result, nil
 }
 
 func (server *Server) triggerAutomationTask(ctx context.Context, task store.AutomationTask) (string, error) {
@@ -264,6 +291,7 @@ func (server *Server) triggerAutomationTask(ctx context.Context, task store.Auto
 	sessionID, err := server.startAutomationSession(ctx, task)
 	if err != nil {
 		_ = server.store.RecordAutomationTaskResult(task.ID, store.AutomationFailed, err.Error(), "", time.Now())
+		server.notifyAutomationFailure(task, err)
 		return "", err
 	}
 	return sessionID, nil

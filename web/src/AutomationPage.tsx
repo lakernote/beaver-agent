@@ -3,7 +3,7 @@ import { api, type AutomationTaskInput } from './api'
 import { ConfirmDialog } from './dialogs'
 import { formatTime } from './format'
 import { Icon } from './ui'
-import type { AutomationTask, Bootstrap } from './types'
+import type { AutomationTask, Bootstrap, WeixinAccount } from './types'
 
 type Project = Bootstrap['projects'][number]
 
@@ -140,7 +140,7 @@ function AutomationRow({ task, projects, profiles, running, toggling, onRun, onT
   const runtimeLabel = profile?.settings.runtime === 'codex' ? 'Codex' : 'Beaver'
   return <article className={`automation-row ${!task.enabled ? 'disabled' : ''}`}>
     <div className={`automation-status-dot ${status.tone}`} aria-label={status.label} title={status.label} />
-    <div className="automation-row-main"><div className="automation-row-title"><h2>{task.name}</h2><span className={`automation-status ${status.tone}`}>{status.label}</span></div><p>{task.prompt}</p><div className="automation-row-meta"><span>{scheduleLabel(task)}</span><span>{project?.name || '未知项目'}</span><span>{profile ? `${runtimeLabel} · ${profile.name}` : '模型配置已移除'}</span></div></div>
+    <div className="automation-row-main"><div className="automation-row-title"><h2>{task.name}</h2><span className={`automation-status ${status.tone}`}>{status.label}</span></div><p>{task.prompt}</p><div className="automation-row-meta"><span>{scheduleLabel(task)}</span><span>{project?.name || '未知项目'}</span><span>{profile ? `${runtimeLabel} · ${profile.name}` : '模型配置已移除'}</span>{task.notifyWeixin?.length > 0 && <span>微信通知 {task.notifyWeixin.length} 人</span>}</div></div>
     <div className="automation-row-times"><div><small>下次执行</small><strong>{task.enabled && task.scheduleEnabled ? safeTime(task.nextRunAt) : '手动触发'}</strong></div><div><small>最近执行</small><strong>{safeTime(task.lastRunAt)}</strong></div></div>
     <div className="automation-row-actions"><button className={`automation-toggle ${task.enabled ? 'enabled' : ''}`} type="button" aria-pressed={task.enabled} disabled={toggling} onClick={onToggle}><span aria-hidden="true" />{toggling ? '更新中…' : task.enabled ? '已启用' : '已停用'}</button><button className="primary-button" type="button" disabled={!task.enabled || running} onClick={onRun}>{running ? '提交中…' : '立即运行'}</button>{task.lastSessionId && <button className="ghost-button" type="button" onClick={() => onOpenSession(task.lastSessionId || '')}>查看会话</button>}<button className="ghost-button" type="button" onClick={onEdit}>编辑</button><button className="danger-text-button" type="button" onClick={onDelete}>删除</button></div>
   </article>
@@ -156,6 +156,14 @@ function AutomationEditor({ task, data, busy, onCancel, onSave }: { task: Automa
   const runtimeProfiles = data.modelProfiles.filter((profile) => profile.settings.runtime === runtime)
   const [profileID, setProfileID] = useState(initialProfile?.id || '')
   const [cron, setCron] = useState(task?.cron || '')
+  const [notify, setNotify] = useState<string[]>(task?.notifyWeixin || [])
+  const [members, setMembers] = useState<WeixinAccount[]>([])
+  useEffect(() => {
+    let alive = true
+    api.weixin().then((state) => { if (alive) setMembers(state.accounts) }).catch(() => undefined)
+    return () => { alive = false }
+  }, [])
+  const toggleMember = (id: string) => setNotify((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   const valid = name.trim().length > 0 && prompt.trim().length > 0 && Boolean(projectID && profileID)
 
   const changeProject = (nextID: string) => {
@@ -183,8 +191,9 @@ function AutomationEditor({ task, data, busy, onCancel, onSave }: { task: Automa
         <label className="automation-form-wide"><span>Prompt</span><textarea value={prompt} maxLength={50000} placeholder="例如：检查当前项目最近一次构建结果，整理失败原因并给出修复建议。" onChange={(event) => setPrompt(event.target.value)} /><small>每次触发都会创建一条新的普通会话，保留完整 Trace。</small></label>
         <fieldset className="automation-form-wide automation-context-grid"><legend><span>执行上下文</span><small>创建后固定，后续每次运行都使用同一套配置</small></legend><label><span>项目</span><select value={projectID} onChange={(event) => changeProject(event.target.value)}><option value="">选择项目</option>{data.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>Runtime</span><select value={runtime} onChange={(event) => changeRuntime(event.target.value as 'beaver' | 'codex')}><option value="beaver">Beaver</option><option value="codex">Codex</option></select></label><label><span>模型配置</span><select value={profileID} onChange={(event) => setProfileID(event.target.value)}><option value="">{runtimeProfiles.length ? '选择模型配置' : '暂无可用配置'}</option>{runtimeProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}{profile.settings.model ? ` · ${profile.settings.model}` : ''}</option>)}</select></label></fieldset>
         <div className="automation-form-wide automation-schedule"><div className="automation-schedule-head"><span>定时规则</span><small>标准 5 段 Cron · 按服务器时区运行</small></div><div className="automation-cron-editor"><label><span>Cron 表达式（可选）</span><input value={cron} spellCheck={false} placeholder="留空表示仅手动运行，例如 0 10 * * 1-5" onChange={(event) => setCron(event.target.value)} /><small>填写 Cron 后自动定时；任务启用/停用请在列表中操作。</small></label><div className="automation-cron-presets" aria-label="常用 Cron 预设">{cronPresets.map((preset) => <button key={preset.value || 'manual'} type="button" className={cron.trim() === preset.value ? 'selected' : ''} onClick={() => setCron(preset.value)}>{preset.label}</button>)}</div><div className="automation-cron-preview" role="status"><span>当前规则</span><strong>{cronLabel(cron)}</strong><small>{cron.trim() ? '按服务器时区计算下次执行时间' : '不会自动触发，可随时手动运行'}</small></div></div></div>
+      <fieldset className="automation-form-wide automation-notify"><legend><span>结果通知</span><small>任务结束后把结果发到所选成员的微信；不选则只在 Web 查看</small></legend>{members.length === 0 ? <small>还没有绑定微信成员，可在 设置 → 微信远程 绑定。</small> : <div className="automation-notify-list">{members.map((member) => <label key={member.id}><input type="checkbox" checked={notify.includes(member.id)} onChange={() => toggleMember(member.id)} /><span>{member.label}</span></label>)}</div>}</fieldset>
       </div>
-      <div className="automation-editor-actions"><button className="ghost-button" type="button" disabled={busy} onClick={onCancel}>取消</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={() => onSave({ name: name.trim(), prompt: prompt.trim(), projectId: projectID, profileId: profileID, cron: cron.trim() })}>{busy ? '保存中…' : task ? '保存修改' : '创建任务'}</button></div>
+      <div className="automation-editor-actions"><button className="ghost-button" type="button" disabled={busy} onClick={onCancel}>取消</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={() => onSave({ name: name.trim(), prompt: prompt.trim(), projectId: projectID, profileId: profileID, cron: cron.trim(), notifyWeixin: notify })}>{busy ? '保存中…' : task ? '保存修改' : '创建任务'}</button></div>
     </section>
   </div>
 }

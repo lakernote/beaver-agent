@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -60,6 +62,12 @@ func (manager *weixinManager) beginLogin(ctx context.Context, label string) (*we
 	}(login.ID)
 	copy := *login
 	return &copy, nil
+}
+
+// weixinMemberID 把微信用户 ID 映射为稳定、可放进 URL 的成员 ID。
+func weixinMemberID(userID string) string {
+	sum := sha256.Sum256([]byte(userID))
+	return "wx_" + hex.EncodeToString(sum[:6])
 }
 
 func (manager *weixinManager) getLogin(id string) (*weixinLogin, bool) {
@@ -142,25 +150,31 @@ func (manager *weixinManager) pollLogin(ctx context.Context, id string) {
 			} else if !strings.HasPrefix(baseURL, "https://") {
 				baseURL = "https://" + baseURL
 			}
-			accounts, _ := manager.server.store.ListWeixinAccounts()
-			for _, previous := range accounts {
-				if previous.UserID == status.UserID && previous.ID != status.AccountID {
-					manager.stopAccount(previous.ID)
-				}
-			}
 			now := time.Now()
+			// 成员 ID 由微信用户 ID 派生：同一个人重新扫码仍是同一个成员，
+			// 个人记忆、定时任务通知对象都不会因为重新绑定而失效。
+			memberID := weixinMemberID(status.UserID)
+			manager.stopAccount(memberID)
 			projectID := ""
 			if err := manager.server.ensureDefaultProject(); err == nil {
 				if project, projectErr := manager.server.store.DefaultProject(); projectErr == nil {
 					projectID = project.ID
 				}
 			}
-			account := store.WeixinAccount{ID: status.AccountID, Label: login.Label, UserID: status.UserID, Token: status.BotToken, BaseURL: baseURL, Enabled: true, ProjectID: projectID, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}
+			account := store.WeixinAccount{ID: memberID, Label: login.Label, UserID: status.UserID, Token: status.BotToken, BaseURL: baseURL, Enabled: true, ProjectID: projectID, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}
 			if err := manager.server.store.SaveWeixinAccount(account); err != nil {
 				manager.updateLogin(id, "failed", "保存微信绑定失败："+err.Error(), "")
 				return
 			}
-			manager.updateLogin(id, "confirmed", "绑定成功", baseURL)
+			message := "绑定成功"
+			// 通道未启用时轮询不会启动，成员发消息没人处理；绑定成功就顺手启用。
+			if settings, err := manager.server.store.GetWeixinSettings(); err == nil && !settings.Enabled {
+				settings.Enabled, settings.IgnoreBefore = true, now
+				if _, err := manager.server.store.SaveWeixinSettings(settings); err == nil {
+					message = "绑定成功，微信通道已自动启用"
+				}
+			}
+			manager.updateLogin(id, "confirmed", message, baseURL)
 			manager.restartAccount(account.ID)
 			return
 		case "expired":

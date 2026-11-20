@@ -107,9 +107,17 @@ func finalSessionText(session store.Session) string {
 	if session.Status == store.SessionCanceled {
 		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送 /new开始独立任务。", session.Title)
 	}
+	if answer := lastAssistantText(session); answer != "" {
+		return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送 /new开始独立任务。", session.Title, answer)
+	}
+	return ""
+}
+
+// lastAssistantText 返回会话里最后一条有文字内容的助手消息。
+func lastAssistantText(session store.Session) string {
 	for index := len(session.Messages) - 1; index >= 0; index-- {
 		if session.Messages[index].Role == "assistant" && strings.TrimSpace(session.Messages[index].Content) != "" {
-			return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送 /new开始独立任务。", session.Title, strings.TrimSpace(session.Messages[index].Content))
+			return strings.TrimSpace(session.Messages[index].Content)
 		}
 	}
 	return ""

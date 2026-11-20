@@ -61,8 +61,10 @@ type AutomationTask struct {
 	LastStatus      AutomationStatus `json:"lastStatus,omitempty"`
 	LastError       string           `json:"lastError,omitempty"`
 	LastSessionID   string           `json:"lastSessionId,omitempty"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	UpdatedAt       time.Time        `json:"updatedAt"`
+	// NotifyWeixin 是任务结束后要通知的微信成员（weixin_accounts.id）；为空则只在 Web 查看。
+	NotifyWeixin []string  `json:"notifyWeixin"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 type SkillOverride struct {

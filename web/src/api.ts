@@ -115,4 +115,5 @@ export type AutomationTaskInput = {
   projectId: string
   profileId: string
   cron: string
+  notifyWeixin: string[]
 }

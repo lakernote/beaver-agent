@@ -14,6 +14,7 @@ export type AutomationTask = {
   lastStatus?: string
   lastError?: string
   lastSessionId?: string
+  notifyWeixin: string[]
   createdAt: string
   updatedAt: string
 }

@@ -364,3 +364,71 @@ func TestWeixinAPIShowsCurrentTaskAndRetriesDelivery(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+func TestWeixinMemberIDIsStableAcrossRebinding(t *testing.T) {
+	if weixinMemberID("user-a") != weixinMemberID("user-a") || weixinMemberID("user-a") == weixinMemberID("user-b") {
+		t.Fatal("成员 ID 应由微信用户 ID 稳定派生")
+	}
+}
+
+func TestAutomationResultText(t *testing.T) {
+	task := store.AutomationTask{Name: "每日巡检"}
+	done := automationResultText(task, store.Session{Status: store.SessionIdle, Messages: []store.Message{{Role: "assistant", Content: "一切正常"}}})
+	if !strings.Contains(done, "每日巡检") || !strings.Contains(done, "一切正常") {
+		t.Fatalf("完成通知缺少任务名或结果: %q", done)
+	}
+	failed := automationResultText(task, store.Session{Status: store.SessionFailed, Error: "模型不可用"})
+	if !strings.Contains(failed, "❌") || !strings.Contains(failed, "模型不可用") {
+		t.Fatalf("失败通知缺少原因: %q", failed)
+	}
+}
+
+type recordingGateway struct {
+	fakeWeixinGateway
+	sent chan string
+}
+
+func (gateway *recordingGateway) SendText(_ context.Context, _ weixin.Account, userID, _ string, text string) error {
+	gateway.sent <- userID + "|" + text
+	return nil
+}
+
+func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
+	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	environment, err := appenv.Open(appenv.Config{Home: filepath.Join(t.TempDir(), "home")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
+	gateway := &recordingGateway{sent: make(chan string, 4)}
+	application.weixin.gateway = gateway
+	defer application.Shutdown(context.Background())
+	now := time.Now()
+	for _, user := range []string{"user-a", "user-b"} {
+		if err := database.SaveWeixinAccount(store.WeixinAccount{ID: weixinMemberID(user), Label: user, UserID: user, Token: "t", BaseURL: "https://x", Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := database.SaveWeixinSettings(store.WeixinSettings{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	task := store.AutomationTask{Name: "每日巡检", NotifyWeixin: []string{weixinMemberID("user-a")}}
+	application.notifyAutomationMembers(task, "⏰ 定时任务完成 · 每日巡检\n\n一切正常")
+	select {
+	case got := <-gateway.sent:
+		if !strings.HasPrefix(got, "user-a|") || !strings.Contains(got, "一切正常") {
+			t.Fatalf("通知内容或对象错误: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("没有收到定时任务通知")
+	}
+	select {
+	case got := <-gateway.sent:
+		t.Fatalf("未勾选的成员不应收到通知: %q", got)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
