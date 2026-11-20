@@ -145,7 +145,7 @@ func (server *Server) changePassword(response http.ResponseWriter, request *http
 		return
 	}
 	server.authMu.Lock()
-	server.sessions = make(map[string]authSession)
+	server.authSessions = make(map[string]authSession)
 	server.authMu.Unlock()
 	server.clearAuthSession(response, request)
 	writeJSON(response, http.StatusOK, map[string]any{"authenticated": false, "message": "密码已修改，请重新登录"})

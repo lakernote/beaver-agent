@@ -42,7 +42,7 @@ func (server *Server) getOlderSessions(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusBadRequest, "会话时间游标无效")
 		return
 	}
-	sessions, hasMore, err := server.sessionsRepository().ListSessionsBefore(100, beforeUpdatedAt, beforeID)
+	sessions, hasMore, err := server.store.ListSessionsBefore(100, beforeUpdatedAt, beforeID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -82,13 +82,13 @@ func (server *Server) getSession(response http.ResponseWriter, request *http.Req
 }
 
 func (server *Server) loadLiveSession(ctx context.Context, id string) (store.Session, error) {
-	value, err := server.sessionsRepository().LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
+	value, err := server.store.LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
 	if err != nil {
 		return store.Session{}, err
 	}
-	settings, _ := server.modelsRepository().GetModelSettingsByProfileID(value.ProfileID)
+	settings, _ := server.store.GetModelSettingsByProfileID(value.ProfileID)
 	if settings.Runtime == "" {
-		settings, _ = server.modelsRepository().GetModelSettings()
+		settings, _ = server.store.GetModelSettings()
 	}
 	settings = enrichOllamaContextWindow(ctx, settings)
 	decorateContext(&value, settings)
@@ -110,7 +110,7 @@ func (server *Server) loadLiveSession(ctx context.Context, id string) (store.Ses
 // Trace，避免为了滚动其中一类历史而重新查询、传输另一类历史。
 func (server *Server) getSessionHistory(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	if _, err := server.sessionsRepository().LoadSessionWindow(id, 1, 1); err != nil {
+	if _, err := server.store.LoadSessionWindow(id, 1, 1); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(response, http.StatusNotFound, "会话不存在")
 		} else {
@@ -128,11 +128,11 @@ func (server *Server) getSessionHistory(response http.ResponseWriter, request *h
 	switch kind {
 	case "messages":
 		var values []store.Message
-		values, page.MessageCount, page.MessagesHasMore, err = server.sessionsRepository().ListMessagesBefore(id, before, apiMessageWindow)
+		values, page.MessageCount, page.MessagesHasMore, err = server.store.ListMessagesBefore(id, before, apiMessageWindow)
 		page.Messages = publicMessages(values)
 	case "events":
 		var values []store.Event
-		values, page.EventCount, page.EventsHasMore, err = server.sessionsRepository().ListEventsBefore(id, before, apiEventWindow)
+		values, page.EventCount, page.EventsHasMore, err = server.store.ListEventsBefore(id, before, apiEventWindow)
 		page.Events = publicEvents(values)
 	default:
 		writeError(response, http.StatusBadRequest, "历史类型必须是 messages 或 events")

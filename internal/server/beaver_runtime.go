@@ -151,7 +151,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 			for _, message := range messages {
 				values = append(values, fromCoreMessage(message))
 			}
-			return server.sessionsRepository().AppendMessages(id, values)
+			return server.store.AppendMessages(id, values)
 		},
 		PrepareRequest: func(ctx context.Context, request agent.Request, force bool) (agent.Request, bool, error) {
 			return server.prepareRuntimeRequest(ctx, id, settings, systemPrompt, turn, usage, client, runner, request, force)
@@ -175,7 +175,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 				StartedAt: event.StartedAt,
 			}
 			if event.Kind == agent.EventToolStart {
-				return server.sessionsRepository().BeginToolOperation(id, operation)
+				return server.store.BeginToolOperation(id, operation)
 			}
 			if event.Kind != agent.EventToolEnd {
 				return nil
@@ -187,7 +187,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 				operation.Status = store.ToolOperationFailed
 				operation.Error = event.Err.Error()
 			}
-			return server.sessionsRepository().SettleToolOperation(id, operation)
+			return server.store.SettleToolOperation(id, operation)
 		},
 		IsContextError: isContextLengthError,
 	})
@@ -200,7 +200,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 	if savedTraceErr != nil {
 		return fmt.Errorf("保存 Agent Trace 失败: %w", savedTraceErr)
 	}
-	return server.sessionsRepository().FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
+	return server.store.FinishSession(id, result.ResponseID, providerKey, *usage, time.Now())
 }
 
 func beaverToolNeedsApproval(name string) bool {

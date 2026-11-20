@@ -27,7 +27,7 @@ func (server *Server) forkSession(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusBadRequest, "workspaceMode 只能是 shared 或 worktree")
 		return
 	}
-	source, err := server.sessionsRepository().LoadSession(request.PathValue("id"))
+	source, err := server.store.LoadSession(request.PathValue("id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(response, http.StatusNotFound, "会话不存在")
@@ -84,7 +84,7 @@ func (server *Server) forkSession(response http.ResponseWriter, request *http.Re
 	if createdWorktree {
 		titlePrefix = "独立分支 · "
 	}
-	if _, err := server.sessionsRepository().CreateSession(store.CreateSessionParams{
+	if _, err := server.store.CreateSession(store.CreateSessionParams{
 		ID: id, Title: titlePrefix + source.Title, Runtime: source.Runtime,
 		Channel:   source.Channel,
 		ProfileID: source.ProfileID, Model: source.Model, ReasoningEffort: source.ReasoningEffort, ProjectID: source.ProjectID,
@@ -94,14 +94,14 @@ func (server *Server) forkSession(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := server.sessionsRepository().SetSessionWorkspace(id, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
-		_ = server.sessionsRepository().DeleteSession(id)
+	if err := server.store.SetSessionWorkspace(id, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
+		_ = server.store.DeleteSession(id)
 		rollbackWorkspace()
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := server.sessionsRepository().SetSessionContinuation(id, result.Thread.ID); err != nil {
-		_ = server.sessionsRepository().DeleteSession(id)
+	if err := server.store.SetSessionContinuation(id, result.Thread.ID); err != nil {
+		_ = server.store.DeleteSession(id)
 		rollbackWorkspace()
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -113,8 +113,8 @@ func (server *Server) forkSession(response http.ResponseWriter, request *http.Re
 		for index := range clone.Attachments {
 			clone.Attachments[index].ID = newID()
 		}
-		if err := server.sessionsRepository().AppendMessage(id, clone); err != nil {
-			_ = server.sessionsRepository().DeleteSession(id)
+		if err := server.store.AppendMessage(id, clone); err != nil {
+			_ = server.store.DeleteSession(id)
 			rollbackWorkspace()
 			writeError(response, http.StatusInternalServerError, fmt.Sprintf("复制分支历史: %v", err))
 			return

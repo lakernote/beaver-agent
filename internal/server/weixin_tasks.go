@@ -18,9 +18,9 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 	sessionID := account.CurrentSessionID
 	var model store.ModelSettings
 	if sessionID != "" {
-		current, err := manager.server.sessionsRepository().LoadSessionWindow(sessionID, 1, 1)
+		current, err := manager.server.store.LoadSessionWindow(sessionID, 1, 1)
 		if err == nil {
-			model, err = manager.server.modelsRepository().GetModelSettingsByProfileID(current.ProfileID)
+			model, err = manager.server.store.GetModelSettingsByProfileID(current.ProfileID)
 			if err != nil {
 				return "", err
 			}
@@ -35,7 +35,7 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 	}
 	if sessionID == "" {
 		var err error
-		model, err = manager.server.modelsRepository().GetModelSettings()
+		model, err = manager.server.store.GetModelSettings()
 		if err != nil {
 			return "", err
 		}
@@ -53,7 +53,7 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 			return "", err
 		}
 		workspace := manager.server.prepareSessionWorkspace(manager.server.ctx, sessionID, runEnvironment.Workspace(), runtimeSettings)
-		if _, err := manager.server.sessionsRepository().CreateSession(store.CreateSessionParams{
+		if _, err := manager.server.store.CreateSession(store.CreateSessionParams{
 			ID: sessionID, Title: makeTitle(text), Runtime: model.Runtime,
 			Channel:   store.ChannelWeixin,
 			ProfileID: model.ProfileID, Model: model.Model, ProjectID: project.ID,
@@ -64,17 +64,17 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 		}
 		// 记录会话所属成员，个人记忆按此隔离。
 		if err := manager.server.store.SetSessionOwner(sessionID, account.ID); err != nil {
-			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
+			_ = manager.server.store.DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
-		if err := manager.server.sessionsRepository().SetSessionWorkspace(sessionID, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
-			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
+		if err := manager.server.store.SetSessionWorkspace(sessionID, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
+			_ = manager.server.store.DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
 		if err := manager.server.enqueueTurn(sessionID, text, attachments, model); err != nil {
-			_ = manager.server.sessionsRepository().DeleteSession(sessionID)
+			_ = manager.server.store.DeleteSession(sessionID)
 			manager.server.discardPreparedWorkspace(workspace)
 			return "", err
 		}
@@ -104,5 +104,5 @@ func (manager *weixinManager) currentSession(account store.WeixinAccount) (store
 	if strings.TrimSpace(account.CurrentSessionID) == "" {
 		return store.Session{}, sql.ErrNoRows
 	}
-	return manager.server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 1, 1)
+	return manager.server.store.LoadSessionWindow(account.CurrentSessionID, 1, 1)
 }

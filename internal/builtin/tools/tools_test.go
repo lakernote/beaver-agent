@@ -47,7 +47,7 @@ func TestCurrentTimeIncludesOffset(t *testing.T) {
 
 func TestCatalogOmitsSkillLoaderWhenNoSkillIsEnabled(t *testing.T) {
 	environment := testEnvironment(t, t.TempDir())
-	for _, tool := range Catalog(environment, emptySkillSource{}) {
+	for _, tool := range CatalogWithMemory(environment, emptySkillSource{}, permissions.Default(), nil) {
 		if tool.Spec.Name == "load_skill" {
 			t.Fatal("没有启用 Skill 时不应向模型暴露 load_skill")
 		}
@@ -203,7 +203,7 @@ func TestShellTimeout(t *testing.T) {
 }
 
 func TestReadOnlyCatalogDoesNotExposeMutationTools(t *testing.T) {
-	tools := CatalogWithPermissions(testEnvironment(t, t.TempDir()), nil, permissions.Policy{Mode: permissions.ModeReadOnly})
+	tools := CatalogWithMemory(testEnvironment(t, t.TempDir()), nil, permissions.Policy{Mode: permissions.ModeReadOnly}, nil)
 	for _, tool := range tools {
 		if tool.Spec.Name == "shell" || tool.Spec.Name == "edit" || tool.Spec.Name == "write" {
 			t.Fatalf("只读目录不应暴露 %q", tool.Spec.Name)
@@ -259,7 +259,7 @@ func TestParseDuckDuckGoResultsResolvesRealURL(t *testing.T) {
 
 func TestToolCategoriesComeFromRegistration(t *testing.T) {
 	categories := make(map[string]string)
-	for _, info := range InfoList(testEnvironment(t, t.TempDir()), nil) {
+	for _, info := range InfoList(testEnvironment(t, t.TempDir()), nil, permissions.Default()) {
 		categories[info.Name] = info.Category
 	}
 	for name, expected := range map[string]string{

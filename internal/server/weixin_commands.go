@@ -79,7 +79,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送 /new可开始独立任务。")
 			return true
 		}
-		changed, cancelErr := manager.server.sessionsRepository().CancelSession(session.ID, time.Now())
+		changed, cancelErr := manager.server.store.CancelSession(session.ID, time.Now())
 		if cancelErr != nil || !changed {
 			manager.send(account, message.FromUserID, message.ContextToken, "任务已经结束，未执行停止。")
 			return true

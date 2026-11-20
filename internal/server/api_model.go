@@ -56,7 +56,7 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	input.SecretConfigured = false
-	if err := server.modelsRepository().SaveModelProfile(input); err != nil {
+	if err := server.store.SaveModelProfile(input); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -65,7 +65,7 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 
 func (server *Server) activateModelProfile(response http.ResponseWriter, request *http.Request) {
 	id := strings.TrimSpace(request.PathValue("id"))
-	settings, err := server.modelsRepository().GetModelSettingsByProfileID(id)
+	settings, err := server.store.GetModelSettingsByProfileID(id)
 	if err == nil {
 		err = server.requireVerifiedBeaver(settings)
 	}
@@ -73,7 +73,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 		writeError(response, http.StatusConflict, err.Error())
 		return
 	}
-	value, err := server.modelsRepository().SetActiveModelProfile(id)
+	value, err := server.store.SetActiveModelProfile(id)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -82,7 +82,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 }
 
 func (server *Server) deleteModelProfile(response http.ResponseWriter, request *http.Request) {
-	if err := server.modelsRepository().DeleteModelProfile(request.PathValue("id")); err != nil {
+	if err := server.store.DeleteModelProfile(request.PathValue("id")); err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -96,13 +96,13 @@ func sameModelEndpoint(left, right store.ModelSettings) bool {
 
 func (server *Server) modelSettingsForInput(input store.ModelSettings) store.ModelSettings {
 	if strings.TrimSpace(input.ProfileID) != "" {
-		value, err := server.modelsRepository().GetModelSettingsByProfileID(input.ProfileID)
+		value, err := server.store.GetModelSettingsByProfileID(input.ProfileID)
 		if err == nil {
 			return value
 		}
 		return store.ModelSettings{}
 	}
-	value, _ := server.modelsRepository().GetModelSettings()
+	value, _ := server.store.GetModelSettings()
 	return value
 }
 

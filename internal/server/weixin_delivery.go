@@ -47,7 +47,7 @@ func (manager *weixinManager) resumeDelivery(accountID string) {
 		if !settings.Enabled || !account.Enabled {
 			return
 		}
-		session, err := manager.server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 40, 1)
+		session, err := manager.server.store.LoadSessionWindow(account.CurrentSessionID, 40, 1)
 		if err != nil {
 			return
 		}

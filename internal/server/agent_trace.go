@@ -73,7 +73,7 @@ func (server *Server) newTraceObserver(id string, turn int, usage *store.Usage, 
 		// 否则用户无法根据 Trace 复现问题。附件二进制仍只保留结构和 MIME。
 		value.Input = redactTraceAttachmentData(value.Input)
 		value.Output = redactTraceAttachmentData(value.Output)
-		if err := server.sessionsRepository().AppendEvent(id, value); err != nil && onTraceError != nil {
+		if err := server.store.AppendEvent(id, value); err != nil && onTraceError != nil {
 			onTraceError(err)
 		}
 		if event.Kind == agent.EventModelEnd || event.Kind == agent.EventToolEnd || event.Kind == agent.EventToolReject {
@@ -99,18 +99,6 @@ func isBusinessToolActivity(kind, name string) bool {
 	default:
 		return true
 	}
-}
-
-// userTurnCount 只按已持久化的 user 消息计算轮次。一次 Turn 可以包含多条
-// assistant/tool 消息，因此不能用消息总数除以二推导。
-func userTurnCount(messages []store.Message) int {
-	turns := 0
-	for _, message := range messages {
-		if message.Role == string(agent.RoleUser) {
-			turns++
-		}
-	}
-	return turns
 }
 
 // redactTraceAttachmentData 保留可审计的请求结构，但移除附件 Base64 和常见

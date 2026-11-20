@@ -426,10 +426,6 @@ func managedMCPID(value string) string {
 	return strings.TrimRight(result.String(), "_")
 }
 
-// MCPServerName returns the stable managed name used in Codex config.toml and
-// in app-server's mcpServer/* RPCs.
-func MCPServerName(value string) string { return managedMCPID(value) }
-
 func managedMCPEnv(id, field string) string {
 	value := strings.ToUpper(id + "_" + field)
 	value = regexp.MustCompile(`[^A-Z0-9_]`).ReplaceAllString(value, "_")

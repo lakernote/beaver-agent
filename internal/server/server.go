@@ -24,35 +24,30 @@ import (
 
 type Server struct {
 	store  *store.Store
-	models modelRepository
-	// sessionRepo keeps session handlers and runtimes independent from the
-	// Store's unrelated model, project, capability, and auth APIs.
-	sessionRepo sessionRepository
-	assets      fs.FS
-	env         *appenv.Environment
-	mux         *http.ServeMux
+	assets fs.FS
+	env    *appenv.Environment
+	mux    *http.ServeMux
 	// modelAdapters is owned by this application instance. Keeping the registry
 	// here avoids package-global provider state and makes server construction
 	// explicit and testable.
 	modelAdapters *modeladapter.Registry
 
-	ctx         context.Context
-	cancel      context.CancelFunc
-	lifecycleMu sync.Mutex
-	stopping    bool
-	wait        sync.WaitGroup
-	scheduler   *taskScheduler
-	tasks       *taskManager
-	runtimes    *runtimeRegistry
-	weixin      *weixinManager
-	codexEnvMu  sync.RWMutex
-	retentionMu sync.Mutex
-	codexEnv    map[string]string
-	codexEnvErr error
-	authMu      sync.Mutex
-	sessions    map[string]authSession
-	logins      loginLimiter
-	authEnabled bool
+	ctx          context.Context
+	cancel       context.CancelFunc
+	lifecycleMu  sync.Mutex
+	stopping     bool
+	wait         sync.WaitGroup
+	scheduler    *taskScheduler
+	tasks        *taskManager
+	weixin       *weixinManager
+	codexEnvMu   sync.RWMutex
+	retentionMu  sync.Mutex
+	codexEnv     map[string]string
+	codexEnvErr  error
+	authMu       sync.Mutex
+	authSessions map[string]authSession
+	logins       loginLimiter
+	authEnabled  bool
 	// externalCapabilitySync writes the shared catalog to the service user's
 	// Codex config/discovery directories. Tests keep it off to remain hermetic.
 	externalCapabilitySync bool
@@ -95,13 +90,12 @@ func newServer(database *store.Store, assets fs.FS, environment *appenv.Environm
 		return nil, fmt.Errorf("load runtime settings: %w", err)
 	}
 	server := &Server{
-		store: database, models: database, sessionRepo: database, assets: assets, env: environment, mux: http.NewServeMux(),
+		store: database, assets: assets, env: environment, mux: http.NewServeMux(),
 		modelAdapters: modelAdapters,
 		ctx:           ctx, cancel: cancel, scheduler: newTaskScheduler(runtimeSettings.MaxConcurrentTasks),
-		tasks: newTaskManager(), codexEnv: codexEnv, codexEnvErr: codexEnvErr, sessions: make(map[string]authSession),
+		tasks: newTaskManager(), codexEnv: codexEnv, codexEnvErr: codexEnvErr, authSessions: make(map[string]authSession),
 		authEnabled: options.authEnabled, externalCapabilitySync: options.externalCapabilitySync,
 	}
-	server.runtimes = newRuntimeRegistry(server)
 	server.routes()
 	if err := server.resumeQueuedSessions(); err != nil {
 		cancel()
@@ -188,9 +182,9 @@ func (server *Server) isAuthenticated(request *http.Request) bool {
 	}
 	server.authMu.Lock()
 	defer server.authMu.Unlock()
-	session, ok := server.sessions[cookie.Value]
+	session, ok := server.authSessions[cookie.Value]
 	if !ok || time.Now().After(session.ExpiresAt) {
-		delete(server.sessions, cookie.Value)
+		delete(server.authSessions, cookie.Value)
 		return false
 	}
 	return true
@@ -206,12 +200,12 @@ func (server *Server) createAuthSession(response http.ResponseWriter, request *h
 	expiresAt := time.Now().Add(12 * time.Hour)
 	server.authMu.Lock()
 	now := time.Now()
-	for value, session := range server.sessions {
+	for value, session := range server.authSessions {
 		if now.After(session.ExpiresAt) {
-			delete(server.sessions, value)
+			delete(server.authSessions, value)
 		}
 	}
-	server.sessions[token] = authSession{ExpiresAt: expiresAt}
+	server.authSessions[token] = authSession{ExpiresAt: expiresAt}
 	server.authMu.Unlock()
 	http.SetCookie(response, &http.Cookie{Name: authCookieName, Value: token, Path: "/", Expires: expiresAt, MaxAge: 12 * 60 * 60, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: request.TLS != nil})
 	return true
@@ -220,7 +214,7 @@ func (server *Server) createAuthSession(response http.ResponseWriter, request *h
 func (server *Server) clearAuthSession(response http.ResponseWriter, request *http.Request) {
 	if cookie, err := request.Cookie(authCookieName); err == nil {
 		server.authMu.Lock()
-		delete(server.sessions, cookie.Value)
+		delete(server.authSessions, cookie.Value)
 		server.authMu.Unlock()
 	}
 	http.SetCookie(response, &http.Cookie{Name: authCookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: request.TLS != nil})

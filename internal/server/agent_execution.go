@@ -11,12 +11,11 @@ import (
 )
 
 func (server *Server) executeSessionTurn(ctx context.Context, id string, settings store.ModelSettings, usage *store.Usage) error {
-	session, err := server.sessionsRepository().RuntimeSession(id)
+	session, err := server.store.RuntimeSession(id)
 	if err != nil {
 		return err
 	}
-	// 工作区属于会话，而不是服务进程。旧会话的空值自动落到默认工作区；新会话
-	// 使用页面创建时选择并保存的绝对目录。
+	// 工作区属于会话，而不是服务进程：使用创建会话时保存的绝对目录。
 	runEnvironment, err := server.env.WithWorkspace(session.Workspace)
 	if err != nil {
 		return fmt.Errorf("打开会话工作区: %w", err)
@@ -37,16 +36,13 @@ func (server *Server) executeSessionTurn(ctx context.Context, id string, setting
 	if err != nil {
 		return fmt.Errorf("打开项目源文件夹: %w", err)
 	}
-	registry := server.runtimes
-	if registry == nil {
-		registry = newRuntimeRegistry(server)
+	// 只有两种 Runtime，直接 switch 比注册表更容易读。
+	switch session.Runtime {
+	case store.RuntimeCodex:
+		return server.runCodexTurn(ctx, session, settings, runEnvironment.Workspace(), runEnvironment.Directories(), usage)
+	case store.RuntimeBeaver, "":
+		return server.runBeaverTurn(ctx, id, session, settings, runEnvironment, usage)
+	default:
+		return fmt.Errorf("不支持的 Runtime: %s", session.Runtime)
 	}
-	executor, err := registry.resolve(session.Runtime)
-	if err != nil {
-		return err
-	}
-	return executor.Run(runtimeTurnRequest{
-		Context: ctx, SessionID: id, Session: session, Settings: settings,
-		Environment: runEnvironment, Usage: usage,
-	})
 }

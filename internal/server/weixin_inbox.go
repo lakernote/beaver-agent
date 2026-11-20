@@ -118,7 +118,7 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 		return
 	}
 	acknowledgement := weixinTaskAcknowledgement("")
-	if session, loadErr := manager.server.sessionsRepository().LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
+	if session, loadErr := manager.server.store.LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
 		acknowledgement = weixinTaskAcknowledgement(session.Title)
 	}
 	// 全局并发已满时，提前告知成员任务在排队，而不是让人以为卡住了。

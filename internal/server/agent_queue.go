@@ -19,7 +19,7 @@ func (server *Server) enqueueTurn(id, userMessage string, attachments []store.At
 		return err
 	}
 	now := time.Now()
-	if err := server.sessionsRepository().EnqueueTurnWithSettings(id, model, store.Message{Role: "user", Content: userMessage, Attachments: attachments, ToolCalls: []store.ToolCall{}, CreatedAt: now}, now); err != nil {
+	if err := server.store.EnqueueTurnWithSettings(id, model, store.Message{Role: "user", Content: userMessage, Attachments: attachments, ToolCalls: []store.ToolCall{}, CreatedAt: now}, now); err != nil {
 		return err
 	}
 	return server.startQueuedTurn(id, model)
@@ -39,9 +39,9 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 		defer server.completeBackground()
 		defer server.tasks.clear(id, taskToken)
 		defer taskCancel()
-		session, loadErr := server.sessionsRepository().LoadSessionWindow(id, 1, 1)
+		session, loadErr := server.store.LoadSessionWindow(id, 1, 1)
 		if loadErr != nil {
-			_ = server.sessionsRepository().FailSession(id, loadErr, store.Usage{}, time.Now())
+			_ = server.store.FailSession(id, loadErr, store.Usage{}, time.Now())
 			server.recordAutomationSessionResult(id, store.AutomationFailed, loadErr.Error())
 			return
 		}
@@ -50,15 +50,15 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 			// 服务停机时保留尚未开始的 queued 任务，下一次启动会恢复；用户
 			// 主动停止则 CancelSession 已经把状态改成 canceled。
 			if server.ctx.Err() == nil {
-				_ = server.sessionsRepository().FailSession(id, err, store.Usage{}, time.Now())
+				_ = server.store.FailSession(id, err, store.Usage{}, time.Now())
 				server.recordAutomationSessionResult(id, store.AutomationFailed, err.Error())
 			}
 			return
 		}
 		defer server.scheduler.release(resourceKeys...)
-		if err := server.sessionsRepository().MarkRunning(id, time.Now()); err != nil {
+		if err := server.store.MarkRunning(id, time.Now()); err != nil {
 			// 用户可能在任务刚获得执行槽时点击了停止，此时 canceled 状态应保留。
-			_ = server.sessionsRepository().FailSession(id, err, store.Usage{}, time.Now())
+			_ = server.store.FailSession(id, err, store.Usage{}, time.Now())
 			server.recordAutomationSessionResult(id, store.AutomationFailed, err.Error())
 			return
 		}
@@ -67,7 +67,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 		usage := store.Usage{}
 		runtimeSettings, settingsErr := server.store.GetRuntimeSettings()
 		if settingsErr != nil {
-			_ = server.sessionsRepository().FailSession(id, settingsErr, usage, time.Now())
+			_ = server.store.FailSession(id, settingsErr, usage, time.Now())
 			server.recordAutomationSessionResult(id, store.AutomationFailed, settingsErr.Error())
 			return
 		}
@@ -78,7 +78,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 		defer turnCancel()
 		if err := server.executeSessionTurn(turnContext, id, model, &usage); err != nil {
 			if errors.Is(err, store.ErrSessionNotRunning) {
-				current, _ := server.sessionsRepository().LoadSessionWindow(id, 1, 1)
+				current, _ := server.store.LoadSessionWindow(id, 1, 1)
 				server.recordAutomationSessionResult(id, automationStatusForSession(current.Status), current.Error)
 				return
 			}
@@ -93,10 +93,10 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 				runtime = store.RuntimeBeaver
 			}
 			unknownReason := "本轮异常结束时工具没有返回确定终态；为避免重复副作用不会自动重放"
-			if ledgerErr := server.sessionsRepository().MarkUnfinishedToolOperationsUnknown(id, runtime, session.UserTurnCount, unknownReason, time.Now()); ledgerErr != nil {
+			if ledgerErr := server.store.MarkUnfinishedToolOperationsUnknown(id, runtime, session.UserTurnCount, unknownReason, time.Now()); ledgerErr != nil {
 				err = fmt.Errorf("%v；收敛工具执行账本失败: %w", err, ledgerErr)
 			}
-			_ = server.sessionsRepository().FailSession(id, err, usage, time.Now())
+			_ = server.store.FailSession(id, err, usage, time.Now())
 			server.recordAutomationSessionResult(id, store.AutomationFailed, err.Error())
 			return
 		}
@@ -162,17 +162,17 @@ func (server *Server) taskResourceKeys(session store.Session, model store.ModelS
 }
 
 func (server *Server) resumeQueuedSessions() error {
-	queued, err := server.sessionsRepository().ListQueuedSessions()
+	queued, err := server.store.ListQueuedSessions()
 	if err != nil {
 		return err
 	}
 	for _, session := range queued {
 		model, snapshot, err := session.QueuedModelSettings()
 		if err == nil && !snapshot {
-			model, err = server.modelsRepository().GetModelSettingsByProfileID(session.ProfileID)
+			model, err = server.store.GetModelSettingsByProfileID(session.ProfileID)
 		}
 		if err != nil {
-			_ = server.sessionsRepository().FailSession(session.ID, err, store.Usage{}, time.Now())
+			_ = server.store.FailSession(session.ID, err, store.Usage{}, time.Now())
 			continue
 		}
 		model = pinCodexSessionModel(session, model)

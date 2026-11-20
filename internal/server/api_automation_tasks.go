@@ -229,7 +229,7 @@ func (server *Server) normalizeAutomationTask(input automationTaskRequest, now t
 		return store.AutomationTask{}, errors.New("工作目录必须属于所选项目")
 	}
 	if input.ProfileID != "" {
-		if _, err := server.modelsRepository().GetModelSettingsByProfileID(input.ProfileID); err != nil {
+		if _, err := server.store.GetModelSettingsByProfileID(input.ProfileID); err != nil {
 			return store.AutomationTask{}, errors.New("所选模型配置不存在")
 		}
 	}
@@ -274,7 +274,7 @@ func (server *Server) startAutomationSession(ctx context.Context, task store.Aut
 	if err != nil {
 		return "", fmt.Errorf("工作目录不可用: %w", err)
 	}
-	model, err := server.modelsRepository().GetModelSettingsByProfileID(task.ProfileID)
+	model, err := server.store.GetModelSettingsByProfileID(task.ProfileID)
 	if err != nil {
 		return "", err
 	}
@@ -288,12 +288,12 @@ func (server *Server) startAutomationSession(ctx context.Context, task store.Aut
 	}
 	id := newID()
 	workspace := server.prepareSessionWorkspace(ctx, id, environment.Workspace(), runtimeSettings)
-	if _, err := server.sessionsRepository().CreateSession(store.CreateSessionParams{ID: id, Title: task.Name, Runtime: model.Runtime, Channel: store.ChannelAutomation, ProfileID: model.ProfileID, Model: model.Model, ProjectID: task.ProjectID, Permissions: runtimeSettings.Permissions, Workspace: workspace.Execution, CreatedAt: time.Now()}); err != nil {
+	if _, err := server.store.CreateSession(store.CreateSessionParams{ID: id, Title: task.Name, Runtime: model.Runtime, Channel: store.ChannelAutomation, ProfileID: model.ProfileID, Model: model.Model, ProjectID: task.ProjectID, Permissions: runtimeSettings.Permissions, Workspace: workspace.Execution, CreatedAt: time.Now()}); err != nil {
 		server.discardPreparedWorkspace(workspace)
 		return "", err
 	}
-	if err := server.sessionsRepository().SetSessionWorkspace(id, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
-		_ = server.sessionsRepository().DeleteSession(id)
+	if err := server.store.SetSessionWorkspace(id, workspace.Execution, workspace.Source, workspace.Branch, workspace.Notice); err != nil {
+		_ = server.store.DeleteSession(id)
 		server.discardPreparedWorkspace(workspace)
 		return "", err
 	}
@@ -301,12 +301,12 @@ func (server *Server) startAutomationSession(ctx context.Context, task store.Aut
 	// session can become running before the task row knows its session id, and
 	// the later queued write would overwrite the real status.
 	if err := server.store.RecordAutomationTaskResult(task.ID, store.AutomationQueued, "", id, time.Now()); err != nil {
-		_ = server.sessionsRepository().DeleteSession(id)
+		_ = server.store.DeleteSession(id)
 		server.discardPreparedWorkspace(workspace)
 		return "", err
 	}
 	if err := server.enqueueTurn(id, task.Prompt, nil, model); err != nil {
-		_ = server.sessionsRepository().DeleteSession(id)
+		_ = server.store.DeleteSession(id)
 		server.discardPreparedWorkspace(workspace)
 		return "", err
 	}

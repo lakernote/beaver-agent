@@ -125,7 +125,7 @@ func (server *Server) testModel(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusBadGateway, "模型能力测试失败："+err.Error())
 		return
 	}
-	if err := server.modelsRepository().RecordModelCapabilityTest(modelCapabilityFingerprint(settings), time.Now()); err != nil {
+	if err := server.store.RecordModelCapabilityTest(modelCapabilityFingerprint(settings), time.Now()); err != nil {
 		writeError(response, http.StatusInternalServerError, "保存模型能力验证失败："+err.Error())
 		return
 	}
@@ -153,7 +153,7 @@ func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error 
 	if settings.Runtime == store.RuntimeCodex {
 		return nil
 	}
-	verified, err := server.modelsRepository().HasModelCapabilityTest(modelCapabilityFingerprint(settings))
+	verified, err := server.store.HasModelCapabilityTest(modelCapabilityFingerprint(settings))
 	if err != nil {
 		return fmt.Errorf("读取模型能力验证: %w", err)
 	}

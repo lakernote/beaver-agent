@@ -87,7 +87,7 @@ func (server *Server) getWeixin(response http.ResponseWriter, _ *http.Request) {
 		var currentSession *weixinSessionView
 		var sessionStatus store.SessionStatus
 		if account.CurrentSessionID != "" {
-			if session, loadErr := server.sessionsRepository().LoadSessionWindow(account.CurrentSessionID, 1, 1); loadErr == nil {
+			if session, loadErr := server.store.LoadSessionWindow(account.CurrentSessionID, 1, 1); loadErr == nil {
 				sessionStatus = session.Status
 				currentSession = &weixinSessionView{ID: session.ID, Title: session.Title, Status: string(session.Status), Runtime: string(session.Runtime), Progress: server.tasks.progress(session.ID), UpdatedAt: optionalTimeJSON(session.UpdatedAt)}
 			}

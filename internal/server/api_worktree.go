@@ -11,7 +11,7 @@ import (
 
 func (server *Server) cleanupWorktree(response http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
-	session, err := server.sessionsRepository().LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
+	session, err := server.store.LoadSessionWindow(id, apiMessageWindow, apiEventWindow)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(response, http.StatusNotFound, "会话不存在")
@@ -28,7 +28,7 @@ func (server *Server) cleanupWorktree(response http.ResponseWriter, request *htt
 		writeError(response, http.StatusConflict, "任务仍在结束处理中，请稍后再清理 worktree")
 		return
 	}
-	shared, err := server.sessionsRepository().CountOtherSessionsUsingWorkspace(id, session.Workspace)
+	shared, err := server.store.CountOtherSessionsUsingWorkspace(id, session.Workspace)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -46,7 +46,7 @@ func (server *Server) cleanupWorktree(response http.ResponseWriter, request *htt
 	if source == "" {
 		source = session.Workspace
 	}
-	if err := server.sessionsRepository().SetSessionWorkspace(id, source, source, "", notice); err != nil {
+	if err := server.store.SetSessionWorkspace(id, source, source, "", notice); err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}

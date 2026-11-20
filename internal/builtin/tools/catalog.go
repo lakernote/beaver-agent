@@ -62,14 +62,6 @@ var groupDescriptions = map[string]string{
 	groupMemory:      "长期记忆：保存、检索和遗忘用户偏好与团队约定",
 }
 
-func Catalog(environment *appenv.Environment, skills SkillSource) []agent.Tool {
-	return CatalogWithPermissions(environment, skills, permissions.Default())
-}
-
-func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []agent.Tool {
-	return CatalogWithMemory(environment, skills, policy, nil)
-}
-
 // CatalogWithMemory 在内置工具之外附带绑定了成员身份的长期记忆工具；mem 为 nil 时不提供记忆。
 func CatalogWithMemory(environment *appenv.Environment, skills SkillSource, policy permissions.Policy, mem *MemoryScope) []agent.Tool {
 	entries := catalogEntries(environment, skills, policy, mem)
@@ -118,11 +110,7 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, permiss
 	return result
 }
 
-func InfoList(environment *appenv.Environment, skills SkillSource) []Info {
-	return InfoListWithPermissions(environment, skills, permissions.Default())
-}
-
-func InfoListWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
+func InfoList(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
 	// 页面展示用：用一个占位的记忆存储，让记忆工具出现在工具列表里。
 	entries := catalogEntries(environment, skills, policy, &MemoryScope{Store: memory.New("")})
 	result := make([]Info, 0, len(entries))

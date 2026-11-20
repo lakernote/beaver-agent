@@ -381,19 +381,6 @@ func TestUpdateSessionKeepsProjectAndWorkspaceConsistent(t *testing.T) {
 	}
 }
 
-func TestUserTurnCountOnlyCountsUserMessages(t *testing.T) {
-	messages := []store.Message{
-		{Role: "user"},
-		{Role: "assistant"},
-		{Role: "assistant"},
-		{Role: "tool"},
-		{Role: "user"},
-	}
-	if turns := userTurnCount(messages); turns != 2 {
-		t.Fatalf("用户轮次只能由 user 消息计算: %d", turns)
-	}
-}
-
 func TestSaveSkillValidatesSkillMarkdown(t *testing.T) {
 	database, err := store.Open(filepath.Join(t.TempDir(), "beaver.db"))
 	if err != nil {

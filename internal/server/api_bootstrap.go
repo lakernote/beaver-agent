@@ -66,17 +66,17 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	sessions, sessionsHasMore, err := server.sessionsRepository().ListSessionsBefore(30, "", "")
+	sessions, sessionsHasMore, err := server.store.ListSessionsBefore(30, "", "")
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	model, err := server.modelsRepository().GetModelSettings()
+	model, err := server.store.GetModelSettings()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	profiles, activeProfileID, err := server.modelsRepository().ListModelProfiles()
+	profiles, activeProfileID, err := server.store.ListModelProfiles()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -113,7 +113,7 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
 	}
-	toolInfo := builtintools.InfoListWithPermissions(server.env, catalog, runtimeSettings.Permissions)
+	toolInfo := builtintools.InfoList(server.env, catalog, runtimeSettings.Permissions)
 	for _, config := range mcps {
 		if config.Enabled {
 			toolInfo = append(toolInfo, builtintools.Info{Name: "search_mcp_tools", Description: "按任务语义搜索已启用的 MCP Server，一次只加载少量相关工具。", Source: "运行时"})
@@ -146,7 +146,7 @@ func (server *Server) modelProfileViews(profiles []store.ModelProfile) ([]modelP
 		verified := profile.Settings.Runtime == store.RuntimeCodex
 		if !verified {
 			var err error
-			verified, err = server.modelsRepository().HasModelCapabilityTest(modelCapabilityFingerprint(profile.Settings))
+			verified, err = server.store.HasModelCapabilityTest(modelCapabilityFingerprint(profile.Settings))
 			if err != nil {
 				return nil, err
 			}
