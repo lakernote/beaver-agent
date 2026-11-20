@@ -55,20 +55,16 @@ var groupDescriptions = map[string]string{
 	groupInformation: "日期和时间",
 	groupFiles:       "工作区文件的列出、查找、搜索、读取和修改",
 	groupExecution:   "数学计算、Shell、构建、测试和 CLI",
-	groupWeb:         "互联网研究、来源核验和引用",
+	groupWeb:         "联网搜索与网页读取",
 	groupSkills:      "按需加载与任务相关的 Skill 方法",
 }
 
 func Catalog(environment *appenv.Environment, skills SkillSource) []agent.Tool {
-	return CatalogWithResearchConfig(environment, skills, ResearchConfigFromEnvironment())
+	return CatalogWithPermissions(environment, skills, permissions.Default())
 }
 
-func CatalogWithResearchConfig(environment *appenv.Environment, skills SkillSource, researchConfig ResearchConfig) []agent.Tool {
-	return CatalogWithResearchConfigAndPermissions(environment, skills, researchConfig, permissions.Default())
-}
-
-func CatalogWithResearchConfigAndPermissions(environment *appenv.Environment, skills SkillSource, researchConfig ResearchConfig, policy permissions.Policy) []agent.Tool {
-	entries := catalogEntries(environment, skills, researchConfig, policy)
+func CatalogWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []agent.Tool {
+	entries := catalogEntries(environment, skills, policy)
 	result := make([]agent.Tool, 0, len(entries))
 	for _, item := range entries {
 		tool := item.tool
@@ -86,7 +82,7 @@ func CatalogWithResearchConfigAndPermissions(environment *appenv.Environment, sk
 	return result
 }
 
-func catalogEntries(environment *appenv.Environment, skills SkillSource, researchConfig ResearchConfig, policy ...permissions.Policy) []entry {
+func catalogEntries(environment *appenv.Environment, skills SkillSource, policy ...permissions.Policy) []entry {
 	permissionPolicy := permissions.Default()
 	if len(policy) > 0 {
 		permissionPolicy = policy[0]
@@ -97,7 +93,8 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, researc
 	result := []entry{
 		{tool: currentTimeTool(), category: categoryInformation, group: groupInformation},
 		{tool: calculateTool(), category: categoryExecution, group: groupExecution},
-		{tool: webResearchToolWithConfig(researchConfig), category: categoryInformation, group: groupWeb},
+		{tool: webSearchTool(), category: categoryInformation, group: groupWeb},
+		{tool: webFetchTool(), category: categoryInformation, group: groupWeb},
 	}
 	for _, tool := range files.tools() {
 		result = append(result, entry{tool: tool, category: categoryFile, group: groupFiles})
@@ -116,7 +113,7 @@ func InfoList(environment *appenv.Environment, skills SkillSource) []Info {
 }
 
 func InfoListWithPermissions(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {
-	entries := catalogEntries(environment, skills, ResearchConfigFromEnvironment(), policy)
+	entries := catalogEntries(environment, skills, policy)
 	result := make([]Info, 0, len(entries))
 	for _, item := range entries {
 		result = append(result, Info{

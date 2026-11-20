@@ -151,62 +151,27 @@ func TestWeixinSessionStatusUsesScannableEmoji(t *testing.T) {
 	}
 }
 
-func TestWeixinNaturalCommands(t *testing.T) {
+func TestWeixinSlashCommands(t *testing.T) {
 	tests := map[string]string{
-		"创建新会话":                   "new",
-		"创建新对话":                   "new",
-		"我要创建一个新的对话":              "new",
-		"麻烦帮我开个新聊天吧":              "new",
-		"新会话。":                    "new",
-		"查看状态":                    "status",
-		"麻烦看一下现在任务跑到哪了":           "status",
-		"当前任务完成了吗":                "status",
-		"把当前任务停一下！":               "stop",
-		"请帮我终止这个任务":               "stop",
-		"有哪些命令":                   "help",
-		"你支持哪些操作":                 "help",
-		"项目列表":                    "projects",
-		"当前项目":                    "current_project",
-		"切换项目 Beaver":             "project",
-		"帮我实现新会话按钮":               "",
-		"创建新会话是什么意思":              "",
-		"不要创建新会话":                 "",
-		"创建新会话，然后检查一下当前项目":        "",
-		"在新会话中继续上一个任务":            "",
-		"停止任务这个功能是怎么实现的":          "",
-		"不要停止当前任务":                "",
-		"查看状态后帮我修复失败的测试":          "",
-		"写一份关于如何使用新会话的文档":         "",
+		"/new":                    "new",
+		" /Status ":               "status",
+		"/stop":                   "stop",
+		"/help":                   "help",
+		"/projects":               "projects",
+		"/project":                "current_project",
+		"/project Beaver":         "project",
+		"/stop now":               "",
+		"创建新会话":                   "",
+		"停止当前任务":                  "",
 		"please stop the service": "",
 	}
 	for input, expected := range tests {
-		if actual := weixinCommand(input); actual != expected {
+		if actual := parseWeixinCommand(input).Command; actual != expected {
 			t.Fatalf("命令 %q 解析为 %q，期望 %q", input, actual, expected)
 		}
 	}
-}
-
-func TestWeixinIntentParserReportsExplicitAndGrammarConfidence(t *testing.T) {
-	parser := newWeixinIntentParser()
-	explicit := parser.Parse("/new")
-	if explicit.Command != "new" || !explicit.Explicit || explicit.Confidence != 100 {
-		t.Fatalf("明确命令解析错误: %+v", explicit)
-	}
-	grammar := parser.Parse("请创建一个新对话")
-	if grammar.Command != "new" || grammar.Explicit || grammar.Confidence < 90 {
-		t.Fatalf("自然语言意图解析错误: %+v", grammar)
-	}
-	unknown := parser.Parse("请解释创建新对话的实现方式")
-	if unknown.Command != "" || unknown.Confidence != 0 {
-		t.Fatalf("普通对话不应被控制层拦截: %+v", unknown)
-	}
-	project := parser.Parse("切换项目 Beaver Web")
-	if project.Command != "project" || project.Argument != "beaverweb" || project.Confidence < 90 {
-		t.Fatalf("项目切换意图解析错误: %+v", project)
-	}
-	explicitProject := parser.Parse("/project Beaver Web")
-	if explicitProject.Command != "project" || explicitProject.Argument != "Beaver Web" || !explicitProject.Explicit {
-		t.Fatalf("明确项目命令解析错误: %+v", explicitProject)
+	if arg := parseWeixinCommand("/project Beaver Web").Argument; arg != "Beaver Web" {
+		t.Fatalf("项目名解析错误: %q", arg)
 	}
 }
 

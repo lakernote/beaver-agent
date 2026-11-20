@@ -14,14 +14,14 @@ import (
 )
 
 func (manager *weixinManager) handleCommand(account store.WeixinAccount, message weixin.Message, text string) bool {
-	intent := defaultWeixinIntentParser.Parse(text)
+	intent := parseWeixinCommand(text)
 	switch intent.Command {
 	case "help":
-		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n“新会话” 开始独立任务\n“状态” 查看当前进度\n“停止” 中断当前任务\n“项目列表” 查看可用项目\n“切换项目 项目名” 设置后续新会话的源文件夹\n\n也支持 /new、/status、/stop、/projects、/project 项目名。")
+		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n/new 开始独立的新会话\n/status 查看当前进度\n/stop 中断当前任务\n/projects 查看可用项目\n/project 项目名 设置后续新会话的源文件夹")
 		return true
 	case "new":
 		if session, err := manager.currentSession(account); err == nil && isActiveSessionStatus(session.Status) {
-			manager.send(account, message.FromUserID, message.ContextToken, "当前任务仍在执行。请先发送“停止”，任务结束后再开始新会话。")
+			manager.send(account, message.FromUserID, message.ContextToken, "当前任务仍在执行。请先发送 /stop，任务结束后再开始新会话。")
 			return true
 		}
 		_ = manager.server.store.SetWeixinCurrentSession(account.ID, "", time.Now())
@@ -44,7 +44,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 	case "stop":
 		session, err := manager.currentSession(account)
 		if err != nil || !isActiveSessionStatus(session.Status) {
-			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送“新会话”可开始独立任务。")
+			manager.send(account, message.FromUserID, message.ContextToken, "当前没有正在执行的任务。发送 /new可开始独立任务。")
 			return true
 		}
 		changed, cancelErr := manager.server.sessionsRepository().CancelSession(session.ID, time.Now())
@@ -69,7 +69,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 			}
 			lines = append(lines, "- "+project.Name+mark)
 		}
-		lines = append(lines, "发送“切换项目 项目名”可切换。")
+		lines = append(lines, "发送 /project 项目名可切换。")
 		manager.send(account, message.FromUserID, message.ContextToken, strings.Join(lines, "\n"))
 		return true
 	case "current_project":
@@ -88,20 +88,20 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 		}
 		var selected *store.Project
 		for index := range projects {
-			if normalizeWeixinIntent(projects[index].Name) == normalizeWeixinIntent(intent.Argument) {
+			if strings.EqualFold(strings.TrimSpace(projects[index].Name), intent.Argument) {
 				selected = &projects[index]
 				break
 			}
 		}
 		if selected == nil {
-			manager.send(account, message.FromUserID, message.ContextToken, "没有找到项目“"+intent.Argument+"”。发送“项目列表”查看可用项目。")
+			manager.send(account, message.FromUserID, message.ContextToken, "没有找到项目“"+intent.Argument+"”。发送 /projects查看可用项目。")
 			return true
 		}
 		if err := manager.server.store.SetWeixinProject(account.ID, selected.ID, time.Now()); err != nil {
 			manager.send(account, message.FromUserID, message.ContextToken, "项目切换失败，请稍后重试。")
 			return true
 		}
-		manager.send(account, message.FromUserID, message.ContextToken, "已选择项目“"+selected.Name+"”。当前会话不变；发送“新会话”后，新任务会使用这个项目的源文件夹。")
+		manager.send(account, message.FromUserID, message.ContextToken, "已选择项目“"+selected.Name+"”。当前会话不变；发送 /new后，新任务会使用这个项目的源文件夹。")
 		return true
 	default:
 		return false
@@ -110,7 +110,7 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 
 func (manager *weixinManager) submit(account store.WeixinAccount, message weixin.Message, text string, attachments []store.Attachment, messageID int64, createdAt time.Time) (string, error) {
 	if current, err := manager.currentSession(account); err == nil && isActiveSessionStatus(current.Status) {
-		return "", errors.New("上一条任务仍在执行，可发送“状态”查看或发送“停止”中断")
+		return "", errors.New("上一条任务仍在执行，可发送 /status 查看或发送 /stop 中断")
 	}
 	now := time.Now()
 	sessionID := account.CurrentSessionID
@@ -283,14 +283,14 @@ func (manager *weixinManager) sendChunks(account store.WeixinAccount, userID, co
 
 func finalSessionText(session store.Session) string {
 	if session.Status == store.SessionFailed {
-		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送“状态”查看会话，或发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Error))
+		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送 /status查看会话，或发送 /new开始独立任务。", session.Title, strings.TrimSpace(session.Error))
 	}
 	if session.Status == store.SessionCanceled {
-		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送“新会话”开始独立任务。", session.Title)
+		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送 /new开始独立任务。", session.Title)
 	}
 	for index := len(session.Messages) - 1; index >= 0; index-- {
 		if session.Messages[index].Role == "assistant" && strings.TrimSpace(session.Messages[index].Content) != "" {
-			return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送“新会话”开始独立任务。", session.Title, strings.TrimSpace(session.Messages[index].Content))
+			return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送 /new开始独立任务。", session.Title, strings.TrimSpace(session.Messages[index].Content))
 		}
 	}
 	return ""

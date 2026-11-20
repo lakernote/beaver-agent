@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -201,7 +203,7 @@ func TestShellTimeout(t *testing.T) {
 }
 
 func TestReadOnlyCatalogDoesNotExposeMutationTools(t *testing.T) {
-	tools := CatalogWithResearchConfigAndPermissions(testEnvironment(t, t.TempDir()), nil, ResearchConfigFromEnvironment(), permissions.Policy{Mode: permissions.ModeReadOnly})
+	tools := CatalogWithPermissions(testEnvironment(t, t.TempDir()), nil, permissions.Policy{Mode: permissions.ModeReadOnly})
 	for _, tool := range tools {
 		if tool.Spec.Name == "shell" || tool.Spec.Name == "edit" || tool.Spec.Name == "write" {
 			t.Fatalf("只读目录不应暴露 %q", tool.Spec.Name)
@@ -262,7 +264,7 @@ func TestToolCategoriesComeFromRegistration(t *testing.T) {
 	}
 	for name, expected := range map[string]string{
 		"read": categoryFile, "shell": categoryExecution,
-		"web_research": categoryInformation, "current_time": categoryInformation,
+		"web_search": categoryInformation, "web_fetch": categoryInformation, "current_time": categoryInformation,
 	} {
 		if categories[name] != expected {
 			t.Fatalf("工具 %s 分类错误: got=%q want=%q", name, categories[name], expected)
@@ -270,30 +272,29 @@ func TestToolCategoriesComeFromRegistration(t *testing.T) {
 	}
 }
 
-func TestCatalogExposesOnlyHighLevelWebResearch(t *testing.T) {
-	for _, info := range InfoList(testEnvironment(t, t.TempDir()), nil) {
-		if info.Name == "web_search" || info.Name == "web_fetch" || info.Name == "weather" {
-			t.Fatalf("旧联网工具不应再暴露: %+v", info)
-		}
+func TestExtractPageTextDropsNoise(t *testing.T) {
+	page := `<html><head><title>官方标题</title></head><body><nav>导航噪声</nav><script>var a=1</script><main><h1>正文标题</h1><p>第一段</p><p>第二段</p></main></body></html>`
+	title, text := extractPageText([]byte(page), "text/html; charset=utf-8")
+	if title != "官方标题" || !strings.Contains(text, "第一段\n第二段") || strings.Contains(text, "导航噪声") || strings.Contains(text, "var a") {
+		t.Fatalf("网页正文提取错误: title=%q text=%q", title, text)
 	}
 }
 
-func TestWebResearchExtractsMetadataAndEvidence(t *testing.T) {
-	page := `<html><head><title>官方标题</title><meta property="article:published_time" content="2026-09-08"></head><body><nav>导航噪声</nav><main><h1>研究正文</h1><p>` + strings.Repeat("内容", 800) + `</p></main></body></html>`
-	title, published := pageMetadata(page, "候选标题")
-	content := cleanHTMLText(mainOrArticleHTML(page))
-	if title != "官方标题" || published != "2026-09-08" || !strings.Contains(content, "研究正文") || strings.Contains(content, "导航噪声") {
-		t.Fatalf("网页正文或元数据提取错误: title=%q published=%q content=%q", title, published, content[:min(len(content), 100)])
+func TestWebFetchRejectsLocalAddresses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) { _, _ = response.Write([]byte("secret")) }))
+	defer server.Close()
+	_, err := webFetchTool().Run(context.Background(), json.RawMessage(`{"url":"`+server.URL+`"}`))
+	if err == nil || !strings.Contains(err.Error(), "非公网") {
+		t.Fatalf("应拒绝访问本机地址: %v", err)
 	}
-	truncated, ok := truncateRunes(content, 1000)
-	if !ok || !strings.Contains(truncated, "内容已截断") {
-		t.Fatalf("来源正文截断标记错误: %q", truncated)
+	if _, err := webFetchTool().Run(context.Background(), json.RawMessage(`{"url":"file:///etc/passwd"}`)); err == nil {
+		t.Fatal("应拒绝非 http(s) 地址")
 	}
 }
 
-func TestWebResearchToolIsHighLevelAndDirect(t *testing.T) {
-	tool := webResearchTool()
-	if tool.Spec.Name != "web_research" || tool.Spec.DiscoveryOnly || !strings.Contains(tool.Spec.Description, "自动") || !strings.Contains(tool.Spec.Description, "[S1]") {
-		t.Fatalf("web_research 应是高层证据工具: %+v", tool.Spec)
+func TestUnwrapDuckDuckGoLink(t *testing.T) {
+	got := unwrapDuckDuckGoLink("//duckduckgo.com/l/?uddg=https%3A%2F%2Fgo.dev%2Fdoc&rut=x")
+	if got != "https://go.dev/doc" {
+		t.Fatalf("跳转链接解析错误: %q", got)
 	}
 }

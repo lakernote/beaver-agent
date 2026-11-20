@@ -42,11 +42,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 		selectedSkillNamesForTurn = append(selectedSkillNamesForTurn, skill.Name)
 	}
 
-	researchSettings, err := server.store.GetResearchSettings()
-	if err != nil {
-		return err
-	}
-	toolCatalog := builtintools.CatalogWithResearchConfigAndPermissions(runEnvironment, catalog, effectiveResearchConfig(researchSettings), policy)
+	toolCatalog := builtintools.CatalogWithPermissions(runEnvironment, catalog, policy)
 	toolLoader, err := builtintools.NewLoader(toolCatalog)
 	if err != nil {
 		return err

@@ -6,7 +6,6 @@ import { ConfirmDialog } from './dialogs'
 import { Skills } from './Skills'
 import { UsagePage } from './UsagePage'
 import { CodexSettings, CodexStatus, BeaverSettings, MCPSettings, RuntimeOperationsSettings } from './settings/SettingsPanels'
-import { ResearchSettings } from './settings/ResearchSettings'
 import { useModelConfiguration } from './settings/useModelConfiguration'
 
 export type SettingsSection = 'runtime' | 'tasks' | 'models' | 'skills' | 'tools' | 'usage' | 'weixin' | 'security'
@@ -291,7 +290,6 @@ export function Capabilities({ section, initialSection, initialModelRuntime, dat
         {settingsSection === 'skills' && <Skills data={data} onRefresh={onRefresh} onError={onError} />}
         {settingsSection === 'usage' && <UsagePage data={data} />}
 		{settingsSection === 'tools' && <>
-		  <ResearchSettings data={data} onRefresh={onRefresh} onError={onError} />
 		  {!codex && <div className="section-block"><div className="section-heading"><div><h2>Beaver 内置 Tools</h2><p>可写会话首轮提供 read、shell、edit、write；只读会话提供 read、grep、find、ls；其余能力按需加载。</p></div><span className="tag">{data.builtinTools.length} 个</span></div><div className="capability-note"><strong>工作区</strong><span><code>{data.runtime.workspace}</code></span><strong>私有 Runtime</strong><span><code>{data.runtime.runtime}</code></span></div><div className="tool-table">{data.builtinTools.map((tool) => <div key={tool.name}><code>{tool.name}</code><span>{tool.description}</span><em>{tool.category || tool.source}</em></div>)}</div></div>}
           {codex && <div className="section-block codex-tools-note"><div className="runtime-boundary-note"><strong>Codex 原生工具</strong><span>Shell、文件修改、搜索和沙箱仍由 app-server 管理；下方 MCP 与 Skills 则由 Beaver 统一同步。</span></div></div>}
           <MCPSettings data={data} mcpNotice={mcpNotice} installingPreset={installingPreset} checkingPreset={checkingPreset} togglingMCP={togglingMCP} onInstall={installPreset} onCheck={checkPreset} onTest={testMCP} onToggle={toggleMCP} onCreate={() => { setMCPOAuthPhase('saved'); setMCP({ id: `mcp-${Date.now()}`, name: 'New MCP', description: '', enabled: false, transport: 'http', args: [], headers: {}, environment: {} }) }} onEdit={(item, preset) => { setMCPOAuthPhase('saved'); setMCP({ ...item, name: preset?.name || item.name, description: preset?.description || item.description }) }} dataPresets={data.mcpPresets} onCloseNotice={() => setMCPNotice(null)} />
