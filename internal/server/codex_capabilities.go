@@ -85,10 +85,7 @@ func (server *Server) syncCodexCapabilities() ([]codexruntime.SkillRef, map[stri
 	}
 	mcps := make([]codexruntime.MCPServerConfig, 0, len(configs))
 	for _, config := range configs {
-		// Keep disabled OAuth entries in Codex config so users can authenticate
-		// before enabling them and so deletion can still revoke Codex's separate
-		// credential store. Other disabled MCPs remain absent as before.
-		if !config.Enabled && !strings.EqualFold(config.AuthType, "oauth") {
+		if !config.Enabled {
 			continue
 		}
 		command := config.Command
@@ -104,8 +101,6 @@ func (server *Server) syncCodexCapabilities() ([]codexruntime.SkillRef, map[stri
 			Args: append([]string(nil), config.Args...), Endpoint: config.Endpoint,
 			AuthType: config.AuthType, Token: config.Token, Username: config.Username,
 			Password: config.Password, Headers: cloneMap(config.Headers), Environment: cloneMap(config.Environment),
-			OAuthClientID: config.OAuthClientID, OAuthCallbackURL: config.OAuthCallbackURL, OAuthCallbackPort: config.OAuthCallbackPort,
-			OAuthScopes: append([]string(nil), config.OAuthScopes...),
 		})
 	}
 	if !server.externalCapabilitySync {

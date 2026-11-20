@@ -480,7 +480,6 @@ export function MCPSettings({ data, mcpNotice, installingPreset, checkingPreset,
       <div className="section-heading"><div><h2>MCP 连接</h2><p>一处配置，同时同步给 Beaver Runtime 和 Codex app-server。</p></div><button className="ghost-button" type="button" onClick={onCreate}>＋ 自定义</button></div>
       <div className="mcp-overview"><div><p className="eyebrow">连接数</p><strong>{data.mcps.length} 个 MCP</strong><span>配置保存在 Beaver 私有目录</span></div><div><p className="eyebrow">已就绪</p><strong>{enabledMCPCount} 个</strong><span>已验证并暴露给 Agent</span></div><div><p className="eyebrow">加载方式</p><strong>按需</strong><span>任务需要时才读取工具清单</span></div></div>
       <div className="capability-note"><strong>共享方式</strong><span>Beaver 直接连接 MCP；Codex 使用同一配置生成标准 <code>mcp_servers</code>，密钥只通过环境变量传递。</span></div>
-      <div className="mcp-flow-guide" aria-label="MCP OAuth 流程"><div><span>OAuth 流程</span><strong>保存配置</strong><i>→</i><strong>浏览器授权</strong><i>→</i><strong>回调保存凭证</strong><i>→</i><strong>测试连接</strong></div><small>授权页会在新标签页打开；完成后回到编辑窗口刷新状态，再测试连接。</small></div>
       {mcpNotice && <MCPNotice notice={mcpNotice} onClose={onCloseNotice} />}
       <MCPList data={data} dataPresets={dataPresets} installingPreset={installingPreset} checkingPreset={checkingPreset} togglingMCP={togglingMCP} onInstall={onInstall} onCheck={onCheck} onTest={onTest} onToggle={onToggle} onCreate={onCreate} onEdit={onEdit} />
       <MCPPresets data={data} dataPresets={dataPresets} installingPreset={installingPreset} checkingPreset={checkingPreset} onInstall={onInstall} onCheck={onCheck} />

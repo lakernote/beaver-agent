@@ -30,22 +30,18 @@ var (
 )
 
 type MCPServerConfig struct {
-	ID                string
-	Disabled          bool
-	Transport         string
-	Command           string
-	Args              []string
-	Endpoint          string
-	AuthType          string
-	Token             string
-	Username          string
-	Password          string
-	Headers           map[string]string
-	Environment       map[string]string
-	OAuthClientID     string
-	OAuthCallbackURL  string
-	OAuthCallbackPort int
-	OAuthScopes       []string
+	ID          string
+	Disabled    bool
+	Transport   string
+	Command     string
+	Args        []string
+	Endpoint    string
+	AuthType    string
+	Token       string
+	Username    string
+	Password    string
+	Headers     map[string]string
+	Environment map[string]string
 }
 
 // ProviderConfig 是 Beaver 能够管理的 Codex provider 配置。API Key 永远
@@ -361,10 +357,7 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 		}
 	}
 	environment := map[string]string{}
-	oauthCallbackURL := ""
-	oauthCallbackPort := 0
-	// These are global Codex settings. Always rebuild them so removing or
-	// changing the last OAuth MCP cannot leave a stale callback behind.
+	// 清理旧版本写入的 OAuth 全局回调配置，避免残留。
 	delete(document, "mcp_oauth_callback_url")
 	delete(document, "mcp_oauth_callback_port")
 	for _, config := range configs {
@@ -387,31 +380,6 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 			}
 		} else {
 			entry["url"] = config.Endpoint
-			if strings.EqualFold(config.AuthType, "oauth") {
-				entry["auth"] = "oauth"
-				if len(config.OAuthScopes) > 0 {
-					entry["scopes"] = append([]string(nil), config.OAuthScopes...)
-				}
-				oauth := map[string]any{}
-				if strings.TrimSpace(config.OAuthClientID) != "" {
-					oauth["client_id"] = config.OAuthClientID
-				}
-				if strings.TrimSpace(config.OAuthCallbackURL) != "" {
-					oauth["callback_url"] = config.OAuthCallbackURL
-				}
-				if config.OAuthCallbackPort > 0 {
-					oauth["callback_port"] = config.OAuthCallbackPort
-					if oauthCallbackPort == 0 {
-						oauthCallbackPort = config.OAuthCallbackPort
-					}
-				}
-				if oauthCallbackURL == "" && strings.TrimSpace(config.OAuthCallbackURL) != "" {
-					oauthCallbackURL = config.OAuthCallbackURL
-				}
-				if len(oauth) > 0 {
-					entry["oauth"] = oauth
-				}
-			}
 			envHeaders := map[string]string{}
 			for header, value := range config.Headers {
 				envName := managedMCPEnv(id, header)
@@ -438,12 +406,6 @@ func syncMCPServersDocument(document configDocument, configs []MCPServerConfig) 
 		servers[id] = entry
 	}
 	document["mcp_servers"] = servers
-	if oauthCallbackURL != "" {
-		document["mcp_oauth_callback_url"] = oauthCallbackURL
-	}
-	if oauthCallbackPort > 0 {
-		document["mcp_oauth_callback_port"] = oauthCallbackPort
-	}
 	return environment
 }
 

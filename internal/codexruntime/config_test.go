@@ -285,51 +285,8 @@ func TestSyncMCPServersDocumentTreatsTokenAsBearerAuthentication(t *testing.T) {
 	}
 }
 
-func TestSyncMCPServersDocumentUsesNativeOAuthWithoutWritingTokens(t *testing.T) {
-	document := configDocument{}
-	syncMCPServersDocument(document, []MCPServerConfig{{
-		ID: "gitlab", Transport: "streamable_http", Endpoint: "https://gitlab.example/mcp", AuthType: "oauth",
-		OAuthClientID: "client-id", OAuthCallbackURL: "https://agent.example/api/v1/mcp/oauth/callback", OAuthCallbackPort: 18765,
-		OAuthScopes: []string{"read", "write"},
-	}})
-	servers := providerDocumentMap(document, "mcp_servers")
-	entry, ok := servers["beaver_gitlab"].(map[string]any)
-	if !ok || entry["auth"] != "oauth" {
-		t.Fatalf("MCP should use Codex native OAuth: %+v", entry)
-	}
-	encoded, _ := json.Marshal(document)
-	if strings.Contains(string(encoded), "access_token") || strings.Contains(string(encoded), "refresh_token") {
-		t.Fatalf("OAuth token material must not be written to Codex config: %s", encoded)
-	}
-	if document["mcp_oauth_callback_url"] != "https://agent.example/api/v1/mcp/oauth/callback" || document["mcp_oauth_callback_port"] != 18765 {
-		t.Fatalf("native OAuth callback settings missing: %+v", document)
-	}
-	if scopes, ok := entry["scopes"].([]string); !ok || len(scopes) != 2 || scopes[0] != "read" || scopes[1] != "write" {
-		t.Fatalf("native OAuth scopes missing: %+v", entry)
-	}
-}
-
-func TestSyncMCPServersDocumentKeepsDisabledOAuthAddressable(t *testing.T) {
-	document := configDocument{}
-	syncMCPServersDocument(document, []MCPServerConfig{{
-		ID: "gitlab", Disabled: true, Transport: "http", Endpoint: "https://gitlab.example/mcp", AuthType: "oauth",
-	}})
-	servers := providerDocumentMap(document, "mcp_servers")
-	entry, ok := servers["beaver_gitlab"].(map[string]any)
-	if !ok || entry["enabled"] != false || entry["auth"] != "oauth" {
-		t.Fatalf("disabled OAuth MCP should remain addressable for login/logout: %+v", entry)
-	}
-}
-
-func TestSyncMCPServersDocumentUsesOneGlobalCallbackAndClearsStaleValues(t *testing.T) {
+func TestSyncMCPServersDocumentClearsStaleOAuthCallback(t *testing.T) {
 	document := configDocument{"mcp_oauth_callback_url": "https://stale.example/callback", "mcp_oauth_callback_port": 12345}
-	syncMCPServersDocument(document, []MCPServerConfig{
-		{ID: "first", Transport: "http", Endpoint: "https://first.example/mcp", AuthType: "oauth", OAuthCallbackURL: "https://agent.example/api/v1/mcp/oauth/callback", OAuthCallbackPort: 18765},
-		{ID: "second", Transport: "http", Endpoint: "https://second.example/mcp", AuthType: "oauth", OAuthCallbackURL: "https://different.example/callback", OAuthCallbackPort: 28765},
-	})
-	if document["mcp_oauth_callback_url"] != "https://agent.example/api/v1/mcp/oauth/callback" || document["mcp_oauth_callback_port"] != 18765 {
-		t.Fatalf("global callback should be selected once: %+v", document)
-	}
 
 	syncMCPServersDocument(document, nil)
 	if _, exists := document["mcp_oauth_callback_url"]; exists {
