@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -123,6 +124,10 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	acknowledgement := weixinTaskAcknowledgement("")
 	if session, loadErr := manager.server.sessionsRepository().LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
 		acknowledgement = weixinTaskAcknowledgement(session.Title)
+	}
+	// 全局并发已满时，提前告知成员任务在排队，而不是让人以为卡住了。
+	if active, limit := manager.server.scheduler.snapshot(); active >= limit {
+		acknowledgement += fmt.Sprintf("\n⏳ 当前 %d 个任务在运行（并发上限 %d），你的任务正在排队。", active, limit)
 	}
 	manager.send(account, message.FromUserID, message.ContextToken, acknowledgement)
 	// 先发送接收确认，再启动结果等待，避免极短任务的最终结果先于确认消息到达。
