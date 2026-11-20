@@ -77,8 +77,8 @@ func (manager *weixinManager) handleCommand(account store.WeixinAccount, message
 		}
 		if fresh.PendingMessageID > fresh.DeliveredMessageID {
 			gate.Unlock()
-			manager.resumeDelivery(account.ID)
 			manager.send(account, message.FromUserID, message.ContextToken, "上一条任务的结果正在回传。收到结果后请再发送 /new，避免切换会话时漏掉最终答复。")
+			manager.resumeDelivery(account.ID)
 			return true
 		}
 		err = manager.server.store.SetWeixinCurrentSession(account.ID, "", time.Now())

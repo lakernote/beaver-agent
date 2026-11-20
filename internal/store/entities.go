@@ -264,22 +264,22 @@ type WeixinSettings struct {
 // WeixinAccount is one QR-bound WeChat identity. Token and protocol cursors are
 // server-only values and must never be serialized to the browser.
 type WeixinAccount struct {
-	ID                  string    `json:"id"`
-	Label               string    `json:"label"`
-	UserID              string    `json:"-"`
-	Token               string    `json:"-"`
-	BaseURL             string    `json:"-"`
-	Enabled             bool      `json:"enabled"`
-	SyncBuffer          string    `json:"-"`
-	CurrentSessionID    string    `json:"currentSessionId,omitempty"`
-	ProjectID           string    `json:"projectId,omitempty"`
-	IgnoreBefore        time.Time `json:"-"`
-	LastSeenAt          time.Time `json:"lastSeenAt,omitempty"`
-	LastMessageAt       time.Time `json:"lastMessageAt,omitempty"`
-	LastSequence        int64     `json:"-"`
-	PendingMessageID    int64     `json:"-"`
-	DeliveredMessageID  int64     `json:"-"`
-	PendingContextToken string    `json:"-"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	ID                 string    `json:"id"`
+	Label              string    `json:"label"`
+	UserID             string    `json:"-"`
+	Token              string    `json:"-"`
+	BaseURL            string    `json:"-"`
+	Enabled            bool      `json:"enabled"`
+	SyncBuffer         string    `json:"-"`
+	CurrentSessionID   string    `json:"currentSessionId,omitempty"`
+	ProjectID          string    `json:"projectId,omitempty"`
+	IgnoreBefore       time.Time `json:"-"`
+	LastSeenAt         time.Time `json:"lastSeenAt,omitempty"`
+	LastMessageAt      time.Time `json:"lastMessageAt,omitempty"`
+	LastSequence       int64     `json:"-"`
+	PendingMessageID   int64     `json:"-"`
+	DeliveredMessageID int64     `json:"-"`
+	ReplyContextToken  string    `json:"-"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }

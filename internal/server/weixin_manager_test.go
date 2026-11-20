@@ -66,7 +66,7 @@ func TestWeixinFinalTextNeverIncludesTrace(t *testing.T) {
 
 func TestWeixinAcknowledgementDoesNotExposeTransientQueueStatus(t *testing.T) {
 	value := weixinTaskAcknowledgement(" 小伙计 ")
-	if !strings.Contains(value, "📥 任务已接收\n💬 会话：小伙计") || !strings.Contains(value, "查看实时进度") {
+	if !strings.Contains(value, "📥 任务已接收\n💬 会话：小伙计") || !strings.Contains(value, "发送 /status 刷新回传凭据") {
 		t.Fatalf("接收确认缺少必要信息: %q", value)
 	}
 	if strings.Contains(value, "排队中") || strings.Contains(value, "状态：") {
@@ -327,7 +327,7 @@ func TestSavingEnabledWeixinChannelDoesNotSuppressPendingResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if account.DeliveredMessageID != 0 || account.PendingContextToken != "context-pending" {
+	if account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-pending" {
 		t.Fatalf("重复保存启用状态不应吞掉待回传结果: %+v", account)
 	}
 }
@@ -420,11 +420,15 @@ func TestAutomationResultText(t *testing.T) {
 
 type recordingGateway struct {
 	fakeWeixinGateway
-	sent chan string
+	sent   chan string
+	tokens chan string
 }
 
-func (gateway *recordingGateway) SendText(_ context.Context, _ weixin.Account, userID, _ string, text string) error {
+func (gateway *recordingGateway) SendText(_ context.Context, _ weixin.Account, userID, contextToken, text string) error {
 	gateway.sent <- userID + "|" + text
+	if gateway.tokens != nil {
+		gateway.tokens <- contextToken
+	}
 	return nil
 }
 
@@ -500,7 +504,7 @@ func TestWeixinDeliverySkipsSupersededPendingGeneration(t *testing.T) {
 	default:
 	}
 	account, err := database.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-B" {
+	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-B" {
 		t.Fatalf("new pending generation changed: %+v err=%v", account, err)
 	}
 }
@@ -540,8 +544,34 @@ func TestWeixinDeliveryCASPreservesMessageArrivingDuringSend(t *testing.T) {
 		t.Fatal("frozen result was not sent")
 	}
 	account, err := database.GetWeixinAccount(accountID)
-	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-B" {
+	if err != nil || account.PendingMessageID != 43 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-B" {
 		t.Fatalf("old delivery cleared new generation: %+v err=%v", account, err)
+	}
+}
+
+func TestWeixinNewWaitsForPendingFinalResult(t *testing.T) {
+	application, database, accountID, sessionID := newWeixinDeliveryFixture(t)
+	gateway := &recordingGateway{sent: make(chan string, 4)}
+	application.weixin.gateway = gateway
+	account, err := database.GetWeixinAccount(accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := weixin.Message{FromUserID: account.UserID, ContextToken: "context-new"}
+	if !application.weixin.handleCommand(account, message, "/new") {
+		t.Fatal("/new was not handled")
+	}
+	select {
+	case got := <-gateway.sent:
+		if !strings.Contains(got, "结果正在回传") {
+			t.Fatalf("unexpected /new reply: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("/new did not reply")
+	}
+	account, err = database.GetWeixinAccount(accountID)
+	if err != nil || account.CurrentSessionID != sessionID {
+		t.Fatalf("/new cleared a session with pending result: %+v err=%v", account, err)
 	}
 }
 
@@ -556,12 +586,12 @@ func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 		t.Fatal(err)
 	}
 	application := newTestServer(t, database, fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("ok")}}, environment)
-	gateway := &recordingGateway{sent: make(chan string, 4)}
+	gateway := &recordingGateway{sent: make(chan string, 4), tokens: make(chan string, 4)}
 	application.weixin.gateway = gateway
 	defer application.Shutdown(context.Background())
 	now := time.Now()
 	for _, user := range []string{"user-a", "user-b"} {
-		if err := database.SaveWeixinAccount(store.WeixinAccount{ID: weixinMemberID(user), Label: user, UserID: user, Token: "t", BaseURL: "https://x", Enabled: true, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
+		if err := database.SaveWeixinAccount(store.WeixinAccount{ID: weixinMemberID(user), Label: user, UserID: user, Token: "t", BaseURL: "https://x", Enabled: true, ReplyContextToken: "reply-" + user, IgnoreBefore: now, CreatedAt: now, UpdatedAt: now}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -577,6 +607,14 @@ func TestAutomationResultIsPushedToSelectedMembers(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("没有收到定时任务通知")
+	}
+	select {
+	case token := <-gateway.tokens:
+		if token != "reply-user-a" {
+			t.Fatalf("定时任务没有使用成员最近的回复凭据: %q", token)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("没有记录定时任务回复凭据")
 	}
 	select {
 	case got := <-gateway.sent:

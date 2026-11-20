@@ -23,21 +23,21 @@ func TestWeixinAccountsPersistSecretsAndSuppressPendingDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if account.Token != "token-secret" || account.UserID != "user-secret" || account.ProjectID != "project-1" || account.PendingMessageID != 42 || account.PendingContextToken != "context-secret" {
+	if account.Token != "token-secret" || account.UserID != "user-secret" || account.ProjectID != "project-1" || account.PendingMessageID != 42 || account.ReplyContextToken != "context-secret" {
 		t.Fatalf("微信绑定没有完整持久化: %+v", account)
 	}
 	if err := database.RecordWeixinMessage("bot-1", now.Add(30*time.Second), now.Add(30*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	account, err = database.GetWeixinAccount("bot-1")
-	if err != nil || account.PendingMessageID != 42 || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-secret" {
+	if err != nil || account.PendingMessageID != 42 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-secret" {
 		t.Fatalf("仅保存媒体不应改变待回传任务: %+v err=%v", account, err)
 	}
 	account, err = database.UpdateWeixinAccount("bot-1", "值班小王", false, "project-2", now.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if account.Enabled || account.ProjectID != "project-2" || account.DeliveredMessageID != 42 || account.PendingContextToken != "" {
+	if account.Enabled || account.ProjectID != "project-2" || account.DeliveredMessageID != 42 || account.ReplyContextToken != "context-secret" {
 		t.Fatalf("停用成员应抑制待发送结果: %+v", account)
 	}
 	reenabledAt := now.Add(2 * time.Minute)
@@ -64,12 +64,24 @@ func TestMarkWeixinDeliveredOnlyUpdatesMatchingPendingMessage(t *testing.T) {
 	if err := database.SetWeixinTask("bot-cas", "session", 42, "context-42", now, now); err != nil {
 		t.Fatal(err)
 	}
+	refreshed, err := database.RefreshWeixinReplyContext("missing", "wrong", now, now)
+	if err != nil || refreshed {
+		t.Fatalf("missing account refreshed=%v err=%v", refreshed, err)
+	}
+	refreshed, err = database.RefreshWeixinReplyContext("bot-cas", "context-fresh", now, now)
+	if err != nil || !refreshed {
+		t.Fatalf("current session refreshed=%v err=%v", refreshed, err)
+	}
+	account, err := database.GetWeixinAccount("bot-cas")
+	if err != nil || account.PendingMessageID != 42 || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-fresh" {
+		t.Fatalf("refresh changed delivery generation: %+v err=%v", account, err)
+	}
 	marked, err := database.MarkWeixinDelivered("bot-cas", 41, now.Add(time.Second))
 	if err != nil || marked {
 		t.Fatalf("stale delivery marked=%v err=%v", marked, err)
 	}
-	account, err := database.GetWeixinAccount("bot-cas")
-	if err != nil || account.DeliveredMessageID != 0 || account.PendingContextToken != "context-42" {
+	account, err = database.GetWeixinAccount("bot-cas")
+	if err != nil || account.DeliveredMessageID != 0 || account.ReplyContextToken != "context-fresh" {
 		t.Fatalf("stale delivery changed current generation: %+v err=%v", account, err)
 	}
 	marked, err = database.MarkWeixinDelivered("bot-cas", 42, now.Add(2*time.Second))
@@ -77,7 +89,7 @@ func TestMarkWeixinDeliveredOnlyUpdatesMatchingPendingMessage(t *testing.T) {
 		t.Fatalf("current delivery marked=%v err=%v", marked, err)
 	}
 	account, err = database.GetWeixinAccount("bot-cas")
-	if err != nil || account.DeliveredMessageID != 42 || account.PendingContextToken != "" {
+	if err != nil || account.DeliveredMessageID != 42 || account.ReplyContextToken != "context-fresh" {
 		t.Fatalf("current delivery was not committed: %+v err=%v", account, err)
 	}
 	if err := database.SetWeixinTask("bot-cas", "session", 43, "context-43", now, now.Add(3*time.Second)); err != nil {
@@ -88,7 +100,7 @@ func TestMarkWeixinDeliveredOnlyUpdatesMatchingPendingMessage(t *testing.T) {
 		t.Fatalf("old generation overwrote new pending message: marked=%v err=%v", marked, err)
 	}
 	account, err = database.GetWeixinAccount("bot-cas")
-	if err != nil || account.DeliveredMessageID != 42 || account.PendingContextToken != "context-43" {
+	if err != nil || account.DeliveredMessageID != 42 || account.ReplyContextToken != "context-43" {
 		t.Fatalf("new pending generation was cleared: %+v err=%v", account, err)
 	}
 }

@@ -92,6 +92,19 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	if !ignoreBefore.IsZero() && (message.CreatedAtMS == 0 || createdAt.Before(ignoreBefore)) {
 		return
 	}
+	// iLink 的 context_token 由每条入站消息刷新。只要当前还有未送达结果，
+	// 就更新回复凭据并唤醒投递；不改变 pending message ID，避免把命令或
+	// “任务仍在执行”这类消息误当成新的 Agent 轮次。
+	if strings.TrimSpace(message.ContextToken) != "" {
+		refreshed, refreshErr := manager.server.store.RefreshWeixinReplyContext(account.ID, message.ContextToken, createdAt, time.Now())
+		if refreshErr == nil && refreshed {
+			account.ReplyContextToken = message.ContextToken
+			if account.PendingMessageID > account.DeliveredMessageID {
+				// 先回复本条命令/提示，再唤醒最终结果，避免时间顺序颠倒。
+				defer manager.resumeDelivery(account.ID)
+			}
+		}
+	}
 	text, attachments, err := manager.decodeWeixinMessage(ctx, account, message)
 	if err != nil {
 		if errors.Is(err, errWeixinVoiceNeedsText) {
@@ -152,7 +165,7 @@ func weixinTaskAcknowledgement(title string) string {
 	if title = strings.TrimSpace(title); title != "" {
 		lines = append(lines, "💬 会话："+title)
 	}
-	lines = append(lines, "", "完成后会在这里回复；任务较长时我会每隔几分钟汇报一次进度。", "发送 /status 查看实时进度，发送 /stop 中断任务。")
+	lines = append(lines, "", "完成后会在这里回复；任务较长时约 1 分钟后会提示一次进度。", "若最终结果没有送达，请发送 /status 刷新回传凭据；发送 /stop 可中断任务。")
 	return strings.Join(lines, "\n")
 }
 

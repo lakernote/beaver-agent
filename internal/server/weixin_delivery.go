@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lakernote/beaver-agent/internal/store"
+	"github.com/lakernote/beaver-agent/internal/weixin"
 )
 
 func (manager *weixinManager) resumeDelivery(accountID string) {
@@ -62,7 +63,6 @@ func (manager *weixinManager) deliverPendingWithWait(accountID string, wait func
 	}
 	pendingMessageID := account.PendingMessageID
 	pendingSessionID := account.CurrentSessionID
-	pendingContextToken := account.PendingContextToken
 	wait(account.ID, pendingSessionID)
 	if manager.server.ctx.Err() != nil {
 		return false
@@ -77,7 +77,7 @@ func (manager *weixinManager) deliverPendingWithWait(accountID string, wait func
 		gate.Unlock()
 		return false
 	}
-	if account.PendingMessageID != pendingMessageID || account.CurrentSessionID != pendingSessionID || account.PendingContextToken != pendingContextToken {
+	if account.PendingMessageID != pendingMessageID || account.CurrentSessionID != pendingSessionID {
 		gate.Unlock()
 		return true
 	}
@@ -103,10 +103,11 @@ func (manager *weixinManager) deliverPendingWithWait(accountID string, wait func
 	if answer == "" {
 		answer = "任务已结束，但没有可发送的文字结果。"
 	}
+	replyContextToken := account.ReplyContextToken
 	// account、token 和 answer 从此都是这一代的不可变快照。
 	gate.Unlock()
 
-	if err := manager.sendChunks(account, account.UserID, pendingContextToken, answer); err != nil {
+	if err := manager.sendChunks(account, account.UserID, replyContextToken, answer); err != nil {
 		log.Printf("微信远程：发送最终结果失败 account=%s: %v", account.ID, err)
 		return false
 	}
@@ -123,18 +124,61 @@ func (manager *weixinManager) deliverPendingWithWait(accountID string, wait func
 	return true
 }
 
-// 长任务期间的主动进度：每隔 interval 推送一次，最多 max 条，进度没变化就不打扰。
-// 腾讯没有公开 iLink 的限制说明，下面是 Tencent/openclaw-weixin 社区 issue 里的实测，且互相并不一致：
-// #81 同一条入站消息只能回复约 10 次；#286 context_token 只在入站后约 1.5–2 分钟内可靠；
-// #270 疑似有按时间累计的配额；#309 主动推送在成员约 11–15 小时没发消息后被拒。
-// 所以第一条进度放在 1 分钟（赶在 2 分钟窗口内），总条数很少，剩下的额度留给最终结果。
+// 长任务期间只做一次较早的主动进度提示。腾讯没有公开 iLink 的稳定限制
+// 契约，社区既报告过回复次数限制，也报告过约 1.5–2 分钟的时效窗口；
+// 进度消息不能被当成续期机制，只用于在凭据可能失效前提醒用户。
 var (
 	weixinProgressInterval = time.Minute
-	weixinProgressMax      = 3
+	weixinProgressMax      = 1
 )
 
-// waitWithProgress 等任务结束，期间按固定间隔把当前进度推送给成员。
+// weixinTypingInterval 是“正在输入”的保活间隔，与官方插件一致。
+var weixinTypingInterval = 5 * time.Second
+
+// startTyping 在任务运行期间让微信显示“对方正在输入…”，返回停止函数。
+// 网关不支持、取不到 ticket 或连续失败 3 次时静默放弃，不影响任务和结果。
+func (manager *weixinManager) startTyping(account store.WeixinAccount) (stop func()) {
+	gateway, ok := manager.gateway.(weixin.TypingGateway)
+	if !ok {
+		return func() {}
+	}
+	ctx, cancel := context.WithCancel(manager.server.ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wire := gatewayAccount(account)
+		ticket, err := gateway.TypingTicket(ctx, wire, account.UserID, account.ReplyContextToken)
+		if err != nil {
+			return
+		}
+		failures := 0
+		for {
+			if err := gateway.SendTyping(ctx, wire, account.UserID, ticket, true); err != nil {
+				if failures++; failures >= 3 || ctx.Err() != nil {
+					return
+				}
+			} else {
+				failures = 0
+			}
+			if !waitContext(ctx, weixinTypingInterval) {
+				break
+			}
+		}
+		cancelCtx, cancelTimeout := context.WithTimeout(manager.server.ctx, 5*time.Second)
+		defer cancelTimeout()
+		_ = gateway.SendTyping(cancelCtx, wire, account.UserID, ticket, false)
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// waitWithProgress 等任务结束，期间显示“正在输入”，并按固定间隔把当前进度推送给成员。
 func (manager *weixinManager) waitWithProgress(accountID, sessionID string) {
+	if account, err := manager.server.store.GetWeixinAccount(accountID); err == nil {
+		defer manager.startTyping(account)()
+	}
 	startedAt := time.Now()
 	lastProgress := ""
 	for sent := 0; !manager.server.tasks.waitFor(manager.server.ctx, sessionID, weixinProgressInterval); {
@@ -149,8 +193,8 @@ func (manager *weixinManager) waitWithProgress(accountID, sessionID string) {
 		if err != nil || !account.Enabled {
 			continue
 		}
-		text := fmt.Sprintf("⏳ 仍在执行（已 %d 分钟）\n🧭 进度：%s\n发送 /stop 可中断。", int(time.Since(startedAt).Minutes()), progress)
-		manager.send(account, account.UserID, account.PendingContextToken, text)
+		text := fmt.Sprintf("⏳ 仍在执行（已 %d 分钟）\n🧭 进度：%s\n若稍后没有收到最终结果，请发送 /status 刷新回传凭据；发送 /stop 可中断。", int(time.Since(startedAt).Minutes()), progress)
+		manager.send(account, account.UserID, account.ReplyContextToken, text)
 		lastProgress = progress
 		sent++
 	}

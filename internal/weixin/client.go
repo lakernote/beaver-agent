@@ -204,6 +204,41 @@ func (gateway *HTTPGateway) SendText(ctx context.Context, account Account, userI
 	return nil
 }
 
+// TypingGateway 是可选能力：在微信里显示“对方正在输入…”，让长任务期间用户知道机器人还活着。
+// 它走 getconfig / sendtyping，不是 sendmessage，不占用回复条数。官方插件每 5 秒保活一次。
+type TypingGateway interface {
+	TypingTicket(ctx context.Context, account Account, userID, contextToken string) (string, error)
+	SendTyping(ctx context.Context, account Account, userID, ticket string, typing bool) error
+}
+
+func (gateway *HTTPGateway) TypingTicket(ctx context.Context, account Account, userID, contextToken string) (string, error) {
+	body := map[string]any{"ilink_user_id": userID, "context_token": contextToken, "base_info": baseInfo()}
+	var response struct {
+		ReturnCode   int    `json:"ret,omitempty"`
+		ErrorMessage string `json:"errmsg,omitempty"`
+		TypingTicket string `json:"typing_ticket,omitempty"`
+	}
+	if err := gateway.request(ctx, http.MethodPost, account.BaseURL, "ilink/bot/getconfig", account.Token, body, &response, true); err != nil {
+		return "", err
+	}
+	if response.ReturnCode != 0 || response.TypingTicket == "" {
+		return "", fmt.Errorf("微信没有返回 typing_ticket: ret=%d %s", response.ReturnCode, response.ErrorMessage)
+	}
+	return response.TypingTicket, nil
+}
+
+func (gateway *HTTPGateway) SendTyping(ctx context.Context, account Account, userID, ticket string, typing bool) error {
+	status := 1 // 1 正在输入，2 取消
+	if !typing {
+		status = 2
+	}
+	body := map[string]any{"ilink_user_id": userID, "typing_ticket": ticket, "status": status, "base_info": baseInfo()}
+	var response struct {
+		ReturnCode int `json:"ret,omitempty"`
+	}
+	return gateway.request(ctx, http.MethodPost, account.BaseURL, "ilink/bot/sendtyping", account.Token, body, &response, true)
+}
+
 const maxDownloadedMediaBytes = 10 * 1024 * 1024
 
 // DownloadMedia follows Tencent's iLink CDN contract. Direct URLs are limited

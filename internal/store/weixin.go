@@ -52,17 +52,17 @@ func (store *Store) SaveWeixinAccount(value WeixinAccount) error {
 	_, err := store.db.Exec(`INSERT INTO weixin_accounts(
 		id,label,user_id,token,base_url,enabled,sync_buf,current_session_id,project_id,ignore_before,
 		last_seen_at,last_message_at,last_sequence,pending_message_id,delivered_message_id,
-		pending_context_token,created_at,updated_at
+		reply_context_token,created_at,updated_at
 	) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	ON CONFLICT(user_id) DO UPDATE SET
 		id=excluded.id,label=excluded.label,token=excluded.token,base_url=excluded.base_url,
 		enabled=excluded.enabled,sync_buf='',project_id=excluded.project_id,ignore_before=excluded.ignore_before,
 		last_seen_at='',last_message_at='',last_sequence=0,pending_message_id=0,
-		delivered_message_id=0,pending_context_token='',updated_at=excluded.updated_at`,
+		delivered_message_id=0,reply_context_token='',updated_at=excluded.updated_at`,
 		value.ID, value.Label, value.UserID, value.Token, value.BaseURL, boolInt(value.Enabled),
 		value.SyncBuffer, value.CurrentSessionID, value.ProjectID, formatOptionalTime(value.IgnoreBefore),
 		formatOptionalTime(value.LastSeenAt), formatOptionalTime(value.LastMessageAt), value.LastSequence,
-		value.PendingMessageID, value.DeliveredMessageID, value.PendingContextToken,
+		value.PendingMessageID, value.DeliveredMessageID, value.ReplyContextToken,
 		formatTime(value.CreatedAt), formatTime(value.UpdatedAt))
 	return err
 }
@@ -70,7 +70,7 @@ func (store *Store) SaveWeixinAccount(value WeixinAccount) error {
 func (store *Store) ListWeixinAccounts() ([]WeixinAccount, error) {
 	rows, err := store.db.Query(`SELECT id,label,user_id,token,base_url,enabled,sync_buf,current_session_id,project_id,
 		ignore_before,last_seen_at,last_message_at,last_sequence,pending_message_id,
-		delivered_message_id,pending_context_token,created_at,updated_at
+		delivered_message_id,reply_context_token,created_at,updated_at
 		FROM weixin_accounts ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (store *Store) ListWeixinAccounts() ([]WeixinAccount, error) {
 func (store *Store) GetWeixinAccount(id string) (WeixinAccount, error) {
 	row := store.db.QueryRow(`SELECT id,label,user_id,token,base_url,enabled,sync_buf,current_session_id,project_id,
 		ignore_before,last_seen_at,last_message_at,last_sequence,pending_message_id,
-		delivered_message_id,pending_context_token,created_at,updated_at
+		delivered_message_id,reply_context_token,created_at,updated_at
 		FROM weixin_accounts WHERE id=?`, id)
 	return scanWeixinAccount(row)
 }
@@ -104,8 +104,8 @@ func (store *Store) UpdateWeixinAccount(id, label string, enabled bool, projectI
 	result, err := store.db.Exec(`UPDATE weixin_accounts SET label=?,enabled=?,project_id=?,
 		ignore_before=CASE WHEN enabled=0 AND ?=1 THEN ? ELSE ignore_before END,
 		delivered_message_id=CASE WHEN ?=0 THEN pending_message_id ELSE delivered_message_id END,
-		pending_context_token=CASE WHEN ?=0 THEN '' ELSE pending_context_token END,updated_at=? WHERE id=?`,
-		label, enabledValue, projectID, enabledValue, formatTime(now), enabledValue, enabledValue, formatTime(now), id)
+		updated_at=? WHERE id=?`,
+		label, enabledValue, projectID, enabledValue, formatTime(now), enabledValue, formatTime(now), id)
 	if err != nil {
 		return WeixinAccount{}, err
 	}
@@ -126,8 +126,7 @@ func (store *Store) SetWeixinProject(id, projectID string, now time.Time) error 
 }
 
 func (store *Store) SuppressPendingWeixinDeliveries(now time.Time) error {
-	_, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=pending_message_id,
-		pending_context_token='',updated_at=?`, formatTime(now))
+	_, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=pending_message_id,updated_at=?`, formatTime(now))
 	return err
 }
 
@@ -154,15 +153,27 @@ func (store *Store) RecordWeixinMessage(id string, messageAt, now time.Time) err
 	return err
 }
 
+// RefreshWeixinReplyContext stores the newest credential independently from task
+// delivery generations, so normal replies and automation notifications can share it.
+func (store *Store) RefreshWeixinReplyContext(id, contextToken string, messageAt, now time.Time) (bool, error) {
+	result, err := store.db.Exec(`UPDATE weixin_accounts SET reply_context_token=?,last_message_at=?,updated_at=? WHERE id=?`,
+		contextToken, formatOptionalTime(messageAt), formatTime(now), id)
+	if err != nil {
+		return false, err
+	}
+	changed, err := result.RowsAffected()
+	return changed > 0, err
+}
+
 func (store *Store) SetWeixinTask(id, sessionID string, messageID int64, contextToken string, messageAt, now time.Time) error {
 	_, err := store.db.Exec(`UPDATE weixin_accounts SET current_session_id=?,pending_message_id=?,
-		pending_context_token=?,last_message_at=?,updated_at=? WHERE id=?`, sessionID, messageID,
+		reply_context_token=?,last_message_at=?,updated_at=? WHERE id=?`, sessionID, messageID,
 		contextToken, formatOptionalTime(messageAt), formatTime(now), id)
 	return err
 }
 
 func (store *Store) MarkWeixinDelivered(id string, messageID int64, now time.Time) (bool, error) {
-	result, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=?,pending_context_token='',updated_at=?
+	result, err := store.db.Exec(`UPDATE weixin_accounts SET delivered_message_id=?,updated_at=?
 		WHERE id=? AND pending_message_id=?`, messageID, formatTime(now), id, messageID)
 	if err != nil {
 		return false, err
@@ -178,7 +189,7 @@ func scanWeixinAccount(scanner interface{ Scan(...any) error }) (WeixinAccount, 
 	err := scanner.Scan(&value.ID, &value.Label, &value.UserID, &value.Token, &value.BaseURL, &enabled,
 		&value.SyncBuffer, &value.CurrentSessionID, &value.ProjectID, &ignoreBefore, &lastSeenAt, &lastMessageAt,
 		&value.LastSequence, &value.PendingMessageID, &value.DeliveredMessageID,
-		&value.PendingContextToken, &createdAt, &updatedAt)
+		&value.ReplyContextToken, &createdAt, &updatedAt)
 	if err != nil {
 		return WeixinAccount{}, err
 	}
