@@ -102,13 +102,13 @@ func (manager *weixinManager) sendChunks(account store.WeixinAccount, userID, co
 
 func finalSessionText(session store.Session) string {
 	if session.Status == store.SessionFailed {
-		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送 /status查看会话，或发送 /new开始独立任务。", session.Title, strings.TrimSpace(session.Error))
+		return fmt.Sprintf("❌ 任务失败 · %s\n\n%s\n\n发送 /status 查看会话，或发送 /new 开始独立任务。", session.Title, strings.TrimSpace(session.Error))
 	}
 	if session.Status == store.SessionCanceled {
-		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送 /new开始独立任务。", session.Title)
+		return fmt.Sprintf("⏹️ 任务已停止 · %s\n\n可以继续发送消息，或发送 /new 开始独立任务。", session.Title)
 	}
 	if answer := lastAssistantText(session); answer != "" {
-		return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送 /new开始独立任务。", session.Title, answer)
+		return fmt.Sprintf("✅ 任务完成 · %s\n\n%s\n\n继续发送消息可在本会话追问；发送 /new 开始独立任务。", session.Title, answer)
 	}
 	return ""
 }
