@@ -14,6 +14,8 @@
 package memory
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -146,19 +148,26 @@ func (store *Store) file(owner, scope string) (string, error) {
 	}
 }
 
-// safeName 只保留字母、数字、连字符和下划线；空值归入管理员。
+// safeName 把 owner 变成安全的目录名：只保留字母、数字、连字符和下划线；
+// 有字符被替换时追加原值的短哈希，避免 "a.b" 与 "a_b" 共用同一个目录。空值归入管理员。
 func safeName(owner string) string {
+	if owner == "" {
+		return adminOwner
+	}
 	var out strings.Builder
+	changed := false
 	for _, r := range owner {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
 			out.WriteRune(r)
 		default:
 			out.WriteRune('_')
+			changed = true
 		}
 	}
-	if out.Len() == 0 {
-		return adminOwner
+	if changed {
+		sum := sha256.Sum256([]byte(owner))
+		out.WriteString("-" + hex.EncodeToString(sum[:4]))
 	}
 	return out.String()
 }

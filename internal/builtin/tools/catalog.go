@@ -87,9 +87,9 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, permiss
 	// 没看过现有文件时直接覆盖，同时整套能力仍然只属于本轮 Agent。
 	files := newFileWorkspace(environment.Workspace(), environment.Directories(), permissionPolicy)
 	result := []entry{
-		{tool: todoWriteTool(), category: categoryPlanning, group: groupPlanning},
-		{tool: currentTimeTool(), category: categoryInformation, group: groupInformation},
-		{tool: calculateTool(), category: categoryExecution, group: groupExecution},
+		{tool: auxiliary(todoWriteTool()), category: categoryPlanning, group: groupPlanning},
+		{tool: auxiliary(currentTimeTool()), category: categoryInformation, group: groupInformation},
+		{tool: auxiliary(calculateTool()), category: categoryExecution, group: groupExecution},
 		{tool: webSearchTool(), category: categoryInformation, group: groupWeb},
 		{tool: webFetchTool(), category: categoryInformation, group: groupWeb},
 	}
@@ -101,13 +101,19 @@ func catalogEntries(environment *appenv.Environment, skills SkillSource, permiss
 	}
 	if mem != nil && mem.Store != nil {
 		for _, tool := range memoryTools(*mem) {
-			result = append(result, entry{tool: tool, category: categoryMemory, group: groupMemory})
+			result = append(result, entry{tool: auxiliary(tool), category: categoryMemory, group: groupMemory})
 		}
 	}
 	if skills != nil && len(skills.EnabledSkills()) > 0 {
 		result = append(result, entry{tool: loadSkillTool(skills), category: categoryExtension, group: groupSkills})
 	}
 	return result
+}
+
+// auxiliary 标记辅助工具：成功调用不算读取过外部来源（见 agent.ToolSpec.Auxiliary）。
+func auxiliary(tool agent.Tool) agent.Tool {
+	tool.Spec.Auxiliary = true
+	return tool
 }
 
 func InfoList(environment *appenv.Environment, skills SkillSource, policy permissions.Policy) []Info {

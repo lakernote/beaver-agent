@@ -1,9 +1,11 @@
 package memory
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -62,8 +64,14 @@ func TestOwnerCannotEscapeDirectory(t *testing.T) {
 	if err := store.Save("../../evil", ScopePersonal, "x"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "people", "______evil", "notes.md")); err != nil {
-		t.Fatalf("owner 应被净化为安全目录名: %v", err)
+	if got := safeName("../../evil"); strings.ContainsAny(got, "./") || !strings.HasPrefix(got, "______evil-") {
+		t.Fatalf("owner 应被净化为安全目录名: %s", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "people", safeName("../../evil"), "notes.md")); err != nil {
+		t.Fatalf("净化后的目录应存在: %v", err)
+	}
+	if safeName("a.b") == safeName("a_b") {
+		t.Fatal("不同 owner 不应共用目录")
 	}
 	if err := store.Save("", ScopePersonal, "管理员的记忆"); err != nil {
 		t.Fatal(err)
@@ -86,5 +94,24 @@ func TestForget(t *testing.T) {
 	}
 	if _, err := store.Forget("a", ScopePersonal, " "); err == nil {
 		t.Fatal("空关键词应被拒绝")
+	}
+}
+
+func TestConcurrentSaveKeepsAllNotes(t *testing.T) {
+	store := New(t.TempDir())
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if err := store.Save("m1", ScopePersonal, fmt.Sprintf("第 %d 条记忆", i)); err != nil {
+				t.Error(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	notes, err := store.Search("m1", "记忆", 50)
+	if err != nil || len(notes) != 20 {
+		t.Fatalf("并发写入应全部保留: %d %v", len(notes), err)
 	}
 }

@@ -13,13 +13,14 @@ type taskScheduler struct {
 	active    int
 	resources map[string]int
 	changed   chan struct{}
+	waiting   map[string]bool // 正在排队等待执行槽的会话
 }
 
 func newTaskScheduler(limit int) *taskScheduler {
 	if limit < 1 {
 		limit = 1
 	}
-	return &taskScheduler{limit: limit, resources: make(map[string]int), changed: make(chan struct{})}
+	return &taskScheduler{limit: limit, resources: make(map[string]int), changed: make(chan struct{}), waiting: make(map[string]bool)}
 }
 
 func (scheduler *taskScheduler) setLimit(limit int) {
@@ -39,7 +40,26 @@ func (scheduler *taskScheduler) snapshot() (active, limit int) {
 }
 
 func (scheduler *taskScheduler) acquire(ctx context.Context, resources ...string) error {
+	return scheduler.acquireFor(ctx, "", resources...)
+}
+
+// isWaiting 报告会话是否因总并发已满或工作区被占用而在排队。
+func (scheduler *taskScheduler) isWaiting(sessionID string) bool {
+	scheduler.mu.Lock()
+	defer scheduler.mu.Unlock()
+	return scheduler.waiting[sessionID]
+}
+
+// acquireFor 与 acquire 相同，但会在等待期间把 sessionID 记为“排队中”，供界面和微信提示。
+func (scheduler *taskScheduler) acquireFor(ctx context.Context, sessionID string, resources ...string) error {
 	resources = uniqueResourceKeys(resources)
+	if sessionID != "" {
+		defer func() {
+			scheduler.mu.Lock()
+			delete(scheduler.waiting, sessionID)
+			scheduler.mu.Unlock()
+		}()
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -59,6 +79,9 @@ func (scheduler *taskScheduler) acquire(ctx context.Context, resources ...string
 			}
 			scheduler.mu.Unlock()
 			return nil
+		}
+		if sessionID != "" {
+			scheduler.waiting[sessionID] = true
 		}
 		changed := scheduler.changed
 		scheduler.mu.Unlock()

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +26,8 @@ var weixinCommands = map[string]string{
 	"/help": "help", "/new": "new", "/status": "status", "/stop": "stop", "/projects": "projects",
 }
 
+var unknownCommandPattern = regexp.MustCompile(`^/[a-z]+$`)
+
 // parseWeixinCommand 解析一条微信文本；不是控制命令时返回零值（Name 为空）。
 func parseWeixinCommand(text string) weixinCommand {
 	fields := strings.Fields(strings.TrimSpace(text))
@@ -42,12 +45,19 @@ func parseWeixinCommand(text string) weixinCommand {
 	if command, ok := weixinCommands[head]; ok && len(fields) == 1 {
 		return weixinCommand{Name: command}
 	}
+	// 形如 /xxx 的单词视为输错的命令，提示而不是当成任务；/usr/bin 之类的路径仍是普通文本。
+	if unknownCommandPattern.MatchString(head) {
+		return weixinCommand{Name: "unknown"}
+	}
 	return weixinCommand{}
 }
 
 func (manager *weixinManager) handleCommand(account store.WeixinAccount, message weixin.Message, text string) bool {
 	command := parseWeixinCommand(text)
 	switch command.Name {
+	case "unknown":
+		manager.send(account, message.FromUserID, message.ContextToken, "无法识别这个命令（或它不支持参数）。发送 /help 查看可用命令。")
+		return true
 	case "help":
 		manager.send(account, message.FromUserID, message.ContextToken, "直接发送文字即可创建或继续任务。\n/new 开始独立的新会话\n/status 查看当前进度\n/stop 中断当前任务\n/projects 查看可用项目\n/project 项目名 设置后续新会话的源文件夹")
 		return true

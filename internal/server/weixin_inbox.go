@@ -121,13 +121,30 @@ func (manager *weixinManager) handleMessage(ctx context.Context, account store.W
 	if session, loadErr := manager.server.store.LoadSessionWindow(sessionID, 1, 1); loadErr == nil {
 		acknowledgement = weixinTaskAcknowledgement(session.Title)
 	}
-	// 全局并发已满时，提前告知成员任务在排队，而不是让人以为卡住了。
-	if active, limit := manager.server.scheduler.snapshot(); active >= limit {
-		acknowledgement += fmt.Sprintf("\n⏳ 当前 %d 个任务在运行（并发上限 %d），你的任务正在排队。", active, limit)
+	// 任务因并发已满或工作区被占用而排队时，提前告知成员，而不是让人以为卡住了。
+	if manager.waitsInQueue(sessionID) {
+		active, limit := manager.server.scheduler.snapshot()
+		acknowledgement += fmt.Sprintf("\n⏳ 当前 %d 个任务在运行（并发上限 %d），你的任务正在排队，轮到后会自动开始。", active, limit)
 	}
 	manager.send(account, message.FromUserID, message.ContextToken, acknowledgement)
 	// 先发送接收确认，再启动结果等待，避免极短任务的最终结果先于确认消息到达。
 	manager.resumeDelivery(account.ID)
+}
+
+// waitsInQueue 判断刚提交的任务是否在排队。任务协程拿到执行槽前状态仍是 queued，
+// 所以最多短暂等待一会儿，直到它要么开始运行、要么被确认在等待。
+func (manager *weixinManager) waitsInQueue(sessionID string) bool {
+	for attempt := 0; attempt < 8; attempt++ {
+		if manager.server.scheduler.isWaiting(sessionID) {
+			return true
+		}
+		session, err := manager.server.store.LoadSessionWindow(sessionID, 1, 1)
+		if err != nil || session.Status != store.SessionQueued {
+			return false
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	return false
 }
 
 func weixinTaskAcknowledgement(title string) string {

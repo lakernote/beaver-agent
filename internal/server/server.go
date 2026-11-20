@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
 	"github.com/lakernote/beaver-agent/internal/appenv"
 	"github.com/lakernote/beaver-agent/internal/codexruntime"
+	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/store"
 	"github.com/lakernote/beaver-agent/internal/weixin"
 )
@@ -38,6 +40,7 @@ type Server struct {
 	store  *store.Store
 	assets fs.FS
 	env    *appenv.Environment
+	memory *memory.Store // 全进程共用一个实例，写入锁才能真正串行化并发任务
 	mux    *http.ServeMux
 	// modelAdapters is owned by this application instance. Keeping the registry
 	// here avoids package-global provider state and makes server construction
@@ -102,7 +105,7 @@ func newServer(database *store.Store, assets fs.FS, environment *appenv.Environm
 		return nil, fmt.Errorf("load runtime settings: %w", err)
 	}
 	server := &Server{
-		store: database, assets: assets, env: environment, mux: http.NewServeMux(),
+		store: database, assets: assets, env: environment, memory: memory.New(filepath.Join(environment.Home(), "memory")), mux: http.NewServeMux(),
 		modelAdapters: modelAdapters,
 		ctx:           ctx, cancel: cancel, scheduler: newTaskScheduler(runtimeSettings.MaxConcurrentTasks),
 		tasks: newTaskManager(), codexEnv: codexEnv, codexEnvErr: codexEnvErr, authSessions: make(map[string]authSession),

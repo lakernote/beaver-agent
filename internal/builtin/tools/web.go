@@ -125,7 +125,10 @@ func doSearchRequest(request *http.Request) ([]byte, error) {
 func tavilySearch(key string) searcher {
 	return func(ctx context.Context, query string, limit int) ([]searchResult, error) {
 		payload, _ := json.Marshal(map[string]any{"query": query, "max_results": limit})
-		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.tavily.com/search", bytes.NewReader(payload))
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.tavily.com/search", bytes.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("Authorization", "Bearer "+key)
 		body, err := doSearchRequest(request)
@@ -149,7 +152,10 @@ func tavilySearch(key string) searcher {
 func searxngSearch(base string) searcher {
 	return func(ctx context.Context, query string, limit int) ([]searchResult, error) {
 		endpoint := strings.TrimRight(base, "/") + "/search?format=json&q=" + url.QueryEscape(query)
-		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, fmt.Errorf("搜索服务地址无效: %w", err)
+		}
 		body, err := doSearchRequest(request)
 		if err != nil {
 			return nil, err

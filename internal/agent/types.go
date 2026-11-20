@@ -282,6 +282,9 @@ type ToolSpec struct {
 	// Runner 不读取用户文本，只在模型准备基于这类结果直接结束时提醒一次，
 	// 让模型使用任意非 Discovery 工具读取原始来源；该字段不会发送给 Provider。
 	DiscoveryOnly bool
+	// Auxiliary 表示规划、时间、计算、记忆这类辅助工具：它们成功不代表读取过外部来源，
+	// 因此不能用来消除“搜索摘要需要核验”的提醒。
+	Auxiliary bool
 }
 
 // Tool 把声明与实际执行函数绑定起来。

@@ -46,7 +46,7 @@ func (server *Server) startQueuedTurn(id string, model store.ModelSettings) erro
 			return
 		}
 		resourceKeys := server.taskResourceKeys(session, model)
-		if err := server.scheduler.acquire(taskContext, resourceKeys...); err != nil {
+		if err := server.scheduler.acquireFor(taskContext, id, resourceKeys...); err != nil {
 			// 服务停机时保留尚未开始的 queued 任务，下一次启动会恢复；用户
 			// 主动停止则 CancelSession 已经把状态改成 canceled。
 			if server.ctx.Err() == nil {

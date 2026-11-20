@@ -425,6 +425,9 @@ func (runner *Runner) executeToolCall(ctx context.Context, input RunRequest, sta
 		case exists && tool.Spec.DiscoveryOnly:
 			stats.real, stats.discovery = true, true
 			state.hasCurrentRealToolResult = true
+		case exists && tool.Spec.Auxiliary:
+			stats.real = true
+			state.hasCurrentRealToolResult = true
 		default:
 			stats.real, stats.verification = true, true
 			state.hasCurrentRealToolResult = true

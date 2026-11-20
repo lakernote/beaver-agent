@@ -31,36 +31,44 @@ func (manager *weixinManager) resumeDelivery(accountID string) {
 			delete(manager.delivery, accountID)
 			manager.mu.Unlock()
 		}()
-		account, err := manager.server.store.GetWeixinAccount(accountID)
-		if err != nil || account.PendingMessageID == 0 || account.PendingMessageID <= account.DeliveredMessageID || account.CurrentSessionID == "" {
-			return
+		// 投递期间成员可能又发来追问：循环到没有待发结果为止，避免追问的结果被漏掉。
+		for manager.deliverPending(accountID) {
 		}
-		_ = manager.server.tasks.wait(manager.server.ctx, account.CurrentSessionID)
-		if manager.server.ctx.Err() != nil {
-			return
-		}
-		account, err = manager.server.store.GetWeixinAccount(accountID)
-		if err != nil || account.PendingMessageID <= account.DeliveredMessageID {
-			return
-		}
-		settings, _ := manager.server.store.GetWeixinSettings()
-		if !settings.Enabled || !account.Enabled {
-			return
-		}
-		session, err := manager.server.store.LoadSessionWindow(account.CurrentSessionID, 40, 1)
-		if err != nil {
-			return
-		}
-		answer := finalSessionText(session)
-		if answer == "" {
-			answer = "任务已结束，但没有可发送的文字结果。"
-		}
-		if err := manager.sendChunks(account, account.UserID, account.PendingContextToken, answer); err != nil {
-			log.Printf("微信远程：发送最终结果失败 account=%s: %v", account.ID, err)
-			return
-		}
-		_ = manager.server.store.MarkWeixinDelivered(account.ID, account.PendingMessageID, time.Now())
 	}()
+}
+
+// deliverPending 等当前任务结束后，把最终结果发给成员；成功发送返回 true。
+func (manager *weixinManager) deliverPending(accountID string) bool {
+	account, err := manager.server.store.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID == 0 || account.PendingMessageID <= account.DeliveredMessageID || account.CurrentSessionID == "" {
+		return false
+	}
+	_ = manager.server.tasks.wait(manager.server.ctx, account.CurrentSessionID)
+	if manager.server.ctx.Err() != nil {
+		return false
+	}
+	account, err = manager.server.store.GetWeixinAccount(accountID)
+	if err != nil || account.PendingMessageID <= account.DeliveredMessageID {
+		return false
+	}
+	settings, _ := manager.server.store.GetWeixinSettings()
+	if !settings.Enabled || !account.Enabled {
+		return false
+	}
+	session, err := manager.server.store.LoadSessionWindow(account.CurrentSessionID, 40, 1)
+	if err != nil {
+		return false
+	}
+	answer := finalSessionText(session)
+	if answer == "" {
+		answer = "任务已结束，但没有可发送的文字结果。"
+	}
+	if err := manager.sendChunks(account, account.UserID, account.PendingContextToken, answer); err != nil {
+		log.Printf("微信远程：发送最终结果失败 account=%s: %v", account.ID, err)
+		return false
+	}
+	_ = manager.server.store.MarkWeixinDelivered(account.ID, account.PendingMessageID, time.Now())
+	return true
 }
 
 func (manager *weixinManager) send(account store.WeixinAccount, userID, contextToken, text string) {

@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/lakernote/beaver-agent/internal/builtin/prompt"
 	builtintools "github.com/lakernote/beaver-agent/internal/builtin/tools"
 	"github.com/lakernote/beaver-agent/internal/mcpclient"
-	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/permissions"
 	"github.com/lakernote/beaver-agent/internal/store"
 )
@@ -164,7 +162,7 @@ func (server *Server) assembleBeaverTools(ctx context.Context, id string, sessio
 	if err != nil {
 		return nil, err
 	}
-	memoryScope := &builtintools.MemoryScope{Store: memory.New(filepath.Join(server.env.Home(), "memory")), Owner: owner}
+	memoryScope := &builtintools.MemoryScope{Store: server.memory, Owner: owner}
 	loader, err := builtintools.NewLoader(builtintools.CatalogWithMemory(env, skills, policy, memoryScope))
 	if err != nil {
 		return nil, err
