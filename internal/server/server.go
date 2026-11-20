@@ -2,6 +2,18 @@
 //
 // 这里是应用层，不是 Agent 核心。它负责 SQLite、配置和进程生命周期；核心循环
 // 位于 internal/agent，内置能力位于 internal/builtin，彼此通过很小的接口连接。
+//
+// 文件按前缀分组，找代码时先看前缀：
+//
+//	api_*.go            HTTP 接口（会话、模型、项目、MCP、微信、定时任务……）
+//	routes.go           路由表
+//	turn_*.go           一轮对话的排队（turn_queue）与执行分发（turn_execution）
+//	beaver_runtime.go   自研 Runner 的一轮运行；codex_*.go 是 Codex 的对应实现
+//	context_*.go        上下文：Token 预算（context_budget）、检查点压缩（context_compaction）、页面账本
+//	trace_observer.go   把 Runner 事件写成 Trace
+//	task_*.go           进程内任务状态（task_manager）与并发/资源调度（task_scheduler）
+//	weixin_*.go         微信入口：收件、命令、提交任务、回复、登录、媒体
+//	automation_*.go     定时任务；retention_scheduler.go 是数据清理
 package server
 
 import (

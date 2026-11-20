@@ -43,7 +43,7 @@ func (server *Server) modelAdapterRegistry() *modeladapter.Registry {
 	return modeladapter.NewRegistry()
 }
 
-func runModelTest(request *http.Request, settings store.ModelSettings, registry *modeladapter.Registry) (modelTestResult, error) {
+func probeModel(request *http.Request, settings store.ModelSettings, registry *modeladapter.Registry) (modelTestResult, error) {
 	client, err := registry.New(modeladapter.Config{
 		Provider: settings.Provider, Protocol: settings.Protocol, BaseURL: settings.BaseURL,
 		APIKey: settings.APIKey, Timeout: time.Duration(settings.RequestTimeoutSeconds) * time.Second,

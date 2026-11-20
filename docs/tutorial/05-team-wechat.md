@@ -1,6 +1,6 @@
 # 学习：多入口与团队使用（Web + 微信）
 
-对应源码：`internal/server/` 下的 `weixin_*.go`、`task_scheduler.go`、`agent_queue.go`、`automation_scheduler.go`。
+对应源码：`internal/server/` 下的 `weixin_*.go`、`task_scheduler.go`、`turn_queue.go`、`automation_scheduler.go`。
 
 ## 1. 先划清边界
 
@@ -21,7 +21,7 @@ Web 页面 ─┐
 | 1 收件 | 长轮询取消息，去重、过滤非本人消息 | `weixin_inbox.go` `poll` / `handleMessage` |
 | 2 命令 | 以 `/` 开头才是控制命令（`/new` `/status` `/stop` `/projects` `/project`），其余全是任务 | `weixin_commands.go` |
 | 3 提交 | 找到该成员的当前会话（没有就新建），写入消息，并把会话 owner 设为这个微信账号 | `weixin_tasks.go` `submit` |
-| 4 排队 | 申请全局并发名额；同一工作区的任务串行 | `agent_queue.go`、`task_scheduler.go` |
+| 4 排队 | 申请全局并发名额；同一工作区的任务串行 | `turn_queue.go`、`task_scheduler.go` |
 | 5 回执 | 立刻回复“已接收”；并发满时额外提示在排队 | `weixin_inbox.go` |
 | 6 回复 | 任务结束后把最终回答分段发回微信 | `weixin_delivery.go` |
 

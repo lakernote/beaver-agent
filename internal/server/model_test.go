@@ -39,7 +39,7 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 	defer provider.Close()
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
-	result, err := runModelTest(request, store.ModelSettings{
+	result, err := probeModel(request, store.ModelSettings{
 		Provider: "test", Protocol: "chat_completions", BaseURL: provider.URL, Model: "test",
 		MaxOutputTokens: 100, RequestTimeoutSeconds: 30, CompressionThresholdPercent: 75,
 	}, modeladapter.NewRegistry())
@@ -58,7 +58,7 @@ func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 	}))
 	defer provider.Close()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
-	_, err := runModelTest(request, store.ModelSettings{
+	_, err := probeModel(request, store.ModelSettings{
 		Protocol: "chat_completions", BaseURL: provider.URL, Model: "test", RequestTimeoutSeconds: 30,
 	}, modeladapter.NewRegistry())
 	if err == nil || !strings.Contains(err.Error(), "没有返回协议原生 Function Call") {

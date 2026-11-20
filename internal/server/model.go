@@ -116,7 +116,7 @@ func (server *Server) testModel(response http.ResponseWriter, request *http.Requ
 		writeJSON(response, http.StatusOK, modelTestResult{OK: true, Model: "Codex Runtime", Answer: result.Answer, DurationMS: result.Duration.Milliseconds()})
 		return
 	}
-	result, err := server.runModelTest(request, settings)
+	result, err := server.probeModel(request, settings)
 	if err != nil {
 		writeError(response, http.StatusBadGateway, "模型能力测试失败："+err.Error())
 		return
@@ -159,6 +159,6 @@ func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error 
 	return nil
 }
 
-func (server *Server) runModelTest(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
-	return runModelTest(request, settings, server.modelAdapterRegistry())
+func (server *Server) probeModel(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
+	return probeModel(request, settings, server.modelAdapterRegistry())
 }

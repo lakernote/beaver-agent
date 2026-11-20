@@ -69,9 +69,9 @@ Function Calling 是 Beaver 的硬能力边界。Adapter 只读取协议原生�
 web/src/chat/useChatComposer.ts
   → web/src/api.ts: sendMessage
   → internal/server/api_sessions.go: continueSession
-  → internal/server/agent_queue.go: enqueueTurn
+  → internal/server/turn_queue.go: enqueueTurn
   → EnqueueTurnWithSettings(user + 模型快照 + queued) → goroutine/并发槽 → MarkRunning
-  → internal/server/agent_execution.go: executeSessionTurn
+  → internal/server/turn_execution.go: executeSessionTurn
   → store.RuntimeSession(检查点 + 活跃消息) + compactIfNeeded
   → internal/agent/runner.go: Runner.Run
   → Model.Generate ↔ Tool.Run 循环

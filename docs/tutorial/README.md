@@ -47,7 +47,7 @@
 | --- | --- | --- | --- |
 | 1 | [design.md](../design.md) 第 3 节 | — | 说出哪些判断可以写进代码、哪些必须交给模型 |
 | 2 | [05-team-wechat.md](05-team-wechat.md) | `internal/server/weixin_*.go` | 跟一条微信消息走完全程 |
-| 3 | 同上第 4 节 | `task_scheduler.go`、`agent_queue.go` | 并发设为 1，两个账号同时发任务 |
+| 3 | 同上第 4 节 | `task_scheduler.go`、`turn_queue.go` | 并发设为 1，两个账号同时发任务 |
 | 4 | [runtime.md](../runtime.md) | `internal/permissions/` | 理解权限策略与审批 |
 
 验收：能画出“多个成员各自绑定微信、各自一个活动任务、全局并发受限”的流程图。

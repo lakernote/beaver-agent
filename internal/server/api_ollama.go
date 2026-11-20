@@ -139,7 +139,7 @@ func (server *Server) useOllama(response http.ResponseWriter, request *http.Requ
 	model := store.DefaultModelSettings()
 	model.BaseURL = strings.TrimRight(status.BaseURL, "/")
 	model.Model = input.Model
-	if _, err := server.runModelTest(request, model); err != nil {
+	if _, err := server.probeModel(request, model); err != nil {
 		writeError(response, http.StatusBadGateway, "模型能力测试失败："+err.Error())
 		return
 	}
