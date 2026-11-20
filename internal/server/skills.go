@@ -9,17 +9,10 @@ import (
 )
 
 var coreSkillOrder = map[string]int{
-	"project-onboarding":    10,
-	"problem-analysis":      20,
-	"code-review":           30,
-	"api-design":            40,
-	"test-and-e2e":          50,
-	"browser-validation":    60,
-	"incident-rca":          70,
-	"release-engineering":   80,
-	"docs-maintenance":      90,
-	"git-worktree-workflow": 100,
-	"web-research":          110,
+	"project-onboarding": 10,
+	"code-review":        20,
+	"test-and-e2e":       30,
+	"web-research":       40,
 }
 
 // skillCatalog 合并“编译进二进制的默认 Skill”和“SQLite 中的用户覆盖”。

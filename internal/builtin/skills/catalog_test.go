@@ -7,17 +7,14 @@ func TestCatalogLoadsIndependentSkillFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog) != 11 {
+	if len(catalog) != 4 {
 		t.Fatalf("内置 Skill 加载错误: %+v", catalog)
 	}
 	want := map[string]bool{
-		"project-onboarding":    false,
-		"api-design":            false,
-		"docs-maintenance":      false,
-		"git-worktree-workflow": false,
-		"incident-rca":          false,
-		"release-engineering":   false,
-		"test-and-e2e":          false,
+		"project-onboarding": false,
+		"code-review":        false,
+		"test-and-e2e":       false,
+		"web-research":       false,
 	}
 	for _, skill := range catalog {
 		if skill.Name == "general-assistant" {

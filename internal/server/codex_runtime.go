@@ -110,6 +110,7 @@ func (server *Server) runCodexTurn(ctx context.Context, session store.Session, s
 		Permissions:           policy,
 		Env:                   environment,
 		Skills:                selectedSkillsForTurn,
+		ExtraContext:          server.codexMemoryContext(session.ID, message),
 		Attachments:           codexAttachments,
 		OnDelta:               func(delta string) { server.tasks.appendPartial(session.ID, delta) },
 		OnThreadStarted: func(info codexruntime.ThreadInfo) {

@@ -254,12 +254,14 @@ type Config struct {
 	Timeout               time.Duration
 	Env                   []string
 	Skills                []SkillRef
-	Attachments           []Attachment
-	Permissions           permissions.Policy
-	OnDelta               func(string)
-	OnEvent               func(Event)
-	OnUsage               func(Usage)
-	OnThreadStarted       func(ThreadInfo)
+	// ExtraContext 是 Beaver 在用户消息前附加的背景信息（例如检索到的长期记忆）。
+	ExtraContext    string
+	Attachments     []Attachment
+	Permissions     permissions.Policy
+	OnDelta         func(string)
+	OnEvent         func(Event)
+	OnUsage         func(Usage)
+	OnThreadStarted func(ThreadInfo)
 	// OnServerRequest 可选地处理 app-server 发起的反向 JSON-RPC 请求。
 	// 未设置时，RunMessage 会回复标准 JSON-RPC 方法未实现错误，避免把
 	// “服务器请求”误判成协议损坏并直接断开连接。
@@ -765,6 +767,9 @@ func codexTurnTermination(status string, rawError json.RawMessage) (string, stri
 
 func codexTurnInput(userMessage string, config Config) ([]map[string]any, func(), error) {
 	text := codexCapabilityText(userMessage, config.AdditionalDirectories...)
+	if extra := strings.TrimSpace(config.ExtraContext); extra != "" && strings.TrimSpace(text) != "" {
+		text = extra + "\n\n" + text
+	}
 	if strings.TrimSpace(text) == "" {
 		text = "请理解并处理用户发送的附件。"
 	}

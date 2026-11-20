@@ -9,15 +9,8 @@ import (
 func TestCoreSkillsFollowDevelopmentWorkflow(t *testing.T) {
 	want := []string{
 		"project-onboarding",
-		"problem-analysis",
 		"code-review",
-		"api-design",
 		"test-and-e2e",
-		"browser-validation",
-		"incident-rca",
-		"release-engineering",
-		"docs-maintenance",
-		"git-worktree-workflow",
 		"web-research",
 	}
 	items := []store.SkillOverride{{Name: "z-custom"}}
