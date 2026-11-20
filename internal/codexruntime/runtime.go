@@ -1122,7 +1122,7 @@ func itemDetail(item map[string]any) string {
 		server, _ := item["server"].(string)
 		tool, _ := item["tool"].(string)
 		if server != "" || tool != "" {
-			return strings.Trim(strings.TrimSpace(server)+" / "+strings.TrimSpace(tool), " / ")
+			return strings.Trim(strings.TrimSpace(server)+" / "+strings.TrimSpace(tool), " /")
 		}
 	}
 	for _, key := range []string{"reason", "cwd", "phase", "serverName", "server"} {

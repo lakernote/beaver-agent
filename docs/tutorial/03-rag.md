@@ -1,6 +1,6 @@
 # 学习：RAG（检索增强生成）
 
-对应源码：`internal/search/rag.go`（约 200 行，纯标准库，带测试）。
+对应源码：`internal/search/search.go`（约 200 行，纯标准库，带测试）。
 
 ## 1. 为什么需要 RAG
 
@@ -46,7 +46,7 @@
 
 ## 5. 把它接成 Agent 的工具
 
-RAG 在 Agent 里就是**一个普通的 Tool**：模型决定何时检索，工具返回最相关的片段。本项目里 `internal/search` 的真实使用者是长期记忆（[learn-memory.md](learn-memory.md)）：`memory_search` 就是“检索工具”的完整范例，可以直接对照阅读 `internal/builtin/tools/memory.go`。
+RAG 在 Agent 里就是**一个普通的 Tool**：模型决定何时检索，工具返回最相关的片段。本项目里 `internal/search` 的真实使用者是长期记忆（[04-memory.md](04-memory.md)）：`memory_search` 就是“检索工具”的完整范例，可以直接对照阅读 `internal/builtin/tools/memory.go`。
 
 如果你想接入自己的文档库，只需仿照它再写一个工具：启动时 `BuildFromDir(目录)` 建索引，工具里调用 `index.Search(query, 5)`，把 `[来源:行号] 片段` 返回给模型。
 

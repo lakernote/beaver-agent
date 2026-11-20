@@ -56,4 +56,4 @@ Skill 只是提示词，MCP 服务器只是“动态注册的一批 Tool”，�
 3. 把 `defaultMaxSteps` 改成 2，让任务需要 3 步，观察“最后一步不暴露工具”的行为。
 4. 阅读 `internal/builtin/tools/web.go`：它是一个完整的、带注释的工具范例。
 
-下一篇：[学习：任务规划 todo_write](learn-todo.md)。
+下一篇：[学习：任务规划 todo_write](02-todo.md)。

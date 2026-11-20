@@ -205,4 +205,4 @@ Skill 和 MCP 同样先提供简短元数据：模型调用 `load_skill` 后读�
 - 新功能优先作为 Tool、Skill、MCP 或 Agent 外层触发器实现；
 - Runtime 只因协议能力或运行状态分支，不因用户关键词分支。
 
-更底层的消息格式、上下文压缩和协议适配见 [Agent 运行原理](agent-runtime.md)。
+更底层的消息格式、上下文压缩和协议适配见 [Agent 运行原理](runtime.md)。

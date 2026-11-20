@@ -5,7 +5,7 @@ Beaver 只有一个核心 Agent，`Runner` 只实现以下循环：
 ```text
 Model.Generate(messages, tools)
      ├── 无 tool_calls → 返回最终回答
-     └── 有 tool_calls → Tool.Execute(arguments) → ToolResult
+     └── 有 tool_calls → Tool.Run(arguments) → 文本结果
                             ↓
                        role=tool 消息
                             └── 回到 Model.Generate

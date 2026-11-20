@@ -11,7 +11,7 @@
 | 问题 | 上下文窗口有限，会话长了装不下 | 不能全塞进提示词，需要时才取 |
 | 解法 | **压缩**：把旧消息总结成摘要（`compactIfNeeded`） | **落盘 + 检索**：写入文件，用 `memory_search` 取回 |
 
-本篇讲长期记忆。它本质上就是 [RAG](learn-rag.md) 加“写入”：普通 RAG 的资料是人放进去的，记忆是 Agent 自己写进去的。
+本篇讲长期记忆。它本质上就是 [RAG](03-rag.md) 加“写入”：普通 RAG 的资料是人放进去的，记忆是 Agent 自己写进去的。
 
 ## 2. 设计
 
@@ -35,7 +35,7 @@
 关键点是**身份不由模型传入**：
 
 1. 微信创建会话时，用 `SetSessionOwner` 把会话和微信账号绑定（`sessions.owner_id`）。
-2. 每轮运行时 `runBeaverTurn` 读出 owner，构造 `tools.Memory{Store, Owner}`，工具闭包里已经固定了 owner。
+2. 每轮运行时 `runBeaverTurn` 读出 owner，构造 `tools.MemoryScope{Store, Owner}`，工具闭包里已经固定了 owner。
 3. 工具参数只有 `text`/`query`/`scope`，模型没法指定“读 bob 的记忆”。`owner` 还会被 `safeName` 净化，防止 `../` 目录穿越。
 
 团队记忆是共享的，任何成员的 Agent 都能写入；只应保存团队共同约定。

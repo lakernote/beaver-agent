@@ -713,7 +713,7 @@ func retryableModelError(err error) bool {
 		return provider.Retryable()
 	}
 	var network net.Error
-	return errors.As(err, &network) && (network.Timeout() || network.Temporary())
+	return errors.As(err, &network) && network.Timeout()
 }
 
 func retryWithoutStreaming(err error) bool {

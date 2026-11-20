@@ -150,9 +150,9 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 默认工具面参考 PI 保持为 `read`、`shell`、`edit`、`write` 小核心；只读模式改用文件探索核心。Skill 入口直接可用，其余内置工具和大型工具组按需加载，减少中小模型的无关 Schema 与往返。搜索后会提醒模型读取原始来源再回答。
 
-任务规划：`todo_write` 让模型在 3 步以上的复杂任务里先列清单、逐步更新，详见 [docs/learn-todo.md](docs/learn-todo.md)。学习路线见 [三天从 0 到 1 写一个 Agent](docs/tutorial-3-days.md)。
+任务规划：`todo_write` 让模型在 3 步以上的复杂任务里先列清单、逐步更新，详见 [docs/tutorial/02-todo.md](docs/tutorial/02-todo.md)。学习路线见 [三天从 0 到 1 写一个 Agent](docs/tutorial/README.md)。
 
-长期记忆：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/learn-memory.md](docs/learn-memory.md)。
+长期记忆：`memory_save` / `memory_search` / `memory_forget` 把偏好和团队约定存成 `~/.beaver/memory/` 下的 Markdown，微信成员之间个人记忆相互隔离，另有一份团队共享记忆（仅 Beaver Runtime）。详见 [docs/tutorial/04-memory.md](docs/tutorial/04-memory.md)。
 
 
 联网只有两个简单工具：`web_search` 返回候选摘要，`web_fetch` 读取原始网页（带 SSRF 防护）。搜索后端由环境变量选择：设置 `TAVILY_API_KEY` 用 Tavily，设置 `SEARXNG_URL` 用 SearXNG，否则使用 DuckDuckGo。源码见 `internal/builtin/tools/web.go`。

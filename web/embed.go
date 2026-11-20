@@ -6,7 +6,7 @@ import (
 	"io/fs"
 )
 
-// go:embed 是编译器指令，不能在“//”和“go:embed”之间插入空格。
+// 下面的 embed 指令与上一行注释之间必须有空行，且 // 和 go:embed 之间不能有空格。
 // all:dist 会把 dist 下包括点文件在内的内容编译进 assets。
 //
 //go:embed all:dist

@@ -24,6 +24,7 @@
 - **Observable** – live SSE trace of model calls, tools, Skills, MCP, tokens, cache hits, latency and errors, with resume after reconnect.
 - **One capability set for the team** – models, server projects, Skills and MCP are configured once and shared by both runtimes.
 - **Two runtimes** – the built-in *Beaver* loop (Ollama, Anthropic, OpenAI Chat/Responses with native function calling) or the *Codex* CLI.
+- **Planning and memory** – `todo_write` plans multi-step tasks; per-member long-term memory plus shared team memory (Beaver runtime only).
 - **WeChat remote** – submit tasks, check status, stop tasks and receive results from personal WeChat.
 
 ## Quick start
@@ -74,7 +75,7 @@ make dev    # Vite dev server on :5173 (proxies /api to :8080)
 go run ./cmd/beaver -listen 127.0.0.1:8080
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [docs index](docs/README.md) (documentation is currently in Chinese).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [docs index](docs/README.md) (documentation is currently in Chinese, including a [3-day build-an-agent tutorial](docs/tutorial/README.md)).
 
 ## Security notes
 

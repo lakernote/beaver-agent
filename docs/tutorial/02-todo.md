@@ -27,4 +27,4 @@
 2. 给 `todo_write` 加一条规则：`completed` 不能回退成 `pending`。要做到这点必须有状态——想想状态放哪里最简单？（提示：这正是无状态设计省掉的复杂度。）
 3. 在 Web 里发一个“读完 docs 目录并总结”的任务，打开 Trace，观察清单如何被逐步更新。
 
-下一篇：[学习：RAG](learn-rag.md)，之后是 [长期记忆](learn-memory.md)。完整路线见 [三天从零写一个 Agent](tutorial-3-days.md)。
+下一篇：[学习：RAG](03-rag.md)，之后是 [长期记忆](04-memory.md)。完整路线见 [三天从零写一个 Agent](README.md)。
