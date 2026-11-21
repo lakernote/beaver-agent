@@ -60,7 +60,7 @@ func (manager *weixinManager) submit(account store.WeixinAccount, message weixin
 		}
 		workspace := manager.server.prepareSessionWorkspace(manager.server.ctx, sessionID, runEnvironment.Workspace(), runtimeSettings)
 		if _, err := manager.server.store.CreateSession(store.CreateSessionParams{
-			ID: sessionID, Title: makeTitle(text), Runtime: model.Runtime,
+			ID: sessionID, Title: account.Label + "的对话", Runtime: model.Runtime,
 			Channel:   store.ChannelWeixin,
 			ProfileID: model.ProfileID, Model: model.Model, ProjectID: project.ID,
 			Permissions: runtimeSettings.Permissions, Workspace: workspace.Execution, CreatedAt: now,
