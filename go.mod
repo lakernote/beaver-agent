@@ -1,6 +1,6 @@
 module github.com/lakernote/beaver-agent
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/BurntSushi/toml v1.5.0 // 读写 Codex 配置 config.toml
