@@ -1,4 +1,4 @@
-FROM node:22-alpine AS web
+FROM node:26-alpine AS web
 ARG VERSION=dev
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
