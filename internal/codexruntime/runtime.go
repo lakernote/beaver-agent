@@ -258,6 +258,8 @@ type Config struct {
 	ExtraContext    string
 	Attachments     []Attachment
 	Permissions     permissions.Policy
+	ManagedChatGPT  bool
+	ClientTools     *ClientTools
 	OnDelta         func(string)
 	OnEvent         func(Event)
 	OnUsage         func(Usage)
@@ -266,6 +268,23 @@ type Config struct {
 	// 未设置时，RunMessage 会回复标准 JSON-RPC 方法未实现错误，避免把
 	// “服务器请求”误判成协议损坏并直接断开连接。
 	OnServerRequest func(ServerRequest) (any, error)
+}
+
+// ClientTools runs an ephemeral Codex turn with tools executed by the caller.
+type ClientTools struct {
+	Specs   []map[string]any
+	History []map[string]any
+}
+
+func appServerArgs(config Config) []string {
+	args := []string{"app-server"}
+	if config.ManagedChatGPT {
+		args = append(args, "-c", `cli_auth_credentials_store="file"`, "-c", `forced_login_method="chatgpt"`, "-c", `model_provider="openai"`)
+	}
+	if config.ClientTools != nil {
+		args = append(args, "-c", `web_search="disabled"`, "--disable", "shell_tool", "--disable", "apps", "--disable", "multi_agent", "--disable", "multi_agent_v2")
+	}
+	return args
 }
 
 // ThreadInfo records the effective runtime selection returned by app-server.
@@ -413,6 +432,9 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	if strings.TrimSpace(config.Workspace) == "" {
 		return Result{}, errors.New("Codex Runtime 缺少工作区")
 	}
+	if config.ClientTools != nil {
+		config.Permissions = permissions.Policy{Mode: permissions.ModeReadOnly, Approval: permissions.ApprovalNever}
+	}
 	config.Permissions = config.Permissions.Normalize()
 	if err := config.Permissions.Validate(); err != nil {
 		return Result{}, err
@@ -433,13 +455,12 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 
 	// 不使用 CommandContext 的自动 Kill：取消时先给 app-server 一个协议层
 	// turn/interrupt 机会，随后再用进程组终止作为兜底。
-	args := []string{"app-server"}
-	provider := strings.TrimSpace(config.Provider)
-	if provider == "" || strings.EqualFold(provider, "official") || strings.EqualFold(provider, "codex") {
-		// 空 Provider 代表官方 ChatGPT 登录。显式覆盖 config.toml，避免
-		// 该文件此前选中过第三方 Provider 时，官方登录仍被旧默认值劫持。
-		args = append(args, "-c", "model_provider="+strconv.Quote("openai"))
-	} else {
+	args := appServerArgs(config)
+	if !config.ManagedChatGPT {
+		provider := strings.TrimSpace(config.Provider)
+		if provider == "" || strings.EqualFold(provider, "official") || strings.EqualFold(provider, "codex") {
+			provider = "openai"
+		}
 		args = append(args, "-c", "model_provider="+strconv.Quote(provider))
 	}
 	command := exec.Command(config.Path, args...)
@@ -506,7 +527,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 			}
 		}
 		if stderr := strings.TrimSpace(stderrTail.Snapshot()); stderr != "" {
-			emitReadResult(readResult{err: fmt.Errorf("Codex app-server 已退出: %s", stderr)})
+			emitReadResult(readResult{err: fmt.Errorf("Codex app-server 已退出: %s", redact.Sanitize(stderr))})
 			return
 		}
 		emitReadResult(readResult{err: io.EOF})
@@ -617,7 +638,11 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	}
 
 	startedAt := time.Now()
-	if _, err := request("initialize", 1, map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}); err != nil {
+	initialization := map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}
+	if config.ClientTools != nil {
+		initialization["capabilities"] = map[string]bool{"experimentalApi": true}
+	}
+	if _, err := request("initialize", 1, initialization); err != nil {
 		return Result{}, err
 	}
 	if err := send("initialized", 0, map[string]any{}); err != nil {
@@ -637,6 +662,12 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	}
 	if instructions := strings.TrimSpace(config.DeveloperInstructions); instructions != "" {
 		threadParams["developerInstructions"] = instructions
+	}
+	if config.ClientTools != nil {
+		threadParams["ephemeral"] = true
+		if len(config.ClientTools.Specs) > 0 {
+			threadParams["dynamicTools"] = config.ClientTools.Specs
+		}
 	}
 	method := "thread/start"
 	if config.ThreadID != "" {
@@ -658,6 +689,11 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 		return Result{}, errors.New("Codex app-server 没有返回 thread id")
 	}
 	threadID = thread.Thread.ID
+	if config.ClientTools != nil && len(config.ClientTools.History) > 0 {
+		if _, err := request("thread/inject_items", 4, map[string]any{"threadId": threadID, "items": config.ClientTools.History}); err != nil {
+			return Result{}, err
+		}
+	}
 	if config.OnThreadStarted != nil {
 		config.OnThreadStarted(ThreadInfo{ID: threadID, Model: thread.Model, Provider: thread.ModelProvider})
 	}
@@ -692,6 +728,7 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 	}
 
 	var answer strings.Builder
+	var finalAnswer string
 	for {
 		message, err := read()
 		if err != nil {
@@ -715,6 +752,14 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 			}
 			continue
 		}
+		if config.ClientTools != nil && message.Method == "item/completed" {
+			var params struct {
+				Item struct{ Type, Phase, Text string } `json:"item"`
+			}
+			if json.Unmarshal(message.Params, &params) == nil && params.Item.Type == "agentMessage" && params.Item.Phase != "commentary" {
+				finalAnswer = params.Item.Text
+			}
+		}
 		if message.Method == "turn/completed" {
 			var params struct {
 				Turn struct {
@@ -725,16 +770,22 @@ func RunMessage(ctx context.Context, config Config, userMessage string) (Result,
 			_ = json.Unmarshal(message.Params, &params)
 			consumeNotificationWithAnswer(message, config, &answer, timers, &latestUsage)
 			stopReason, detail := codexTurnTermination(params.Turn.Status, params.Turn.Error)
+			result := Result{ThreadID: threadID, Model: thread.Model, Provider: thread.ModelProvider, StopReason: stopReason, Usage: latestUsage, Duration: time.Since(startedAt)}
 			if stopReason != "stop" {
-				return Result{}, &TurnTerminationError{Status: params.Turn.Status, StopReason: stopReason, Detail: detail}
+				return result, &TurnTerminationError{Status: params.Turn.Status, StopReason: stopReason, Detail: detail}
+			}
+			if finalAnswer != "" {
+				answer.Reset()
+				answer.WriteString(finalAnswer)
 			}
 			if answer.Len() == 0 {
 				answer.WriteString(extractCompletedAgentText(message.Params))
 			}
-			if strings.TrimSpace(answer.String()) == "" {
-				return Result{}, errors.New("Codex Runtime 未返回可用回答")
+			result.Answer = strings.TrimSpace(answer.String())
+			if result.Answer == "" {
+				return result, errors.New("Codex Runtime 未返回可用回答")
 			}
-			return Result{ThreadID: threadID, Model: thread.Model, Provider: thread.ModelProvider, Answer: strings.TrimSpace(answer.String()), StopReason: stopReason, Usage: latestUsage, Duration: time.Since(startedAt)}, nil
+			return result, nil
 		}
 		consumeNotificationWithAnswer(message, config, &answer, timers, &latestUsage)
 	}
@@ -839,7 +890,9 @@ func consumeNotificationWithAnswer(message rpcMessage, config Config, answer *st
 		answer.WriteString(extractCompletedAgentText(message.Params))
 	}
 	if message.Method == "thread/tokenUsage/updated" {
-		usage, ok := parseTokenUsage(message.Params)
+		// Each Beaver model turn owns a fresh ephemeral thread. Its cumulative
+		// counters cover all model responses before and after the tool callbacks.
+		usage, ok := parseTokenUsage(message.Params, config.ClientTools != nil)
 		if ok {
 			if latestUsage != nil {
 				*latestUsage = usage
@@ -1047,40 +1100,40 @@ func firstString(value map[string]any, keys ...string) string {
 	return ""
 }
 
-func parseTokenUsage(raw json.RawMessage) (Usage, bool) {
+func parseTokenUsage(raw json.RawMessage, wholeThread bool) (Usage, bool) {
+	type counters struct {
+		InputTokens           int `json:"inputTokens"`
+		OutputTokens          int `json:"outputTokens"`
+		CachedInputTokens     int `json:"cachedInputTokens"`
+		CacheWriteInputTokens int `json:"cacheWriteInputTokens"`
+		ReasoningOutputTokens int `json:"reasoningOutputTokens"`
+		TotalTokens           int `json:"totalTokens"`
+	}
 	var payload struct {
 		TokenUsage struct {
-			Last struct {
-				InputTokens           int `json:"inputTokens"`
-				OutputTokens          int `json:"outputTokens"`
-				CachedInputTokens     int `json:"cachedInputTokens"`
-				CacheWriteInputTokens int `json:"cacheWriteInputTokens"`
-				ReasoningOutputTokens int `json:"reasoningOutputTokens"`
-				TotalTokens           int `json:"totalTokens"`
-			} `json:"last"`
-			Total struct {
-				InputTokens           int `json:"inputTokens"`
-				OutputTokens          int `json:"outputTokens"`
-				CachedInputTokens     int `json:"cachedInputTokens"`
-				CacheWriteInputTokens int `json:"cacheWriteInputTokens"`
-				ReasoningOutputTokens int `json:"reasoningOutputTokens"`
-				TotalTokens           int `json:"totalTokens"`
-			} `json:"total"`
-			ModelContextWindow *int `json:"modelContextWindow"`
+			Last               *counters `json:"last"`
+			Total              *counters `json:"total"`
+			ModelContextWindow *int      `json:"modelContextWindow"`
 		} `json:"tokenUsage"`
 	}
 	if json.Unmarshal(raw, &payload) != nil {
 		return Usage{}, false
 	}
-	last := payload.TokenUsage.Last
+	value := payload.TokenUsage.Last
+	if wholeThread && payload.TokenUsage.Total != nil {
+		value = payload.TokenUsage.Total
+	}
+	if value == nil {
+		return Usage{}, false
+	}
 	usage := Usage{
 		Reported:              true,
-		InputTokens:           last.InputTokens,
-		OutputTokens:          last.OutputTokens,
-		CachedInputTokens:     last.CachedInputTokens,
-		CacheWriteInputTokens: last.CacheWriteInputTokens,
-		ReasoningOutputTokens: last.ReasoningOutputTokens,
-		TotalTokens:           last.TotalTokens,
+		InputTokens:           value.InputTokens,
+		OutputTokens:          value.OutputTokens,
+		CachedInputTokens:     value.CachedInputTokens,
+		CacheWriteInputTokens: value.CacheWriteInputTokens,
+		ReasoningOutputTokens: value.ReasoningOutputTokens,
+		TotalTokens:           value.TotalTokens,
 	}
 	if payload.TokenUsage.ModelContextWindow != nil {
 		usage.ModelContextWindow = *payload.TokenUsage.ModelContextWindow
@@ -1109,9 +1162,9 @@ func rpcErrorText(raw json.RawMessage) string {
 		Message string `json:"message"`
 	}
 	if json.Unmarshal(raw, &value) == nil && value.Message != "" {
-		return value.Message
+		return redact.Sanitize(value.Message)
 	}
-	return string(raw)
+	return redact.Sanitize(string(raw))
 }
 
 func itemDetail(item map[string]any) string {
@@ -1243,7 +1296,7 @@ func rpcError(raw json.RawMessage) error {
 		Message string `json:"message"`
 	}
 	if json.Unmarshal(raw, &value) == nil && value.Message != "" {
-		return errors.New(value.Message)
+		return errors.New(redact.Sanitize(value.Message))
 	}
-	return fmt.Errorf("Codex Runtime 请求失败: %s", string(raw))
+	return fmt.Errorf("Codex Runtime 请求失败: %s", redact.Sanitize(string(raw)))
 }

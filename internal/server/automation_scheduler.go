@@ -32,6 +32,6 @@ func (server *Server) runDueAutomationTasks() {
 		return
 	}
 	for _, task := range tasks {
-		_, _ = server.triggerAutomationTask(server.ctx, task)
+		_, _ = server.triggerAutomationTask(server.ctx, task, true)
 	}
 }

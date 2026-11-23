@@ -11,8 +11,35 @@ import (
 
 	"github.com/lakernote/beaver-agent/internal/agent"
 	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/chatgpt"
 	"github.com/lakernote/beaver-agent/internal/store"
 )
+
+func TestChatGPTSubscriptionModelBindsAccountAndOfficialRoute(t *testing.T) {
+	settings := store.ModelSettings{
+		Provider: store.ChatGPTSubscriptionProvider, ChatGPTAccountID: "personal",
+		BaseURL: "https://private.example/v1", APIKey: "previous-key", Protocol: "chat_completions", Model: "test",
+	}
+	normalized, err := prepareModelInput(settings, settings, false, modeladapter.NewRegistry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.Runtime != store.RuntimeBeaver || normalized.Protocol != modeladapter.ProtocolResponses ||
+		normalized.BaseURL != chatgpt.APIBaseURL || normalized.APIKey != "" {
+		t.Fatalf("subscription credentials must use the official Responses route: %+v", normalized)
+	}
+	if checkChatGPTChannel(normalized, store.ChannelWeixin) == nil || checkChatGPTChannel(normalized, store.ChannelWeb) != nil {
+		t.Fatal("a Weixin member must not inherit the Web admin's ChatGPT subscription")
+	}
+	other := normalized
+	other.ChatGPTAccountID = "other"
+	if modelCapabilityFingerprint(normalized) == modelCapabilityFingerprint(other) {
+		t.Fatal("subscription model verification must be scoped to the selected account")
+	}
+	if _, err := (&Server{}).newModelAdapter(normalized); err != chatgpt.ErrAccountMissing {
+		t.Fatalf("missing authorization must fail before constructing a model client: %v", err)
+	}
+}
 
 func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 	var calls atomic.Int32
@@ -39,10 +66,10 @@ func TestRunModelTestVerifiesCompleteToolRoundTrip(t *testing.T) {
 	defer provider.Close()
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
-	result, err := probeModel(request, store.ModelSettings{
+	result, err := (&Server{}).probeModel(request, store.ModelSettings{
 		Provider: "test", Protocol: "chat_completions", BaseURL: provider.URL, Model: "test",
 		MaxOutputTokens: 100, RequestTimeoutSeconds: 30, CompressionThresholdPercent: 75,
-	}, modeladapter.NewRegistry())
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,9 +85,9 @@ func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 	}))
 	defer provider.Close()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/model/test", nil)
-	_, err := probeModel(request, store.ModelSettings{
+	_, err := (&Server{}).probeModel(request, store.ModelSettings{
 		Protocol: "chat_completions", BaseURL: provider.URL, Model: "test", RequestTimeoutSeconds: 30,
-	}, modeladapter.NewRegistry())
+	})
 	if err == nil || !strings.Contains(err.Error(), "没有返回协议原生 Function Call") {
 		t.Fatalf("普通 JSON 文本不能被误判为工具调用: %v", err)
 	}

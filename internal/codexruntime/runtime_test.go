@@ -289,9 +289,15 @@ func TestCodexStatusAndItemDuration(t *testing.T) {
 }
 
 func TestParseTokenUsage(t *testing.T) {
-	usage, ok := parseTokenUsage(json.RawMessage(`{"threadId":"thread-1","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":1200,"outputTokens":300,"cachedInputTokens":900,"cacheWriteInputTokens":50,"reasoningOutputTokens":100,"totalTokens":1500},"total":{"inputTokens":1200,"outputTokens":300,"cachedInputTokens":900,"cacheWriteInputTokens":50,"reasoningOutputTokens":100,"totalTokens":1500},"modelContextWindow":32768}}`))
+	notification := json.RawMessage(`{"tokenUsage":{"last":{"inputTokens":1200,"outputTokens":300,"cachedInputTokens":900,"cacheWriteInputTokens":50,"reasoningOutputTokens":100,"totalTokens":1500},"total":{"inputTokens":2700,"outputTokens":700,"cachedInputTokens":1500,"cacheWriteInputTokens":70,"reasoningOutputTokens":150,"totalTokens":3400},"modelContextWindow":32768}}`)
+	usage, ok := parseTokenUsage(notification, false)
 	if !ok || !usage.Reported || usage.InputTokens != 1200 || usage.CachedInputTokens != 900 || usage.CacheWriteInputTokens != 50 || usage.ModelContextWindow != 32768 {
 		t.Fatalf("unexpected token usage: %+v", usage)
+	}
+	usage, ok = parseTokenUsage(notification, true)
+	if !ok || !usage.Reported || usage.InputTokens != 2700 || usage.OutputTokens != 700 || usage.TotalTokens != 3400 ||
+		usage.CachedInputTokens != 1500 || usage.CacheWriteInputTokens != 70 {
+		t.Fatalf("unexpected cumulative token usage: %+v", usage)
 	}
 }
 

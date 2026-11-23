@@ -11,6 +11,7 @@ type ModelSettings struct {
 	Protocol                    string `json:"protocol"`
 	BaseURL                     string `json:"baseUrl"`
 	Model                       string `json:"model"`
+	ChatGPTAccountID            string `json:"chatgptAccountId,omitempty"`
 	Thinking                    string `json:"thinking,omitempty"`
 	MaxOutputTokens             int    `json:"maxOutputTokens,omitempty"`
 	MaxSteps                    int    `json:"maxSteps,omitempty"`
@@ -24,7 +25,7 @@ type ModelSettings struct {
 func ModelSettingsFromStore(value store.ModelSettings) ModelSettings {
 	return ModelSettings{
 		ProfileID: value.ProfileID, ProfileName: value.ProfileName, Runtime: string(value.Runtime),
-		Provider: value.Provider, Protocol: value.Protocol, BaseURL: value.BaseURL, Model: value.Model,
+		Provider: value.Provider, Protocol: value.Protocol, BaseURL: value.BaseURL, Model: value.Model, ChatGPTAccountID: value.ChatGPTAccountID,
 		Thinking: value.Thinking, MaxOutputTokens: value.MaxOutputTokens, MaxSteps: value.MaxSteps,
 		RequestTimeoutSeconds: value.RequestTimeoutSeconds, TurnTimeoutSeconds: value.TurnTimeoutSeconds,
 		ContextWindowTokens: value.ContextWindowTokens, CompressionThresholdPercent: value.CompressionThresholdPercent,

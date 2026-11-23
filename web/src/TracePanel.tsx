@@ -22,13 +22,15 @@ export function TracePanel({ session, onLoadOlder, onError, onClose }: { session
     input: events.filter((event) => traceCategory(event) === 'input').length,
     llm: events.filter((event) => traceCategory(event) === 'llm').length,
     tool: events.filter((event) => traceCategory(event) === 'tool').length,
-    usage: events.filter((event) => traceCategory(event) === 'usage').length,
+    usage: events.filter(hasTraceUsage).length,
     status: events.filter((event) => traceCategory(event) === 'status').length,
-    error: events.filter((event) => event.status === 'error').length,
+    error: events.filter(hasTraceError).length,
   }), [events])
   const visibleEvents = useMemo(() => {
     return events.filter((event) => {
-      return filter === 'error' ? event.status === 'error' || event.status === 'unknown' : filter === 'all' || traceCategory(event) === filter
+      if (filter === 'error') return hasTraceError(event)
+      if (filter === 'usage') return hasTraceUsage(event)
+      return filter === 'all' || traceCategory(event) === filter
     })
   }, [events, filter])
   const groups = useMemo(() => groupEventsByTurn(visibleEvents), [visibleEvents])
@@ -69,11 +71,11 @@ function TraceHistoryControls({ session, loading, onLoadOlder }: { session: Sess
 }
 
 function TraceTurn({ label, events, fallbackModel }: { label: string; events: TraceEvent[]; fallbackModel: string }) {
-  const usage = events.reduce((total, event) => total + (event.kind === 'codex_usage' || event.kind === 'model_end' ? event.totalTokens || 0 : 0), 0)
+  const usage = events.filter(hasTraceUsage).reduce((total, event) => total + (event.totalTokens || (event.inputTokens || 0) + (event.outputTokens || 0)), 0)
   const toolCalls = events.filter((event) => traceCategory(event) === 'tool' && event.status !== 'started').length
-  const failed = events.some((event) => event.status === 'error' || event.status === 'unknown')
+  const issues = events.filter(hasTraceError).length
   const model = [...events].reverse().find((event) => ['codex_usage', 'codex_end', 'model_end'].includes(event.kind))?.name
-  return <section className={`trace-turn ${failed ? 'error' : ''}`}><div className="trace-turn-head"><div><strong>{label}</strong><small>{model || fallbackModel}</small></div><div>{usage > 0 && <span><b>{formatTokenCount(usage)}</b> Token</span>}{toolCalls > 0 && <span><b>{toolCalls}</b> 工具调用</span>}<em>{failed ? '有失败' : '已完成'}</em></div></div>{events.map((event) => <TraceRow key={event.id} event={event} />)}</section>
+  return <section className={`trace-turn ${issues ? 'error' : ''}`}><div className="trace-turn-head"><div><strong>{label}</strong><small>{model || fallbackModel}</small></div><div>{usage > 0 && <span><b>{formatTokenCount(usage)}</b> Token</span>}{toolCalls > 0 && <span><b>{toolCalls}</b> 工具记录</span>}<em>{issues ? `${issues} 条异常` : '已完成'}</em></div></div>{events.map((event) => <TraceRow key={event.id} event={event} />)}</section>
 }
 
 export function TraceRow({ event }: { event: TraceEvent }) {
@@ -93,7 +95,7 @@ export function TraceRow({ event }: { event: TraceEvent }) {
       <dl className="trace-meta"><div><dt>事件类型</dt><dd>{event.kind}</dd></div>{event.protocolMethod && <div><dt>JSON-RPC 方法</dt><dd><code>{event.protocolMethod}</code></dd></div>}{event.activityId && <div><dt>活动 ID</dt><dd><code>{event.activityId}</code></dd></div>}{event.protocol && <div><dt>协议</dt><dd><code>{event.protocol}</code></dd></div>}{event.stopReason && <div><dt>停止原因</dt><dd><code>{event.stopReason}</code></dd></div>}{event.statusCode ? <div><dt>HTTP 状态</dt><dd>{event.statusCode}</dd></div> : null}</dl>
       {isTurnRequest ? <CodexTurnRequestDetails event={event} /> : <>
         {(event.detail || event.incompleteReason) && <p className={event.status === 'error' || event.status === 'unknown' ? 'event-error' : 'event-detail'}>{event.detail || event.incompleteReason}</p>}
-        {showsUsage && <div className="event-usage"><span>本次输入 <b>{tokenMissing ? '未上报' : (event.inputTokens || 0).toLocaleString()}</b></span><span>本次输出 <b>{tokenMissing ? '未上报' : (event.outputTokens || 0).toLocaleString()}</b></span><span>缓存命中 <b>{event.cacheReported ? (event.cachedTokens || 0).toLocaleString() : '未上报'}</b></span><span>缓存写入 <b>{event.cacheReported ? (event.cacheWriteTokens || 0).toLocaleString() : '未上报'}</b></span><span>请求消息 <b>{historyModeLabel(event.historyMode || '')} · {event.requestMessages || 0} 项</b></span><span>工具定义 <b>{event.toolDefinitions || 0}</b></span><span>缓存率 <b>{event.cacheReported ? `${cacheRate}%` : '未上报'}</b></span></div>}
+        {showsUsage && <div className="event-usage"><span>输入 Token <b>{tokenMissing ? '未上报' : (event.inputTokens || 0).toLocaleString()}</b></span><span>输出 Token <b>{tokenMissing ? '未上报' : (event.outputTokens || 0).toLocaleString()}</b></span><span>缓存命中 <b>{event.cacheReported ? (event.cachedTokens || 0).toLocaleString() : '未上报'}</b></span><span>缓存写入 <b>{event.cacheReported ? (event.cacheWriteTokens || 0).toLocaleString() : '未上报'}</b></span><span>请求消息 <b>{historyModeLabel(event.historyMode || '')} · {event.requestMessages || 0} 项</b></span><span>工具定义 <b>{event.toolDefinitions || 0}</b></span><span>缓存率 <b>{event.cacheReported ? `${cacheRate}%` : '未上报'}</b></span></div>}
         {(event.input || event.output) && <div className={`trace-io ${event.input && event.output ? 'split' : ''}`}>{event.input && <TracePayload label={event.kind === 'codex_rpc' ? '请求参数' : isModelResult ? '模型请求 · 实际发送' : '输入'} value={event.input} />}{event.output && (isModelResult ? <ModelTraceResponse value={event.output} /> : <TracePayload label={event.kind === 'codex_rpc' ? '响应结果' : '输出'} value={event.output} />)}</div>}
         {event.rawPayload && <details className="trace-raw"><summary><span>{event.kind === 'codex_rpc' ? '原始 JSONL 请求' : '原始 JSONL 事件'}</span><code>{event.protocolMethod || event.kind}</code></summary><TracePayload value={event.rawPayload} copyLabel={event.kind === 'codex_rpc' ? '复制请求' : '复制事件'} /></details>}
       </>}
@@ -156,11 +158,11 @@ function aggregateTraceCalls(events: TraceEvent[]) {
   for (const event of events) {
     const category = traceCategory(event)
     if (category === 'input' || category === 'status') continue
-    const label = category === 'tool' ? activityIdentity(event) : category === 'usage' ? 'Token 用量' : event.name || '模型处理'
+    const label = category === 'tool' ? activityIdentity(event) : category === 'usage' ? 'Token 用量' : event.historyMode === 'codex_tool_callback' ? 'Codex 工具回传' : event.name || '模型处理'
     const key = `${category}:${label}`
     const current = result.get(key) || { key, label, category, count: 0, failed: 0, duration: 0 }
     current.count++
-    if (event.status === 'error' || event.status === 'unknown') current.failed++
+    if (hasTraceError(event)) current.failed++
     current.duration += event.durationMs || 0
     result.set(key, current)
   }
@@ -255,6 +257,7 @@ function formatBytes(value: number) {
 
 function traceEventTitle(event: TraceEvent) {
   if (event.kind === 'model_start') return '模型请求'
+  if (event.historyMode === 'codex_tool_callback') return 'Codex 工具回传'
   if (event.kind === 'model_end') return `模型响应 · ${event.name || '模型'}`
   if (event.kind === 'compaction_start') return '准备压缩上下文'
   if (event.kind === 'compaction_end') return `上下文检查点 · ${event.name || '模型'}`
@@ -426,6 +429,16 @@ function traceCategory(event: TraceEvent): Exclude<TraceFilter, 'all' | 'error'>
   return 'status'
 }
 
+function hasTraceUsage(event: TraceEvent) {
+  return event.kind === 'codex_usage' ||
+    ((event.kind === 'model_end' || event.kind === 'compaction_end') &&
+      Boolean(event.totalTokens || event.inputTokens || event.outputTokens || event.cacheReported))
+}
+
+function hasTraceError(event: TraceEvent) {
+  return event.status === 'error' || event.status === 'unknown'
+}
+
 function traceCategoryLabel(value: ReturnType<typeof traceCategory>) {
   const labels: Record<ReturnType<typeof traceCategory>, string> = { input: '输入', llm: 'LLM', tool: '工具', usage: '用量', status: '状态' }
   return labels[value]
@@ -458,6 +471,7 @@ function traceStatusLabel(status: Session['status'], progress?: string) {
 function eventDurationLabel(event: TraceEvent) {
   if (event.status === 'started') return ''
   if ((event.durationMs || 0) > 0) return ` · ${formatDuration(event.durationMs || 0)}`
+  if (event.historyMode === 'codex_tool_callback') return ' · <1ms'
   return event.kind === 'model_end' || event.kind === 'compaction_end' || event.kind === 'codex_end' ? ' · 耗时未上报' : ''
 }
 

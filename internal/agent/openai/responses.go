@@ -27,6 +27,7 @@ type responsesRequest struct {
 	PreviousResponseID string         `json:"previous_response_id,omitempty"`
 	Reasoning          map[string]any `json:"reasoning,omitempty"`
 	Stream             bool           `json:"stream,omitempty"`
+	Store              *bool          `json:"store,omitempty"`
 }
 
 type responsesContent struct {
@@ -35,12 +36,21 @@ type responsesContent struct {
 }
 
 type responsesOutput struct {
-	Type      string             `json:"type"`
-	Role      string             `json:"role"`
-	Name      string             `json:"name"`
-	CallID    string             `json:"call_id"`
-	Arguments json.RawMessage    `json:"arguments"`
-	Content   []responsesContent `json:"content"`
+	Type             string             `json:"type"`
+	ID               string             `json:"id,omitempty"`
+	Role             string             `json:"role"`
+	Name             string             `json:"name"`
+	Namespace        string             `json:"namespace,omitempty"`
+	CallID           string             `json:"call_id"`
+	Arguments        json.RawMessage    `json:"arguments"`
+	Content          []responsesContent `json:"content"`
+	EncryptedContent string             `json:"encrypted_content,omitempty"`
+}
+
+type responsesError struct {
+	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
+	Param   string `json:"param,omitempty"`
 }
 
 type responsesStreamEvent struct {
@@ -49,10 +59,7 @@ type responsesStreamEvent struct {
 	OutputIndex int               `json:"output_index"`
 	Item        responsesOutput   `json:"item"`
 	Response    responsesResponse `json:"response"`
-	Error       *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"error"`
+	Error       *responsesError   `json:"error"`
 }
 
 type responsesStreamTrace struct {
@@ -69,9 +76,7 @@ type responsesResponse struct {
 	IncompleteDetails *struct {
 		Reason string `json:"reason"`
 	} `json:"incomplete_details"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error"`
+	Error  *responsesError   `json:"error"`
 	Output []responsesOutput `json:"output"`
 	Usage  struct {
 		InputTokens       int           `json:"input_tokens"`
@@ -84,6 +89,13 @@ type responsesResponse struct {
 }
 
 func (client *Client) generateResponse(ctx context.Context, request core.Request) (core.Response, error) {
+	namespace := ""
+	if client.chatGPTSubscription {
+		namespace = beaverToolNamespace
+		request.PreviousResponseID = ""
+		request.Temperature = 0
+		request.MaxOutputTokens = 0
+	}
 	messages := request.Messages
 	if request.PreviousResponseID != "" {
 		messages = request.NewMessages
@@ -91,11 +103,11 @@ func (client *Client) generateResponse(ctx context.Context, request core.Request
 	// Responses 的 previous_response_id 会续接历史输出，但不会继承上一轮的
 	// instructions。基础 System Prompt 每轮都可能包含新的日期和 Skill 元数据，
 	// 因此始终从完整消息取出并再次发送；普通 input 只发送本轮新增消息。
-	instructions, _ := encodeResponsesInput(request.Messages, true)
-	_, input := encodeResponsesInput(messages, false)
+	instructions, _ := encodeResponsesInput(request.Messages, true, "")
+	_, input := encodeResponsesInput(messages, false, namespace)
 	payload := responsesRequest{
 		Model: request.Model, Instructions: instructions, Input: input, Tools: toolSpecs(request.Tools),
-		ToolChoice: encodeResponsesToolChoice(request.ToolChoice), PromptCacheKey: request.PromptCacheKey,
+		ToolChoice: encodeResponsesToolChoice(request.ToolChoice, namespace), PromptCacheKey: request.PromptCacheKey,
 		Temperature: request.Temperature, MaxOutputTokens: request.MaxOutputTokens, PreviousResponseID: request.PreviousResponseID,
 	}
 	if client.thinkingDisabledFor(request) {
@@ -103,7 +115,14 @@ func (client *Client) generateResponse(ctx context.Context, request core.Request
 	} else if request.ReasoningEffort != "" {
 		payload.Reasoning = map[string]any{"effort": request.ReasoningEffort}
 	}
-	if request.OnTextDelta != nil {
+	if client.chatGPTSubscription {
+		store := false
+		payload.Store = &store
+		if len(payload.Tools) > 0 {
+			payload.Tools = []functionTool{{Type: "namespace", Name: namespace, Description: "Beaver tools executed by the local agent.", Tools: payload.Tools}}
+		}
+	}
+	if client.chatGPTSubscription || request.OnTextDelta != nil {
 		payload.Stream = true
 		return client.streamResponse(ctx, payload, request.OnTextDelta)
 	}
@@ -118,6 +137,9 @@ func (client *Client) streamResponse(ctx context.Context, payload responsesReque
 	}
 	exchange := core.Exchange{Model: payload.Model, Protocol: string(Responses), Request: string(body)}
 	decorateRequestShape(&exchange, body)
+	if client.chatGPTSubscription && len(payload.Tools) > 0 {
+		exchange.ToolDefinitions = len(payload.Tools[0].Tools)
+	}
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, client.baseURL+"/responses", bytes.NewReader(body))
 	if err != nil {
 		return core.Response{Exchange: exchange}, err
@@ -138,6 +160,13 @@ func (client *Client) streamResponse(ctx context.Context, payload responsesReque
 		responseBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, 16*1024))
 		exchange.Response = string(responseBody)
 		exchange.Duration = time.Since(startedAt)
+		if client.chatGPTSubscription {
+			var failure struct {
+				Error *responsesError `json:"error"`
+			}
+			_ = json.Unmarshal(responseBody, &failure)
+			return core.Response{Exchange: exchange}, subscriptionError(httpResponse.StatusCode, failure.Error)
+		}
 		return core.Response{Exchange: exchange}, modelHTTPError(httpResponse, responseBody)
 	}
 
@@ -190,7 +219,9 @@ func (client *Client) streamResponse(ctx context.Context, payload responsesReque
 		switch event.Type {
 		case "response.output_text.delta":
 			textOutput.WriteString(event.Delta)
-			onTextDelta(event.Delta)
+			if onTextDelta != nil {
+				onTextDelta(event.Delta)
+			}
 		case "response.output_item.done":
 			items = append(items, event.Item)
 		case "response.completed", "response.incomplete", "response.failed":
@@ -200,12 +231,19 @@ func (client *Client) streamResponse(ctx context.Context, payload responsesReque
 				final.Status = strings.TrimPrefix(event.Type, "response.")
 			}
 		case "error":
+			if client.chatGPTSubscription {
+				recordPartialTrace()
+				return core.Response{Exchange: exchange}, subscriptionError(0, event.Error)
+			}
 			message := "Responses 流返回错误"
 			if event.Error != nil && strings.TrimSpace(event.Error.Message) != "" {
 				message = event.Error.Message
 			}
 			recordPartialTrace()
 			return core.Response{Exchange: exchange}, &core.ModelError{StatusCode: http.StatusInternalServerError, Message: message}
+		}
+		if client.chatGPTSubscription && terminal {
+			break
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -230,7 +268,16 @@ func (client *Client) streamResponse(ctx context.Context, payload responsesReque
 	trace, _ := json.Marshal(responsesStreamTrace{Stream: true, Transport: "sse", FinalResponse: final, RawEvents: chunks})
 	exchange.Response = string(trace)
 	exchange.Duration = time.Since(startedAt)
+	if client.chatGPTSubscription && final.Status == "failed" {
+		return core.Response{Exchange: exchange}, subscriptionError(0, final.Error)
+	}
 	response, decodeErr := decodeResponsesPayload(final)
+	if client.chatGPTSubscription {
+		response.ID = ""
+		if decodeErr == nil {
+			decodeErr = subscriptionReasoning(&response.Message, final.Output)
+		}
+	}
 	response.Exchange = exchange
 	response.Exchange.Usage = response.Usage
 	response.Exchange.StopReason = response.StopReason
@@ -247,9 +294,13 @@ func hasResponseMessage(items []responsesOutput) bool {
 	return false
 }
 
-func encodeResponsesToolChoice(choice core.ToolChoice) any {
+func encodeResponsesToolChoice(choice core.ToolChoice, namespace string) any {
 	if choice.Name != "" {
-		return map[string]string{"type": "function", "name": choice.Name}
+		function := map[string]string{"type": "function", "name": choice.Name}
+		if namespace != "" {
+			function["namespace"] = namespace
+		}
+		return function
 	}
 	switch choice.Mode {
 	case core.ToolChoiceAuto, core.ToolChoiceNone, core.ToolChoiceRequired:
@@ -259,7 +310,7 @@ func encodeResponsesToolChoice(choice core.ToolChoice) any {
 	}
 }
 
-func encodeResponsesInput(messages []core.Message, includeSystem bool) (string, []any) {
+func encodeResponsesInput(messages []core.Message, includeSystem bool, namespace string) (string, []any) {
 	instructions := []string{}
 	input := make([]any, 0, len(messages))
 	for _, message := range messages {
@@ -277,6 +328,14 @@ func encodeResponsesInput(messages []core.Message, includeSystem bool) (string, 
 			input = append(input, map[string]any{"type": "function_call_output", "call_id": message.ToolCallID, "output": output})
 			continue
 		}
+		if namespace != "" && message.Role == core.RoleAssistant && len(message.ReasoningDetails) > 0 {
+			var reasoning []subscriptionReasoningItem
+			if json.Unmarshal(message.ReasoningDetails, &reasoning) == nil {
+				for _, item := range reasoning {
+					input = append(input, item)
+				}
+			}
+		}
 		if strings.TrimSpace(message.Content) != "" || len(message.Attachments) > 0 {
 			input = append(input, map[string]any{"role": string(message.Role), "content": encodeResponsesContent(message)})
 		}
@@ -285,7 +344,11 @@ func encodeResponsesInput(messages []core.Message, includeSystem bool) (string, 
 			if strings.TrimSpace(arguments) == "" {
 				arguments = "{}"
 			}
-			input = append(input, map[string]any{"type": "function_call", "call_id": call.ID, "name": call.Name, "arguments": arguments})
+			function := map[string]any{"type": "function_call", "call_id": call.ID, "name": call.Name, "arguments": arguments}
+			if namespace != "" {
+				function["namespace"] = namespace
+			}
+			input = append(input, function)
 		}
 	}
 	return strings.Join(instructions, "\n\n"), input

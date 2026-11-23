@@ -1,4 +1,4 @@
-import type { AttachmentInput, Bootstrap, CodexModelCatalog, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, RuntimePermissionSettings, Session, SessionHistoryPage, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
+import type { AttachmentInput, Bootstrap, ChatGPTAccount, ChatGPTLogin, ChatGPTModel, CodexModelCatalog, CodexProviderConfig, CodexProviderConfigInput, CodexSessionLogPage, MCPConfig, MCPInstallResult, ModelSettings, RuntimePermissionSettings, Session, SessionHistoryPage, Skill, UsageReport, WeixinLogin, WeixinState } from './types'
 import type { AutomationTask } from './types/automation'
 
 export class APIError extends Error {
@@ -45,6 +45,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json()
 }
 
+const chatGPTPath = (path: string, provider: string) =>
+  `/api/v1/model/chatgpt/${path}?provider=${encodeURIComponent(provider)}`
+
 export const api = {
   me: () => request<{ authenticated: boolean; username: string; passwordGenerated?: boolean }>('/api/v1/auth/me'),
   login: (username: string, password: string) => request<{ authenticated: boolean; username: string }>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
@@ -90,6 +93,12 @@ export const api = {
   activateModelProfile: (id: string) => request<ModelSettings>(`/api/v1/model/${encodeURIComponent(id)}/active`, { method: 'PUT', body: JSON.stringify({}) }),
   deleteModelProfile: (id: string) => request<void>(`/api/v1/model/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   testModel: (model: ModelSettings) => request<{ ok: boolean; model: string; toolCall: string; answer: string; inputTokens: number; outputTokens: number; durationMs: number }>('/api/v1/model/test', { method: 'POST', body: JSON.stringify(model) }),
+  chatGPTAccounts: (provider: string) => request<ChatGPTAccount[]>(chatGPTPath('accounts', provider)),
+  chatGPTModels: (id: string, provider: string) => request<ChatGPTModel[]>(chatGPTPath(`accounts/${encodeURIComponent(id)}/models`, provider)),
+  startChatGPTLogin: (provider: string, accountId?: string) => request<ChatGPTLogin>(chatGPTPath('login', provider), { method: 'POST', body: JSON.stringify({ accountId }) }),
+  chatGPTLogin: (id: string, provider: string) => request<ChatGPTLogin>(chatGPTPath(`login/${encodeURIComponent(id)}`, provider)),
+  cancelChatGPTLogin: (id: string, provider: string) => request<void>(chatGPTPath(`login/${encodeURIComponent(id)}`, provider), { method: 'DELETE' }),
+  signOutChatGPT: (id: string, provider: string) => request<{ revoked: boolean }>(chatGPTPath(`accounts/${encodeURIComponent(id)}`, provider), { method: 'DELETE' }),
   useOllama: (model: string) => request<ModelSettings>('/api/v1/ollama/use', { method: 'POST', body: JSON.stringify({ model }) }),
   codex: () => request<Bootstrap['codex']>('/api/v1/codex'),
   codexModels: () => request<CodexModelCatalog>('/api/v1/codex/models'),

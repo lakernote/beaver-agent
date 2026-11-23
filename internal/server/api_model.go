@@ -21,6 +21,7 @@ type modelSettingsInput struct {
 	Model                       string `json:"model"`
 	APIKey                      string `json:"apiKey,omitempty"`
 	APIKeyEnv                   string `json:"apiKeyEnv,omitempty"`
+	ChatGPTAccountID            string `json:"chatgptAccountId,omitempty"`
 	Thinking                    string `json:"thinking,omitempty"`
 	MaxOutputTokens             int    `json:"maxOutputTokens,omitempty"`
 	MaxSteps                    int    `json:"maxSteps,omitempty"`
@@ -36,7 +37,7 @@ func (input modelSettingsInput) settings() store.ModelSettings {
 	return store.ModelSettings{
 		ProfileID: input.ProfileID, ProfileName: input.ProfileName, Runtime: store.Runtime(input.Runtime),
 		Provider: input.Provider, Protocol: input.Protocol, BaseURL: input.BaseURL, Model: input.Model,
-		APIKey: input.APIKey, APIKeyEnv: input.APIKeyEnv, Thinking: input.Thinking,
+		APIKey: input.APIKey, APIKeyEnv: input.APIKeyEnv, ChatGPTAccountID: input.ChatGPTAccountID, Thinking: input.Thinking,
 		MaxOutputTokens: input.MaxOutputTokens, MaxSteps: input.MaxSteps,
 		RequestTimeoutSeconds: input.RequestTimeoutSeconds, TurnTimeoutSeconds: input.TurnTimeoutSeconds,
 		ContextWindowTokens: input.ContextWindowTokens, CompressionThresholdPercent: input.CompressionThresholdPercent,
@@ -49,9 +50,16 @@ func (server *Server) saveModel(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	settings := payload.settings()
+	if !allowCodexBrowser(response, request, settings.IsChatGPTCodex()) {
+		return
+	}
 	current := server.modelSettingsForInput(settings)
 	input, err := prepareModelInput(settings, current, payload.ClearAPIKey, server.modelAdapterRegistry())
 	if err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := server.requireChatGPTAccount(input); err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -67,6 +75,9 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 	id := strings.TrimSpace(request.PathValue("id"))
 	settings, err := server.store.GetModelSettingsByProfileID(id)
 	if err == nil {
+		if !allowCodexBrowser(response, request, settings.IsChatGPTCodex()) {
+			return
+		}
 		err = server.requireVerifiedBeaver(settings)
 	}
 	if err != nil {
@@ -124,10 +135,16 @@ func validateModelWithRegistry(value store.ModelSettings, registry *modeladapter
 		}
 		return nil
 	}
-	if strings.TrimSpace(value.BaseURL) == "" || strings.TrimSpace(value.Model) == "" {
+	if value.IsChatGPTCodex() && strings.TrimSpace(value.Model) == "" {
+		return errors.New("请选择 Codex 模型")
+	}
+	if !value.IsChatGPTCodex() && (strings.TrimSpace(value.BaseURL) == "" || strings.TrimSpace(value.Model) == "") {
 		return errors.New("模型地址和名称不能为空")
 	}
-	if !registry.Supports(value.Protocol) {
+	if (value.IsChatGPTSubscription() || value.IsChatGPTCodex()) && value.ChatGPTAccountID == "" {
+		return errors.New("请选择已授权的 ChatGPT 账号")
+	}
+	if !value.IsChatGPTCodex() && !registry.Supports(value.Protocol) {
 		return errors.New("不支持的模型协议；可用：" + strings.Join(registry.Protocols(), "、"))
 	}
 	if value.MaxOutputTokens <= 0 {

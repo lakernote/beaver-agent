@@ -20,6 +20,9 @@ import (
 // 1 读取设置与 Skill；2 组装工具（assembleBeaverTools）；3 渲染系统提示词并按需压缩上下文；
 // 4 创建 Runner 并挂好回调（落库、Trace、审批）；5 运行并保存结果。
 func (server *Server) runBeaverTurn(ctx context.Context, id string, session store.Session, settings store.ModelSettings, runEnvironment *appenv.Environment, usage *store.Usage) error {
+	if err := checkChatGPTChannel(settings, session.Channel); err != nil {
+		return err
+	}
 	runtimeSettings, err := server.store.GetRuntimeSettings()
 	if err != nil {
 		return err
@@ -55,6 +58,7 @@ func (server *Server) runBeaverTurn(ctx context.Context, id string, session stor
 	if err != nil {
 		return err
 	}
+	defer closeModel(client)
 	systemPrompt := prompt.Render(prompt.Context{
 		Workspace: runEnvironment.Workspace(), Directories: runEnvironment.Directories(), Skills: skillMeta, MCPs: tools.mcpMeta, SelectedSkills: selectedSkillsForTurn, SelectedTools: tools.selectedNames,
 	})
@@ -207,7 +211,7 @@ func (server *Server) recordToolLifecycle(id string, turn int) func(agent.Event)
 			Guarantee:  store.ToolGuaranteePreEffect,
 			ActivityID: event.ToolCall.ID, Name: event.ToolCall.Name,
 			ActivityKind: event.ToolCall.ActivityKind, ActivitySource: event.ToolCall.ActivitySource,
-			DisplayName: event.ToolCall.DisplayName, Input: string(event.ToolCall.Arguments),
+			DisplayName: event.ToolCall.DisplayName, Input: redactTraceAttachmentData(string(event.ToolCall.Arguments)),
 			StartedAt: event.StartedAt,
 		}
 		if event.Kind == agent.EventToolStart {
@@ -216,12 +220,12 @@ func (server *Server) recordToolLifecycle(id string, turn int) func(agent.Event)
 		if event.Kind != agent.EventToolEnd {
 			return nil
 		}
-		operation.Output = event.Output
+		operation.Output = redactTraceAttachmentData(event.Output)
 		operation.Status = store.ToolOperationSucceeded
 		operation.CompletedAt = event.StartedAt.Add(event.Duration)
 		if event.Err != nil {
 			operation.Status = store.ToolOperationFailed
-			operation.Error = event.Err.Error()
+			operation.Error = redactTraceAttachmentData(event.Err.Error())
 		}
 		return server.store.SettleToolOperation(id, operation)
 	}

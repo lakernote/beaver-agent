@@ -6,6 +6,7 @@ export type ModelSettings = {
   protocol: 'chat_completions' | 'responses' | 'ollama_chat' | 'anthropic_messages' | 'app_server'
   baseUrl: string
   model: string
+  chatgptAccountId?: string
   apiKey?: string
   thinking?: string
   maxOutputTokens: number
@@ -15,6 +16,32 @@ export type ModelSettings = {
   contextWindowTokens: number
   compressionThresholdPercent: number
   secretConfigured?: boolean
+}
+
+export const chatGPTSubscriptionProvider = 'chatgpt-subscription'
+export const chatGPTCodexProvider = 'chatgpt-codex'
+export const chatGPTCodexLabel = 'ChatGPT 订阅（Codex 登录）'
+
+export function isChatGPTProvider(provider?: string) {
+  return provider === chatGPTSubscriptionProvider || provider === chatGPTCodexProvider
+}
+
+export type ChatGPTAccount = {
+  id: string
+  email?: string
+  plan?: string
+  signedIn: boolean
+  planAuthorized: boolean
+}
+
+export type ChatGPTModel = { slug: string; display_name: string }
+
+export type ChatGPTLogin = {
+  id: string
+  authorizeUrl?: string
+  status: 'pending' | 'complete' | 'failed'
+  account?: ChatGPTAccount
+  message?: string
 }
 
 export type ModelProfile = {

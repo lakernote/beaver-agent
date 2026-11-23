@@ -29,6 +29,7 @@ type Config struct {
 	BaseURL             string
 	APIKey              string
 	HTTPClient          *http.Client
+	ChatGPTSubscription bool
 	Timeout             time.Duration
 	DisableThinking     bool
 	ContextWindowTokens int
@@ -61,7 +62,7 @@ func NewRegistry() *Registry {
 		return openai.New(openai.Config{
 			BaseURL: config.BaseURL, APIKey: config.APIKey, Protocol: openai.Responses,
 			HTTPClient: config.HTTPClient, Timeout: config.Timeout, DisableThinking: config.DisableThinking,
-			KeepThinkingForTools: isOllama, DisableContinuation: isOllama,
+			KeepThinkingForTools: isOllama, DisableContinuation: isOllama, ChatGPTSubscription: config.ChatGPTSubscription,
 		})
 	}
 	registry.factories[ProtocolOllamaChat] = func(config Config) (agent.Model, error) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { api } from '../api'
 import type { Bootstrap, CodexModelOption, ModelSettings, RuntimePermissionSettings, Session } from '../types'
+import { chatGPTCodexProvider, isChatGPTProvider } from '../types/model'
 import { isActive, mergeSessionSnapshot } from '../sessionState'
 import { createAttachmentID, encodeAttachment, supportedAttachment, type PendingAttachment } from '../attachments'
 import { capabilityKindLabel, capabilityMention, capabilityOptions, hasCapabilityToken, type CapabilityOption } from '../capabilities'
@@ -88,12 +89,20 @@ export function useChatComposer({ session, data, onSession, onRefresh, onError, 
         : { tone: 'blocked', label: 'Codex 未就绪', detail: data.codex.installed && data.codex.appServerAvailable && !data.codex.authenticated && !data.codexConfig.configured ? '当前运行用户未完成 Codex 登录；请在服务器终端执行 codex login。' : data.codex.message || '请安装或更新 Codex CLI 后重新检测。', canSend: false }
     }
     const settings = selectedProfile.settings
+    if (settings.provider === chatGPTCodexProvider && !data.codexSubscriptionLocal) {
+      return { tone: 'blocked', label: '需要本机访问', detail: '请在运行 Beaver 的电脑上通过 127.0.0.1 或 localhost 打开页面。', canSend: false }
+    }
+    if (isChatGPTProvider(settings.provider)) {
+      return selectedProfile.verified
+        ? { tone: 'ready', label: 'ChatGPT 订阅可用', detail: `使用授权账号的 ChatGPT 订阅 · ${settings.model}`, canSend: true }
+        : { tone: 'blocked', label: '订阅配置尚未就绪', detail: '请在模型配置里确认 ChatGPT 授权，并测试 Function Calling。', canSend: false }
+    }
     if (!settings.provider || !settings.baseUrl || !settings.model) return { tone: 'blocked', label: '配置不完整', detail: '请补全 Provider、服务地址和模型名称。', canSend: false }
     if (settings.provider.toLocaleLowerCase() === 'ollama' && !data.ollama.running) return { tone: 'blocked', label: 'Ollama 未连接', detail: data.ollama.message || '请先启动 Ollama，再重新选择模型。', canSend: false }
     if (!selectedProfile.verified) return { tone: 'blocked', label: '模型尚未验证', detail: '请到模型配置运行一次测试；Beaver 只接受协议原生 Function Call。', canSend: false }
     if (settings.provider.toLocaleLowerCase() !== 'ollama' && !settings.secretConfigured) return { tone: 'warning', label: '建议先测试', detail: '当前配置没有已保存的 API Key；无需认证的兼容服务仍可直接使用。', canSend: true }
     return { tone: 'warning', label: '配置已保存', detail: `${settings.provider} · ${settings.model}；发送时由 Provider 实际验证，建议先测试连接。`, canSend: true }
-  }, [data.codex, data.codexConfig.configured, data.ollama.message, data.ollama.running, isCodexRuntime, selectedProfile, selectedProject, session])
+  }, [data.codex, data.codexConfig.configured, data.codexSubscriptionLocal, data.ollama.message, data.ollama.running, isCodexRuntime, selectedProfile, selectedProject, session])
   useEffect(() => {
     if (!textareaRef.current) return
     textareaRef.current.style.height = 'auto'

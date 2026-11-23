@@ -77,6 +77,11 @@ const (
 	MaxCompressionThresholdPercent     = 90
 )
 
+const (
+	ChatGPTSubscriptionProvider = "chatgpt-subscription"
+	ChatGPTCodexProvider        = "chatgpt-codex"
+)
+
 // ModelSettings 是持久化的模型连接和上下文预算设置。
 type ModelSettings struct {
 	ProfileID       string  `json:"profileId,omitempty"`
@@ -99,6 +104,8 @@ type ModelSettings struct {
 	ContextWindowTokens         int  `json:"contextWindowTokens,omitempty"`
 	CompressionThresholdPercent int  `json:"compressionThresholdPercent,omitempty"`
 	SecretConfigured            bool `json:"secretConfigured,omitempty"`
+
+	ChatGPTAccountID string `json:"chatgptAccountId,omitempty"`
 }
 
 // ModelProfile 是一套可复用的 Runtime 配置。Codex profile 只保存 Beaver
@@ -142,7 +149,7 @@ func DefaultCodexModelSettings() ModelSettings {
 func (value ModelSettings) WithDefaults() ModelSettings {
 	if value.Runtime != RuntimeCodex {
 		value.Runtime = RuntimeBeaver
-		// Beaver 的认证只保存在自己的模型配置 DB 中，不读环境变量，避免两处密钥产生歧义。
+		// API Key 配置只使用 DB 中的值。订阅授权由独立的凭据文件管理。
 		value.APIKeyEnv = ""
 	}
 	if value.Protocol == "" {
@@ -167,6 +174,14 @@ func (value ModelSettings) WithDefaults() ModelSettings {
 		value.CompressionThresholdPercent = DefaultCompressionThresholdPercent
 	}
 	return value
+}
+
+func (value ModelSettings) IsChatGPTSubscription() bool {
+	return value.Runtime != RuntimeCodex && strings.EqualFold(strings.TrimSpace(value.Provider), ChatGPTSubscriptionProvider)
+}
+
+func (value ModelSettings) IsChatGPTCodex() bool {
+	return value.Runtime != RuntimeCodex && strings.EqualFold(strings.TrimSpace(value.Provider), ChatGPTCodexProvider)
 }
 
 // IsOllama 只用于处理 Ollama 自身的协议差异，不参与工具选择。

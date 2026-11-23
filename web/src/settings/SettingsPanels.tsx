@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { api } from '../api'
 import { writeClipboardText } from '../clipboard'
+import { chatGPTCodexLabel, chatGPTCodexProvider, chatGPTSubscriptionProvider, isChatGPTProvider } from '../types/model'
 import type { Bootstrap, CodexProviderConfig, MCPConfig, ModelSettings, RuntimePermissionSettings } from '../types'
+import { ChatGPTSubscriptionFields } from './ChatGPTSubscriptionFields'
 
 export type Notice = { ready: boolean; title: string; message: string }
 
@@ -363,30 +366,71 @@ export function CodexSettings({ config, setConfig, notice, savingConfig, deletin
 type BeaverSettingsProps = {
   data: Bootstrap
   model: ModelSettings
-  setModel: (value: ModelSettings) => void
+  setModel: Dispatch<SetStateAction<ModelSettings>>
   notice: Notice | null
   testing: boolean
   saving: boolean
   onTest: () => void
   onSave: (clearAPIKey?: boolean) => void
   onActivateOllama: (name: string) => Promise<void>
+  onAccountsChanged: () => Promise<unknown>
 }
 
-export function BeaverSettings({ data, model, setModel, notice, testing, saving, onTest, onSave, onActivateOllama }: BeaverSettingsProps) {
+export function BeaverSettings({ data, model, setModel, notice, testing, saving, onTest, onSave, onActivateOllama, onAccountsChanged }: BeaverSettingsProps) {
   const [clearAPIKey, setClearAPIKey] = useState(false)
+  const [chatGPTReady, setChatGPTReady] = useState(false)
+  const [apiConnection, setAPIConnection] = useState<Pick<ModelSettings, 'provider' | 'protocol' | 'baseUrl' | 'model' | 'apiKey' | 'secretConfigured' | 'thinking'>>()
   useEffect(() => setClearAPIKey(false), [model.profileId])
+  const usingChatGPT = isChatGPTProvider(model.provider)
+  const usingCodexLogin = model.provider === chatGPTCodexProvider
+  const subscriptionAvailable = !usingCodexLogin || (data.codexSubscriptionLocal && data.codex.appServerAvailable)
+  const incompleteSubscription = usingChatGPT && (!subscriptionAvailable || !chatGPTReady || !model.model)
   const ollamaOnCompatProtocol = model.provider.trim().toLocaleLowerCase() === 'ollama' && model.protocol !== 'ollama_chat'
   const useNativeOllama = () => setModel({ ...model, protocol: 'ollama_chat', baseUrl: model.baseUrl.replace(/\/v1\/?$/, '') || data.ollama.baseUrl })
+
+  const changeConnection = (provider: string) => {
+    setClearAPIKey(false)
+    setChatGPTReady(false)
+    if (isChatGPTProvider(provider)) {
+      if (!usingChatGPT) {
+        const { provider: apiProvider, protocol, baseUrl, model: name, apiKey, secretConfigured, thinking } = model
+        setAPIConnection({ provider: apiProvider, protocol, baseUrl, model: name, apiKey, secretConfigured, thinking })
+      }
+      const codexLogin = provider === chatGPTCodexProvider
+      setModel({
+        ...model, provider, protocol: codexLogin ? 'app_server' : 'responses',
+        baseUrl: codexLogin ? '' : 'https://api.openai.com/v1',
+        chatgptAccountId: undefined, model: '', apiKey: '', secretConfigured: false, thinking: '',
+      })
+    } else {
+      setModel({
+        ...model, provider: 'openai', protocol: 'chat_completions', baseUrl: 'https://api.openai.com/v1',
+        model: '', apiKey: '', secretConfigured: false, thinking: '', ...apiConnection, chatgptAccountId: undefined,
+      })
+    }
+  }
 
   return (
     <div className="section-block beaver-config">
       <div className="section-heading">
-        <div><h2>模型连接</h2><p>Beaver 支持原生 Ollama、Anthropic，以及 OpenAI Chat/Responses 兼容接口。</p></div>
-        <span className="tag">{model.protocol}</span>
+        <div><h2>模型连接</h2><p>选择 ChatGPT 订阅，或连接 Ollama、Anthropic 和 OpenAI 兼容服务。</p></div>
+        {!usingChatGPT && <span className="tag">{model.protocol}</span>}
       </div>
       {model.provider.trim().toLocaleLowerCase() === 'ollama' && <OllamaModelCatalog data={data} saving={saving} onActivate={onActivateOllama} />}
       {ollamaOnCompatProtocol && <div className="ollama-protocol-warning"><div><strong>当前 Ollama 配置走兼容协议</strong><small>建议改用原生 Ollama Chat：流式 NDJSON、工具调用和上下文参数都由专用适配器处理。切换后仍需测试并保存。</small></div><button className="ghost-button" type="button" onClick={useNativeOllama}>改为原生协议</button></div>}
       <div className="form-grid">
+        <label className="wide">连接方式
+          <select value={usingChatGPT ? model.provider : 'api'} onChange={(event) => changeConnection(event.target.value)}>
+            <option value="api">API / 本地模型</option>
+            <option value={chatGPTSubscriptionProvider}>ChatGPT 订阅</option>
+            <option value={chatGPTCodexProvider}>{chatGPTCodexLabel}</option>
+          </select>
+        </label>
+        {usingChatGPT ? (subscriptionAvailable
+          ? <ChatGPTSubscriptionFields key={model.provider} model={model} setModel={setModel} setReady={setChatGPTReady} onAccountsChanged={onAccountsChanged} />
+          : <div className="wide" role="status">{data.codexSubscriptionLocal
+            ? '请在 Beaver 所在机器安装支持 App Server 的 Codex CLI。'
+            : <>请在运行 Beaver 的电脑上，通过 <code>127.0.0.1</code> 或 <code>localhost</code> 打开页面，再连接账号。</>}</div>) : <>
         <label>提供方<input value={model.provider} onChange={(event) => setModel({ ...model, provider: event.target.value })} /></label>
         <label>协议
           <select value={model.protocol} onChange={(event) => setModel({ ...model, protocol: event.target.value as ModelSettings['protocol'] })}>
@@ -404,30 +448,31 @@ export function BeaverSettings({ data, model, setModel, notice, testing, saving,
           onApiKeyChange={(value) => { setClearAPIKey(false); setModel({ ...model, apiKey: value }) }}
           onClearApiKeyChange={(value) => { setClearAPIKey(value); if (value) setModel({ ...model, apiKey: '' }) }}
         />
+        </>}
         <details className="model-advanced wide">
-          <summary><span><strong>高级设置</strong><small>步数、Token、超时与上下文压缩</small></span><b aria-hidden="true">展开</b></summary>
+          <summary><span><strong>高级设置</strong><small>{usingCodexLogin ? '步数与模型超时' : '步数、Token、超时与上下文压缩'}</small></span><b aria-hidden="true">展开</b></summary>
           <div className="form-grid">
-            <label>推理模式
+            {!usingChatGPT && <label>推理模式
               <select value={model.thinking || ''} onChange={(event) => setModel({ ...model, thinking: event.target.value })}>
                 <option value="">模型默认</option><option value="disabled">尝试关闭推理</option>
               </select>
               <small>工具选择失败时，优先检查服务端是否支持原生 tool_calls。</small>
-            </label>
+            </label>}
             <label>最大 Agent 步数<input type="number" min={data.modelRules.minMaxSteps} max={data.modelRules.maxMaxSteps} value={model.maxSteps} onChange={(event) => setModel({ ...model, maxSteps: Number(event.target.value) })} /><small>默认 {data.modelRules.defaultMaxSteps} 步。</small></label>
-            <label>最大输出 Token<input type="number" min="256" value={model.maxOutputTokens} onChange={(event) => setModel({ ...model, maxOutputTokens: Number(event.target.value) })} /></label>
+            {!usingChatGPT && <label>最大输出 Token<input type="number" min="256" value={model.maxOutputTokens} onChange={(event) => setModel({ ...model, maxOutputTokens: Number(event.target.value) })} /></label>}
             <label>模型超时（秒）<input type="number" min={data.modelRules.minRequestTimeoutSeconds} max={data.modelRules.maxRequestTimeoutSeconds} value={model.requestTimeoutSeconds} onChange={(event) => setModel({ ...model, requestTimeoutSeconds: Number(event.target.value) })} /></label>
-            <label>上下文窗口 Token
+            {!usingCodexLogin && <><label>上下文窗口 Token
               <input type="number" min="0" value={model.contextWindowTokens || 0} onChange={(event) => setModel({ ...model, contextWindowTokens: Number(event.target.value) })} />
               <small>0 表示未知；Ollama 运行后会读取实际窗口。</small>
             </label>
-            <label>自动压缩阈值<input type="number" min={data.modelRules.minCompressionThresholdPercent} max={data.modelRules.maxCompressionThresholdPercent} value={model.compressionThresholdPercent} onChange={(event) => setModel({ ...model, compressionThresholdPercent: Number(event.target.value) })} /></label>
+            <label>自动压缩阈值<input type="number" min={data.modelRules.minCompressionThresholdPercent} max={data.modelRules.maxCompressionThresholdPercent} value={model.compressionThresholdPercent} onChange={(event) => setModel({ ...model, compressionThresholdPercent: Number(event.target.value) })} /></label></>}
           </div>
         </details>
       </div>
       <ModelNotice notice={notice} />
       <div className="form-actions">
-        <button className="ghost-button" type="button" disabled={testing} onClick={onTest}>{testing ? '正在验证 Function Calling…' : '测试 Beaver 模型'}</button>
-        <button className="primary-button" type="button" disabled={saving} onClick={() => onSave(clearAPIKey)}>{saving ? '保存中…' : '保存 Beaver 配置'}</button>
+        <button className="ghost-button" type="button" disabled={testing || incompleteSubscription} onClick={onTest}>{testing ? '正在验证 Function Calling…' : '测试 Beaver 模型'}</button>
+        <button className="primary-button" type="button" disabled={saving || incompleteSubscription} onClick={() => onSave(!usingChatGPT && clearAPIKey)}>{saving ? '保存中…' : '保存 Beaver 配置'}</button>
       </div>
     </div>
   )

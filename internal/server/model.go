@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	codexmodel "github.com/lakernote/beaver-agent/internal/agent/codex"
 	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
+	"github.com/lakernote/beaver-agent/internal/chatgpt"
 	"github.com/lakernote/beaver-agent/internal/codexruntime"
 	"github.com/lakernote/beaver-agent/internal/store"
 )
@@ -28,6 +30,31 @@ type modelTestResult struct {
 // 不允许两个入口各自解释“空 API Key”，否则容易再次跨 Provider 复用旧密钥。
 func prepareModelInput(input, current store.ModelSettings, clearAPIKey bool, registry *modeladapter.Registry) (store.ModelSettings, error) {
 	input = input.WithDefaults()
+	if input.IsChatGPTCodex() {
+		input.Provider = store.ChatGPTCodexProvider
+		input.Protocol = codexmodel.Protocol
+		input.BaseURL, input.APIKey, input.Thinking = "", "", ""
+		input.Model = strings.TrimSpace(input.Model)
+		input.ChatGPTAccountID = strings.TrimSpace(input.ChatGPTAccountID)
+		input.MaxOutputTokens = store.DefaultMaxOutputTokens
+		// App-server manages the context window while a Codex turn is active.
+		input.ContextWindowTokens = 0
+		input.CompressionThresholdPercent = store.DefaultCompressionThresholdPercent
+		return input, validateModelWithRegistry(input, registry)
+	}
+	if input.IsChatGPTSubscription() {
+		input.Provider = store.ChatGPTSubscriptionProvider
+		input.Protocol = modeladapter.ProtocolResponses
+		input.BaseURL = chatgpt.APIBaseURL
+		input.APIKey = ""
+		input.ChatGPTAccountID = strings.TrimSpace(input.ChatGPTAccountID)
+		input.Thinking = ""
+		// The preview omits max_output_tokens on the wire. Keep a default
+		// output reserve for Beaver's local context budget.
+		input.MaxOutputTokens = store.DefaultMaxOutputTokens
+		return input, validateModelWithRegistry(input, registry)
+	}
+	input.ChatGPTAccountID = ""
 	if clearAPIKey && input.APIKey != "" {
 		return store.ModelSettings{}, errors.New("不能同时填写新 API Key 和清除已保存的 API Key")
 	}
@@ -73,6 +100,9 @@ func (server *Server) testModel(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	input := payload.settings()
+	if !allowCodexBrowser(response, request, input.IsChatGPTCodex()) {
+		return
+	}
 	current := server.modelSettingsForInput(input)
 	settings, err := prepareModelInput(input, current, false, server.modelAdapterRegistry())
 	if err != nil {
@@ -134,11 +164,13 @@ func modelCapabilityFingerprint(settings store.ModelSettings) string {
 	payload := struct {
 		Provider, Protocol, BaseURL, Model, Thinking, Secret string
 		ContextWindowTokens, MaxOutputTokens                 int
+		ChatGPTAccountID                                     string `json:",omitempty"`
 	}{
 		Provider: strings.ToLower(strings.TrimSpace(settings.Provider)),
 		Protocol: strings.TrimSpace(settings.Protocol), BaseURL: strings.TrimRight(strings.TrimSpace(settings.BaseURL), "/"),
 		Model: strings.TrimSpace(settings.Model), Thinking: strings.TrimSpace(settings.Thinking),
 		Secret: fmt.Sprintf("%x", secretHash[:]), ContextWindowTokens: settings.ContextWindowTokens, MaxOutputTokens: settings.MaxOutputTokens,
+		ChatGPTAccountID: settings.ChatGPTAccountID,
 	}
 	data, _ := json.Marshal(payload)
 	fingerprint := sha256.Sum256(data)
@@ -149,6 +181,9 @@ func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error 
 	if settings.Runtime == store.RuntimeCodex {
 		return nil
 	}
+	if err := server.requireChatGPTAccount(settings); err != nil {
+		return err
+	}
 	verified, err := server.store.HasModelCapabilityTest(modelCapabilityFingerprint(settings))
 	if err != nil {
 		return fmt.Errorf("读取模型能力验证: %w", err)
@@ -157,8 +192,4 @@ func (server *Server) requireVerifiedBeaver(settings store.ModelSettings) error 
 		return errors.New("当前模型配置尚未通过原生 Function Calling 能力测试；请先在设置中测试当前模型。Beaver 不会解析文本伪工具调用")
 	}
 	return nil
-}
-
-func (server *Server) probeModel(request *http.Request, settings store.ModelSettings) (modelTestResult, error) {
-	return probeModel(request, settings, server.modelAdapterRegistry())
 }

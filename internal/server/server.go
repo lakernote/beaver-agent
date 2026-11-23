@@ -30,6 +30,7 @@ import (
 
 	"github.com/lakernote/beaver-agent/internal/agent/modeladapter"
 	"github.com/lakernote/beaver-agent/internal/appenv"
+	"github.com/lakernote/beaver-agent/internal/chatgpt"
 	"github.com/lakernote/beaver-agent/internal/codexruntime"
 	"github.com/lakernote/beaver-agent/internal/memory"
 	"github.com/lakernote/beaver-agent/internal/store"
@@ -45,7 +46,11 @@ type Server struct {
 	// modelAdapters is owned by this application instance. Keeping the registry
 	// here avoids package-global provider state and makes server construction
 	// explicit and testable.
-	modelAdapters *modeladapter.Registry
+	modelAdapters  *modeladapter.Registry
+	chatGPT        *chatgpt.Client
+	chatGPTCodex   *chatgpt.CodexClient
+	chatGPTLoginMu sync.Mutex
+	chatGPTLogin   *pendingChatGPTLogin
 
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -107,6 +112,8 @@ func newServer(database *store.Store, assets fs.FS, environment *appenv.Environm
 	server := &Server{
 		store: database, assets: assets, env: environment, memory: memory.New(filepath.Join(environment.Home(), "memory")), mux: http.NewServeMux(),
 		modelAdapters: modelAdapters,
+		chatGPT:       chatgpt.New(environment.Home()),
+		chatGPTCodex:  chatgpt.NewCodex(environment),
 		ctx:           ctx, cancel: cancel, scheduler: newTaskScheduler(runtimeSettings.MaxConcurrentTasks),
 		tasks: newTaskManager(), codexEnv: codexEnv, codexEnvErr: codexEnvErr, authSessions: make(map[string]authSession),
 		authEnabled: options.authEnabled, externalCapabilitySync: options.externalCapabilitySync,

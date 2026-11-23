@@ -56,6 +56,9 @@ func (server *Server) createAutomationTask(response http.ResponseWriter, request
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !server.allowAutomationBrowserModel(response, request, value.ProfileID) {
+		return
+	}
 	value.ID = newID()
 	value.CreatedAt = time.Now()
 	value.UpdatedAt = value.CreatedAt
@@ -85,6 +88,9 @@ func (server *Server) updateAutomationTask(response http.ResponseWriter, request
 	value, err := server.normalizeAutomationTask(input, time.Now(), current.Enabled)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !server.allowAutomationBrowserModel(response, request, value.ProfileID) {
 		return
 	}
 	value.ID = current.ID
@@ -136,6 +142,9 @@ func (server *Server) setAutomationTaskEnabled(response http.ResponseWriter, req
 	if !decodeJSON(response, request, &input) {
 		return
 	}
+	if input.Enabled && !server.allowAutomationBrowserModel(response, request, current.ProfileID) {
+		return
+	}
 	current.Enabled = input.Enabled
 	current.UpdatedAt = time.Now()
 	if current.Enabled && current.ScheduleEnabled {
@@ -170,7 +179,11 @@ func (server *Server) runAutomationTask(response http.ResponseWriter, request *h
 		writeError(response, http.StatusConflict, "请先启用定时任务")
 		return
 	}
-	sessionID, err := server.triggerAutomationTask(request.Context(), task)
+	sessionID, err := server.triggerAutomationTask(request.Context(), task, localCodexBrowser(request))
+	if errors.Is(err, errCodexLocalBrowser) {
+		writeError(response, http.StatusForbidden, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -181,6 +194,14 @@ func (server *Server) runAutomationTask(response http.ResponseWriter, request *h
 		return
 	}
 	writeJSON(response, http.StatusAccepted, automationTaskRunResponse{Task: updated, SessionID: sessionID})
+}
+
+func (server *Server) allowAutomationBrowserModel(response http.ResponseWriter, request *http.Request, profileID string) bool {
+	if localCodexBrowser(request) {
+		return true
+	}
+	model, err := server.store.GetModelSettingsByProfileID(profileID)
+	return err != nil || allowCodexBrowser(response, request, model.IsChatGPTCodex())
 }
 
 func (server *Server) normalizeAutomationTask(input automationTaskRequest, now time.Time, enabled bool) (store.AutomationTask, error) {
@@ -271,7 +292,11 @@ func (server *Server) validWeixinMembers(ids []string) ([]string, error) {
 	return result, nil
 }
 
-func (server *Server) triggerAutomationTask(ctx context.Context, task store.AutomationTask) (string, error) {
+func (server *Server) triggerAutomationTask(ctx context.Context, task store.AutomationTask, allowCodexSubscription bool) (string, error) {
+	model, modelErr := server.store.GetModelSettingsByProfileID(task.ProfileID)
+	if modelErr == nil && !allowCodexSubscription && model.IsChatGPTCodex() {
+		return "", errCodexLocalBrowser
+	}
 	now := time.Now()
 	var nextRunAt *time.Time
 	if task.Enabled && task.ScheduleEnabled {
@@ -288,23 +313,22 @@ func (server *Server) triggerAutomationTask(ctx context.Context, task store.Auto
 	if !marked {
 		return "", errors.New("任务已停用或正在被其他调度器执行")
 	}
-	sessionID, err := server.startAutomationSession(ctx, task)
-	if err != nil {
-		_ = server.store.RecordAutomationTaskResult(task.ID, store.AutomationFailed, err.Error(), "", time.Now())
-		server.notifyAutomationFailure(task, err)
-		return "", err
+	var sessionID string
+	if modelErr == nil {
+		sessionID, modelErr = server.startAutomationSession(ctx, task, model)
+	}
+	if modelErr != nil {
+		_ = server.store.RecordAutomationTaskResult(task.ID, store.AutomationFailed, modelErr.Error(), "", time.Now())
+		server.notifyAutomationFailure(task, modelErr)
+		return "", modelErr
 	}
 	return sessionID, nil
 }
 
-func (server *Server) startAutomationSession(ctx context.Context, task store.AutomationTask) (string, error) {
+func (server *Server) startAutomationSession(ctx context.Context, task store.AutomationTask, model store.ModelSettings) (string, error) {
 	environment, err := server.env.WithWorkspace(task.Workspace)
 	if err != nil {
 		return "", fmt.Errorf("工作目录不可用: %w", err)
-	}
-	model, err := server.store.GetModelSettingsByProfileID(task.ProfileID)
-	if err != nil {
-		return "", err
 	}
 	model = model.WithDefaults()
 	if err := validateModel(model); err != nil {

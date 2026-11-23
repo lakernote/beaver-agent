@@ -119,7 +119,7 @@ docker run -d --name beaver \
 
 | | Beaver（自研轻量 Agent） | Codex CLI |
 | --- | --- | --- |
-| 模型 | Ollama、Anthropic、OpenAI Chat/Responses 及兼容服务，可纯本地离线 | Codex 账号或自定义网关 |
+| 模型 | ChatGPT 订阅、Ollama、Anthropic、OpenAI Chat/Responses 及兼容接口 | Codex 账号或自定义网关 |
 | 擅长 | 通用任务、运维排查、联网研究；一个小而透明的工具循环 | 复杂代码改动，自带沙箱与 thread |
 | 要求 | 模型须支持协议原生 Function Calling | 机器上已安装并登录 Codex CLI |
 | 共用 | 项目、队列、Skills、MCP、Trace 和微信入口完全一致 | 同左 |
@@ -141,6 +141,16 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 <p align="center">
   <img src="docs/images/model-and-tools.png" alt="Beaver 运行时与模型设置" width="920" />
 </p>
+
+### 在 Beaver Runner 中使用 ChatGPT 订阅
+
+在本机打开 Beaver，进入 **设置 → 模型配置 → Beaver → 新建配置**。把连接方式选为 **ChatGPT 订阅**，点 **Continue with ChatGPT**，用自己的账号登录并同意使用套餐。选择账号可用的模型，测试 Function Calling，保存后即可在新会话中选择这套配置。
+
+可以保存多套 ChatGPT 订阅模型配置，每套选择账号与模型。符合条件的请求使用 [OpenAI 的订阅共享预览](https://developers.openai.com/siwc/token-sharing-open-source)，用量在 [ChatGPT 设置](https://chatgpt.com/settings/usage) 管理。授权浏览器需要和 Beaver 运行在同一台机器上。使用微信入口时，请为它保留其他模型作为新会话默认，在 Web 新会话中选择订阅配置。
+
+在运行 Beaver 的电脑上，通过 `127.0.0.1` 或 `localhost` 打开页面，即可选择 **ChatGPT 订阅（Codex 登录）**。默认监听 `0.0.0.0:8080` 时也可从本机连接。安装支持动态工具的 Codex CLI，点击 **登录 ChatGPT** 并用自己的账号授权，然后选择模型、测试并保存。官方 Codex 将每个账号的凭据单独保存在 `~/.beaver/chatgpt-codex/<账号 ID>/auth.json`。工具由 Beaver Runner 执行，包括现有的权限、审批和记录。
+
+Web 新会话和定时任务可以选择这套配置。要从微信使用，在模型配置中将它设为默认，再在绑定的微信里发送 `/new`。此方式用于 Beaver 的本地使用，详情见 [Codex App Server 登录文档](https://developers.openai.com/codex/app-server#authentication)。
 
 ## 内置能力
 

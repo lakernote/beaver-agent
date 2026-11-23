@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { Bootstrap, CodexProviderConfig, ModelProfile, ModelSettings } from '../types'
+import { isChatGPTProvider } from '../types/model'
 import { formatDuration } from '../format'
 import type { Notice } from './SettingsPanels'
 
@@ -84,10 +85,11 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     const ollamaBase = data.ollama.baseUrl.replace(/\/+$/, '')
     return {
       ...common,
+      chatgptAccountId: undefined,
       provider: saved?.provider || (data.ollama.running ? 'ollama' : 'openai'),
-      protocol: saved?.protocol && saved.protocol !== 'app_server' ? saved.protocol : (data.ollama.running ? 'ollama_chat' : 'chat_completions'),
-      baseUrl: saved?.baseUrl || (data.ollama.running ? ollamaBase : ''),
-      model: saved?.model || '',
+      protocol: saved?.protocol || (data.ollama.running ? 'ollama_chat' : 'chat_completions'),
+      baseUrl: saved?.baseUrl ?? (data.ollama.running ? ollamaBase : ''),
+      model: isChatGPTProvider(saved?.provider) ? '' : saved?.model || '',
       thinking: saved?.thinking || '',
     }
   }

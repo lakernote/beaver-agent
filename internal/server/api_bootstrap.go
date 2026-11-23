@@ -12,23 +12,24 @@ import (
 )
 
 type bootstrapPayload struct {
-	Sessions             []sessionView               `json:"sessions"`
-	Projects             []httpdto.Project           `json:"projects"`
-	SessionsHasMore      bool                        `json:"sessionsHasMore,omitempty"`
-	Model                modelSettingsView           `json:"model"`
-	ModelProfiles        []modelProfileView          `json:"modelProfiles"`
-	ActiveModelProfileID string                      `json:"activeModelProfileId"`
-	Skills               []store.SkillOverride       `json:"skills"`
-	BuiltinTools         []builtintools.Info         `json:"builtinTools"`
-	MCPPresets           []mcppresets.Preset         `json:"mcpPresets"`
-	ModelRules           modelRulesPayload           `json:"modelRules"`
-	MCPs                 []httpdto.MCPConfig         `json:"mcps"`
-	SystemPrompt         string                      `json:"systemPrompt"`
-	Ollama               ollamaStatus                `json:"ollama"`
-	Codex                codexRuntimeStatus          `json:"codex"`
-	CodexConfig          codexruntime.ProviderConfig `json:"codexConfig"`
-	Runtime              runtimeInfoPayload          `json:"runtime"`
-	RuntimeSettings      store.RuntimeSettings       `json:"runtimeSettings"`
+	Sessions               []sessionView               `json:"sessions"`
+	Projects               []httpdto.Project           `json:"projects"`
+	SessionsHasMore        bool                        `json:"sessionsHasMore,omitempty"`
+	Model                  modelSettingsView           `json:"model"`
+	ModelProfiles          []modelProfileView          `json:"modelProfiles"`
+	ActiveModelProfileID   string                      `json:"activeModelProfileId"`
+	Skills                 []store.SkillOverride       `json:"skills"`
+	BuiltinTools           []builtintools.Info         `json:"builtinTools"`
+	MCPPresets             []mcppresets.Preset         `json:"mcpPresets"`
+	ModelRules             modelRulesPayload           `json:"modelRules"`
+	MCPs                   []httpdto.MCPConfig         `json:"mcps"`
+	SystemPrompt           string                      `json:"systemPrompt"`
+	Ollama                 ollamaStatus                `json:"ollama"`
+	Codex                  codexRuntimeStatus          `json:"codex"`
+	CodexConfig            codexruntime.ProviderConfig `json:"codexConfig"`
+	CodexSubscriptionLocal bool                        `json:"codexSubscriptionLocal"`
+	Runtime                runtimeInfoPayload          `json:"runtime"`
+	RuntimeSettings        store.RuntimeSettings       `json:"runtimeSettings"`
 }
 
 type modelProfileView struct {
@@ -124,10 +125,11 @@ func (server *Server) bootstrap(response http.ResponseWriter, request *http.Requ
 		Sessions: server.sessionViews(sessions), Projects: httpdto.ProjectsFromStore(projects), SessionsHasMore: sessionsHasMore, Model: publicModel(model), ModelProfiles: publicProfiles, ActiveModelProfileID: activeProfileID, Skills: catalog.All(),
 		BuiltinTools: toolInfo, MCPPresets: mcppresets.Catalog(), ModelRules: modelRules(),
 		MCPs: publicMCPs(mcps), SystemPrompt: prompt.Template(), Ollama: server.detectOllama(request.Context()),
-		Runtime:         runtimeInfoPayload{Home: server.env.Home(), Workspace: server.env.Workspace(), Runtime: server.env.Runtime()},
-		RuntimeSettings: runtimeSettings,
-		Codex:           server.detectCodex(request.Context()),
-		CodexConfig:     server.loadCodexConfig(),
+		Runtime:                runtimeInfoPayload{Home: server.env.Home(), Workspace: server.env.Workspace(), Runtime: server.env.Runtime()},
+		RuntimeSettings:        runtimeSettings,
+		Codex:                  server.detectCodex(request.Context()),
+		CodexConfig:            server.loadCodexConfig(),
+		CodexSubscriptionLocal: localCodexBrowser(request),
 	})
 }
 
@@ -150,6 +152,9 @@ func (server *Server) modelProfileViews(profiles []store.ModelProfile) ([]modelP
 			if err != nil {
 				return nil, err
 			}
+		}
+		if verified && (profile.Settings.IsChatGPTSubscription() || profile.Settings.IsChatGPTCodex()) {
+			verified = server.requireChatGPTAccount(profile.Settings) == nil
 		}
 		views = append(views, modelProfileView{
 			ID: profile.ID, Name: profile.Name, Settings: publicModel(profile.Settings), Verified: verified,

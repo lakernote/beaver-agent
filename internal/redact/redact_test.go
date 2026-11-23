@@ -30,3 +30,18 @@ func TestSanitizePreservesNonJSONText(t *testing.T) {
 		t.Fatalf("Sanitize() = %q, want %q", result, input)
 	}
 }
+
+func TestSanitizeRedactsPrivateDataInText(t *testing.T) {
+	const message = "HTTP 403 for member@example.test. Authorization: Bearer demo-value-12345, URL https://example.test/callback?code=demo-code&state=demo-state&keep=yes"
+	for _, input := range []string{message, `{"error":"` + message + `"}`} {
+		result := Sanitize(input)
+		for _, value := range []string{"member@example.test", "demo-value-12345", "demo-code", "demo-state"} {
+			if strings.Contains(result, value) {
+				t.Fatal("trace still contains private data")
+			}
+		}
+		if !strings.Contains(result, "HTTP 403") || !strings.Contains(result, "keep=yes") {
+			t.Fatal("trace lost its diagnostic details")
+		}
+	}
+}

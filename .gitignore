@@ -14,6 +14,10 @@ data/*.db-wal
 data/backup-*/
 data/workspaces/
 
+auth.json
+chatgpt.json
+chatgpt-codex/
+
 *.log
 coverage.out
 *.tsbuildinfo

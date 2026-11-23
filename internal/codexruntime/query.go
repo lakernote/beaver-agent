@@ -10,20 +10,34 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lakernote/beaver-agent/internal/redact"
 )
 
 // Call executes one read-only app-server RPC. It is used for model/account
 // discovery and intentionally does not expose the raw transport to HTTP.
 func Call(ctx context.Context, config Config, method string, params any) (json.RawMessage, error) {
+	var result json.RawMessage
+	err := withAppServer(ctx, config, func(request appServerRequest, _ func() (rpcMessage, error)) error {
+		var err error
+		result, err = request(2, method, params)
+		return err
+	})
+	return result, err
+}
+
+type appServerRequest func(int, string, any) (json.RawMessage, error)
+
+func withAppServer(ctx context.Context, config Config, run func(appServerRequest, func() (rpcMessage, error)) error) error {
 	if strings.TrimSpace(config.Path) == "" {
-		return nil, errors.New("Codex Runtime 未安装")
+		return errors.New("Codex Runtime 未安装")
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 30 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(ctx, config.Timeout)
 	defer cancel()
-	command := exec.Command(config.Path, "app-server")
+	command := exec.Command(config.Path, appServerArgs(config)...)
 	command.Dir = config.Workspace
 	if len(config.Env) > 0 {
 		command.Env = config.Env
@@ -31,21 +45,21 @@ func Call(ctx context.Context, config Config, method string, params any) (json.R
 	configureProcessTree(command)
 	stdin, err := command.StdinPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	stderr, err := command.StderrPipe()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var stderrTail synchronizedBuffer
 	stderrTail.limit = 16 * 1024
 	go func() { _, _ = io.Copy(&stderrTail, stderr) }()
 	if err := command.Start(); err != nil {
-		return nil, fmt.Errorf("启动 Codex app-server: %w", err)
+		return fmt.Errorf("启动 Codex app-server: %w", err)
 	}
 	defer func() {
 		stopProcess(command, stdin)
@@ -80,7 +94,7 @@ func Call(ctx context.Context, config Config, method string, params any) (json.R
 			}
 		}
 		if detail := strings.TrimSpace(stderrTail.Snapshot()); detail != "" {
-			emitReadResult(readResult{err: fmt.Errorf("Codex app-server 已退出: %s", detail)})
+			emitReadResult(readResult{err: fmt.Errorf("Codex app-server 已退出: %s", redact.Sanitize(detail))})
 			return
 		}
 		emitReadResult(readResult{err: io.EOF})
@@ -140,10 +154,10 @@ func Call(ctx context.Context, config Config, method string, params any) (json.R
 		}
 	}
 	if _, err := request(1, "initialize", map[string]any{"clientInfo": map[string]string{"name": "beaver", "title": "Beaver", "version": "0.1.0"}}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := write(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {
-		return nil, err
+		return err
 	}
-	return request(2, method, params)
+	return run(request, read)
 }

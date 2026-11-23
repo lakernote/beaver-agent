@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lakernote/beaver-agent/internal/permissions"
+	"github.com/lakernote/beaver-agent/internal/redact"
 	"github.com/lakernote/beaver-agent/internal/store"
 )
 
@@ -186,9 +187,10 @@ func EventsFromStore(values []store.Event) []Event {
 	result := make([]Event, 0, len(values))
 	for _, value := range values {
 		result = append(result, Event{
-			ID: value.ID, Kind: value.Kind, ProtocolMethod: value.ProtocolMethod, RawPayload: value.RawPayload, Turn: value.Turn, Step: value.Step, Attempt: value.Attempt,
+			ID: value.ID, Kind: value.Kind, ProtocolMethod: value.ProtocolMethod, RawPayload: redact.Sanitize(value.RawPayload), Turn: value.Turn, Step: value.Step, Attempt: value.Attempt,
 			Name: value.Name, ActivityID: value.ActivityID, ActivityKind: value.ActivityKind, ActivitySource: value.ActivitySource, DisplayName: value.DisplayName,
-			Status: value.Status, StopReason: value.StopReason, IncompleteReason: value.IncompleteReason, Detail: value.Detail, Input: value.Input, Output: value.Output,
+			Status: value.Status, StopReason: value.StopReason, IncompleteReason: redact.Sanitize(value.IncompleteReason),
+			Detail: redact.Sanitize(value.Detail), Input: redact.Sanitize(value.Input), Output: redact.Sanitize(value.Output),
 			InputTokens: value.InputTokens, OutputTokens: value.OutputTokens, CachedTokens: value.CachedTokens, CacheWriteTokens: value.CacheWriteTokens,
 			CacheReported: value.CacheReported, TotalTokens: value.TotalTokens, ContextWindowTokens: value.ContextWindowTokens, Protocol: value.Protocol,
 			StatusCode: value.StatusCode, HistoryMode: value.HistoryMode, RequestMessages: value.RequestMessages, ToolDefinitions: value.ToolDefinitions,

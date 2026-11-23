@@ -147,9 +147,7 @@ func (server *Server) taskConflictKey(session store.Session) string {
 	return session.Workspace
 }
 
-// taskResourceKeys 同时保护文件系统和本地推理资源。远程 Provider/Codex 仍受
-// 全局并发控制但可以并行；同一个 Ollama 端点默认串行，避免单卡并发导致显存
-// 抖动和首 Token 延迟恶化。
+// taskResourceKeys 保护工作区、Ollama 推理资源和每个 Codex 登录的凭据刷新。
 func (server *Server) taskResourceKeys(session store.Session, model store.ModelSettings) []string {
 	keys := []string{server.taskConflictKey(session)}
 	if model.Runtime != store.RuntimeCodex && model.IsOllama() {
@@ -158,6 +156,9 @@ func (server *Server) taskResourceKeys(session store.Session, model store.ModelS
 			endpoint = store.DefaultOllamaBaseURL
 		}
 		keys = append(keys, "model:ollama:"+endpoint)
+	}
+	if model.IsChatGPTCodex() {
+		keys = append(keys, "model:chatgpt-codex:"+model.ChatGPTAccountID)
 	}
 	return uniqueResourceKeys(keys)
 }

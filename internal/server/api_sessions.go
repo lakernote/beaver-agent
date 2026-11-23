@@ -165,6 +165,9 @@ func (server *Server) createSession(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !allowCodexBrowser(response, request, model.IsChatGPTCodex()) {
+		return
+	}
 	selectedModel, reasoningEffort, err := normalizeCodexSessionSelection(model.Runtime, input.Model, input.ReasoningEffort)
 	if err != nil {
 		writeError(response, http.StatusBadRequest, err.Error())
@@ -293,6 +296,9 @@ func (server *Server) continueSession(response http.ResponseWriter, request *htt
 		return
 	}
 	model = pinCodexSessionModel(loaded, model)
+	if !allowCodexBrowser(response, request, model.IsChatGPTCodex()) {
+		return
+	}
 	if err := validateModel(model.WithDefaults()); err != nil {
 		writeError(response, http.StatusBadRequest, "当前模型配置不可用："+err.Error())
 		return
@@ -431,6 +437,9 @@ func (server *Server) resumeSession(response http.ResponseWriter, request *http.
 		return
 	}
 	model = pinCodexSessionModel(value, model)
+	if !allowCodexBrowser(response, request, model.IsChatGPTCodex()) {
+		return
+	}
 	changed, err := server.store.ResumePausedSession(id, time.Now())
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())

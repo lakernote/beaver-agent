@@ -34,6 +34,7 @@ type Config struct {
 	DisableThinking      bool
 	KeepThinkingForTools bool
 	DisableContinuation  bool
+	ChatGPTSubscription  bool
 }
 
 type Client struct {
@@ -44,6 +45,7 @@ type Client struct {
 	disableThinking      bool
 	keepThinkingForTools bool
 	disableContinuation  bool
+	chatGPTSubscription  bool
 }
 
 func New(config Config) (*Client, error) {
@@ -70,7 +72,8 @@ func New(config Config) (*Client, error) {
 	return &Client{
 		baseURL: baseURL, apiKey: strings.TrimSpace(config.APIKey), protocol: protocol, httpClient: httpClient,
 		disableThinking: config.DisableThinking, keepThinkingForTools: config.KeepThinkingForTools,
-		disableContinuation: config.DisableContinuation,
+		disableContinuation: config.DisableContinuation || config.ChatGPTSubscription,
+		chatGPTSubscription: config.ChatGPTSubscription,
 	}, nil
 }
 
@@ -217,6 +220,7 @@ type functionTool struct {
 	Name        string         `json:"name,omitempty"`
 	Description string         `json:"description,omitempty"`
 	Parameters  map[string]any `json:"parameters,omitempty"`
+	Tools       []functionTool `json:"tools,omitempty"`
 }
 
 type tokenDetails struct {
