@@ -1,20 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import type { Bootstrap, CodexProviderConfig, ModelProfile, ModelSettings } from '../types'
-import { isChatGPTProvider } from '../types/model'
+import { chatGPTSubscriptionProvider, isChatGPTProvider } from '../types/model'
 import { formatDuration } from '../format'
 import type { Notice } from './SettingsPanels'
 
 type ModelConfigurationArgs = {
   data: Bootstrap
   onRefresh: () => Promise<Bootstrap>
+  onDefaultModelChanged: (profile: ModelProfile) => void
   onError: (value: string) => void
 }
 
-export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigurationArgs) {
+type DefaultModelTarget = { profileId: string; codexProvider?: string }
+
+export function useModelConfiguration({ data, onRefresh, onDefaultModelChanged, onError }: ModelConfigurationArgs) {
   const [model, setModel] = useState<ModelSettings>({ ...data.model })
   const [testingModel, setTestingModel] = useState(false)
-  const [savingModel, setSavingModel] = useState(false)
+  const [savingProfile, setSavingModel] = useState(false)
+  const [pendingDefault, setPendingDefault] = useState<DefaultModelTarget | null>(null)
+  const defaultChangeInFlight = useRef(false)
+  const savingModel = savingProfile || pendingDefault !== null
   const [modelNotice, setModelNotice] = useState<Notice | null>(null)
   const [deletingProfile, setDeletingProfile] = useState(false)
   const [modelEditorOpen, setModelEditorOpen] = useState(false)
@@ -58,8 +64,9 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     } finally { setTestingModel(false) }
   }
 
-  const draftProfile = (runtime: ModelSettings['runtime']): ModelSettings => {
-    const saved = data.modelProfiles.find((profile) => profile.settings.runtime === runtime)?.settings
+  const draftProfile = (runtime: ModelSettings['runtime']): ModelSettings & { profileId: string } => {
+    const saved = data.modelProfiles.find(({ settings }) => settings.runtime === runtime &&
+      (runtime === 'codex' || settings.provider !== chatGPTSubscriptionProvider))?.settings
     const seed = saved || data.model
     const common = {
       ...seed,
@@ -101,10 +108,6 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
   }
 
   const currentProfileSaved = data.modelProfiles.some((profile) => profile.id === model.profileId)
-  const selectProfile = (profile: ModelProfile) => {
-    setModel({ ...profile.settings, profileId: profile.id, profileName: profile.name })
-    setModelNotice(null); onError('')
-  }
 
   const createProfile = (runtime: ModelSettings['runtime'] = model.runtime) => {
     setModel(draftProfile(runtime))
@@ -143,15 +146,29 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     setModelEditorOpen(true); setModelNotice(null); onError('')
   }
 
+  const activateDefault = async (target: DefaultModelTarget, prepare?: () => Promise<unknown>) => {
+    if (savingModel || defaultChangeInFlight.current) return
+    defaultChangeInFlight.current = true
+    setPendingDefault(target)
+    setModelNotice(null); onError('')
+    try {
+      if (prepare) await prepare()
+      const settings = await api.activateModelProfile(target.profileId)
+      onDefaultModelChanged({ id: target.profileId, name: settings.profileName || target.profileId, settings, verified: true })
+      return settings
+    } catch (reason) {
+      onError((reason as Error).message)
+    } finally {
+      defaultChangeInFlight.current = false
+      setPendingDefault(null)
+    }
+  }
+
   const activateCodexProvider = async (providerID: string) => {
     const profile = data.modelProfiles.find((candidate) => candidate.settings.runtime === 'codex')
-    if (savingModel) return
     const base = profile ? { ...profile.settings, profileId: profile.id, profileName: profile.name } : { ...draftProfile('codex'), profileName: 'Codex' }
     const next = { ...base, provider: providerID }
-    setModel(next); setSavingModel(true); setModelNotice(null); onError('')
-    try { await api.saveModel(next); await api.activateModelProfile(next.profileId!); await onRefresh() }
-    catch (reason) { onError((reason as Error).message) }
-    finally { setSavingModel(false) }
+    await activateDefault({ profileId: next.profileId, codexProvider: providerID }, () => api.saveModel(next))
   }
 
   const closeModelEditor = () => {
@@ -186,25 +203,25 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
   }
 
   const activateProfile = async (profile: ModelProfile) => {
-    if (savingModel || profile.id === data.activeModelProfileId) { selectProfile(profile); return }
-    setModel({ ...profile.settings, profileId: profile.id, profileName: profile.name })
-    setSavingModel(true); setModelNotice(null); onError('')
-    try {
-      if (profile.settings.runtime === 'beaver') await api.testModel(profile.settings)
-      await api.activateModelProfile(profile.id); await onRefresh()
-    }
-    catch (reason) { onError((reason as Error).message) }
-    finally { setSavingModel(false) }
+    if (profile.id === data.activeModelProfileId) return profile.settings
+    const needsVerification = profile.settings.runtime === 'beaver' && !profile.verified
+    return activateDefault({ profileId: profile.id }, needsVerification ? () => api.testModel(profile.settings) : undefined)
   }
 
   const activateOllamaModel = async (name: string) => {
     const existing = data.modelProfiles.find((profile) => profile.settings.runtime === 'beaver' && profile.settings.model === name)
-    if (existing) { await activateProfile(existing); return }
-    const next: ModelSettings = { ...data.model, profileId: `beaver-${Date.now()}`, profileName: `Ollama · ${name}`, runtime: 'beaver', provider: 'ollama', protocol: 'ollama_chat', baseUrl: data.ollama.baseUrl, model: name }
-    setModel(next); setSavingModel(true); setModelNotice(null); onError('')
-    try { await api.saveModel(next); await api.testModel(next); await api.activateModelProfile(next.profileId!); await onRefresh() }
-    catch (reason) { onError((reason as Error).message) }
-    finally { setSavingModel(false) }
+    if (existing) {
+      const active = await activateProfile(existing)
+      if (active) setModel(active)
+      return
+    }
+    const profileId = `beaver-${Date.now()}`
+    const next: ModelSettings = { ...data.model, profileId, profileName: `Ollama · ${name}`, runtime: 'beaver', provider: 'ollama', protocol: 'ollama_chat', baseUrl: data.ollama.baseUrl, model: name }
+    const active = await activateDefault({ profileId }, async () => {
+      await api.saveModel(next)
+      await api.testModel(next)
+    })
+    if (active) setModel(active)
   }
 
   const detectCodex = async () => {
@@ -239,5 +256,5 @@ export function useModelConfiguration({ data, onRefresh, onError }: ModelConfigu
     finally { setDeletingCodexProvider(false) }
   }
 
-  return { model, setModel, testingModel, savingModel, modelNotice, deletingProfile, deletingCodexProvider, modelEditorOpen, setModelEditorOpen, modelEditorMode, modelEditorDirty, codexConfig, setCodexConfig, savingCodexConfig, currentProfileSaved, saveModel, testModel, selectRuntime, selectProfile, createProfile, openProfileEditor, openCodexProviderEditor, activateCodexProvider, closeModelEditor, removeProfile, removeCodexProvider, activateProfile, activateOllamaModel, detectCodex, saveCodexConfig }
+  return { model, setModel, testingModel, savingModel, pendingDefault, modelNotice, deletingProfile, deletingCodexProvider, modelEditorOpen, setModelEditorOpen, modelEditorMode, modelEditorDirty, codexConfig, setCodexConfig, savingCodexConfig, currentProfileSaved, saveModel, testModel, selectRuntime, createProfile, openProfileEditor, openCodexProviderEditor, activateCodexProvider, closeModelEditor, removeProfile, removeCodexProvider, activateProfile, activateOllamaModel, detectCodex, saveCodexConfig }
 }

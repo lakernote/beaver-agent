@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import type { Bootstrap, MCPConfig, ModelSettings } from './types'
+import type { Bootstrap, MCPConfig, ModelProfile, ModelSettings } from './types'
 import { chatGPTCodexLabel, chatGPTCodexProvider, chatGPTSubscriptionProvider } from './types/model'
 import { parseRecord, recordLines } from './format'
 import { ConfirmDialog } from './dialogs'
@@ -20,7 +20,7 @@ function providerLabel(profile: Bootstrap['modelProfiles'][number]) {
   if (profile.settings.runtime === 'codex') return profile.settings.provider && profile.settings.provider !== 'codex' ? `Codex · ${profile.settings.provider}` : 'Codex · 官方登录'
   if (profile.settings.provider === 'ollama') return 'Ollama'
   if (profile.settings.provider === chatGPTCodexProvider) return chatGPTCodexLabel
-  if (profile.settings.provider === chatGPTSubscriptionProvider) return 'ChatGPT 订阅'
+  if (profile.settings.provider === chatGPTSubscriptionProvider) return 'ChatGPT 订阅（旧版）'
   if (profile.settings.provider) return profile.settings.provider
   return 'Provider 未设置'
 }
@@ -32,9 +32,14 @@ function modelLabel(profile: Bootstrap['modelProfiles'][number]) {
 
 type CodexProviderDeleteTarget = { id: string; name: string }
 
-function CodexProviderDirectory({ config, profile, runtimeActive, saving, deleting, onSelect, onEdit, onDelete, onCreate }: { config: Bootstrap['codexConfig']; profile?: Bootstrap['modelProfiles'][number]; runtimeActive: boolean; saving: boolean; deleting: boolean; onSelect: (provider: string) => void; onEdit: (provider: string) => void; onDelete: (provider: CodexProviderDeleteTarget) => void; onCreate: () => void }) {
+function CodexProviderDirectory({ config, profile, runtimeActive, saving, pendingProvider, deleting, onSelect, onEdit, onDelete, onCreate }: { config: Bootstrap['codexConfig']; profile?: ModelProfile; runtimeActive: boolean; saving: boolean; pendingProvider?: string; deleting: boolean; onSelect: (provider: string) => void; onEdit: (provider: string) => void; onDelete: (provider: CodexProviderDeleteTarget) => void; onCreate: () => void }) {
   const activeProvider = runtimeActive ? (profile?.settings.provider || '') : null
   const providers = config.providers || []
+  const defaultAction = (provider: string) => {
+    if (activeProvider === provider) return <span className="profile-default-state"><span className="service-dot" />新会话默认</span>
+    const pending = pendingProvider === provider
+    return <button className="profile-activate" type="button" disabled={saving || deleting} aria-busy={pending} onClick={() => onSelect(provider)}>{pending ? '设置中…' : '设为新会话默认'}</button>
+  }
   return <div className="codex-directory" aria-label="Codex Provider 目录">
     <div className="model-catalog-toolbar codex-directory-toolbar"><div><strong>选择连接</strong><small>Codex 是内置运行环境；这里管理同一个 config.toml 中的官方登录和第三方 Provider。</small></div><button className="primary-button" type="button" onClick={onCreate}>＋ 新建 Provider</button></div>
     <div className="codex-provider-list">
@@ -42,20 +47,20 @@ function CodexProviderDirectory({ config, profile, runtimeActive, saving, deleti
         <div className="codex-provider-main">
           <span className="runtime-nav-dot ready" /><span><strong>官方 ChatGPT 登录</strong><small>Codex 官方账号 · 不需要 env_key</small></span>
         </div>
-        <div className="codex-provider-actions">{activeProvider === '' ? <span className="profile-default-state"><span className="service-dot" />新会话默认</span> : <button className="profile-activate" type="button" disabled={saving || deleting} onClick={() => onSelect('')}>设为新会话默认</button>}<span className="codex-provider-managed">由 Codex CLI 管理</span></div>
+        <div className="codex-provider-actions">{defaultAction('')}<span className="codex-provider-managed">由 Codex CLI 管理</span></div>
       </div>
       {providers.map((provider) => <div className={`codex-provider-row ${activeProvider === provider.id ? 'selected' : ''}`} key={provider.id}>
         <div className="codex-provider-main">
           <span className={`runtime-nav-dot ${provider.apiKeyConfigured ? 'ready' : ''}`} /><span><strong>{provider.name || provider.id}</strong><small>{provider.id} · {provider.envKey ? `env_key ${provider.envKey}` : '未设置 env_key'} · {provider.model || '跟随默认模型'}</small></span>
         </div>
-        <div className="codex-provider-actions">{activeProvider === provider.id ? <span className="profile-default-state"><span className="service-dot" />新会话默认</span> : <button className="profile-activate" type="button" disabled={saving || deleting} onClick={() => onSelect(provider.id)}>设为新会话默认</button>}<button className="profile-edit" type="button" disabled={saving || deleting} onClick={() => onEdit(provider.id)}>编辑</button><button className="provider-delete" type="button" disabled={saving || deleting} onClick={() => onDelete({ id: provider.id, name: provider.name || provider.id })}>删除</button></div>
+        <div className="codex-provider-actions">{defaultAction(provider.id)}<button className="profile-edit" type="button" disabled={saving || deleting} onClick={() => onEdit(provider.id)}>编辑</button><button className="provider-delete" type="button" disabled={saving || deleting} onClick={() => onDelete({ id: provider.id, name: provider.name || provider.id })}>删除</button></div>
       </div>)}
       {!providers.length && <div className="model-empty-state codex-provider-empty"><span className="runtime-nav-dot" /><div><strong>还没有第三方 Provider</strong><small>需要使用 Groq、OpenRouter 等服务时，再新增 Provider。</small></div><button className="ghost-button" type="button" onClick={onCreate}>新增 Provider</button></div>}
     </div>
   </div>
 }
 
-export function Capabilities({ section, initialSection, initialModelRuntime, data, onRefresh, onError, onSettingsSectionChange }: { section: CapabilitiesSection; initialSection?: SettingsSection; initialModelRuntime?: ModelSettings['runtime']; data: Bootstrap; onRefresh: () => Promise<Bootstrap>; onError: (value: string) => void; onSettingsSectionChange?: (section: SettingsSection) => void }) {
+export function Capabilities({ section, initialSection, initialModelRuntime, data, onRefresh, onDefaultModelChanged, onError, onSettingsSectionChange }: { section: CapabilitiesSection; initialSection?: SettingsSection; initialModelRuntime?: ModelSettings['runtime']; data: Bootstrap; onRefresh: () => Promise<Bootstrap>; onDefaultModelChanged: (profile: ModelProfile) => void; onError: (value: string) => void; onSettingsSectionChange?: (section: SettingsSection) => void }) {
   const [mcp, setMCP] = useState<MCPConfig | null>(null)
   const [installingPreset, setInstallingPreset] = useState('')
   const [checkingPreset, setCheckingPreset] = useState('')
@@ -76,12 +81,12 @@ export function Capabilities({ section, initialSection, initialModelRuntime, dat
   useEffect(() => setSettingsSection(initialSection || (section === 'tools' ? 'tools' : 'runtime')), [initialSection, section])
 
   const {
-    model, setModel, testingModel, savingModel, modelNotice, deletingProfile,
+    model, setModel, testingModel, savingModel, pendingDefault, modelNotice, deletingProfile,
     modelEditorOpen, setModelEditorOpen, modelEditorMode, modelEditorDirty, codexConfig, setCodexConfig,
     savingCodexConfig, currentProfileSaved, saveModel, testModel,
     selectRuntime, openProfileEditor, openCodexProviderEditor, activateCodexProvider, closeModelEditor, removeProfile, activateProfile,
     deletingCodexProvider, removeCodexProvider, activateOllamaModel, detectCodex, saveCodexConfig,
-  } = useModelConfiguration({ data, onRefresh, onError })
+  } = useModelConfiguration({ data, onRefresh, onDefaultModelChanged, onError })
 
   const presetConfig = (preset: Bootstrap['mcpPresets'][number]): MCPConfig => ({ id: preset.id, name: preset.name, description: preset.description, enabled: false, transport: preset.transport as MCPConfig['transport'], command: preset.command, args: preset.args || [], endpoint: preset.endpoint, authType: preset.authType, headers: preset.headers || {}, environment: {} })
   const installPreset = async (preset: Bootstrap['mcpPresets'][number]) => {
@@ -228,10 +233,26 @@ export function Capabilities({ section, initialSection, initialModelRuntime, dat
             <button className={modelRuntimeFilter === 'beaver' ? 'selected' : ''} type="button" role="tab" aria-selected={modelRuntimeFilter === 'beaver'} onClick={() => selectRuntimeContext('beaver')}><span className="runtime-nav-dot beaver-dot" /><span><strong>Beaver</strong><small>Ollama / OpenAI 兼容 Provider</small></span><em>{beaverProfiles.length} 套{data.model.runtime === 'beaver' ? ' · 当前默认' : ''}</em></button>
             <button className={modelRuntimeFilter === 'codex' ? 'selected' : ''} type="button" role="tab" aria-selected={modelRuntimeFilter === 'codex'} onClick={() => selectRuntimeContext('codex')}><span className={`runtime-nav-dot ${data.codex.installed && data.codex.appServerAvailable && (data.codex.authenticated || data.codexConfig.configured) ? 'ready' : ''}`} /><span><strong>Codex</strong><small>内置运行入口 · Provider 目录</small></span><em>内置{data.model.runtime === 'codex' ? ' · 当前默认' : ''}</em></button>
           </div>
-          {modelRuntimeFilter === 'codex' && <CodexProviderDirectory config={data.codexConfig} profile={codexProfile} runtimeActive={persistedCodex} saving={savingModel} deleting={deletingCodexProvider} onSelect={(provider) => void activateCodexProvider(provider)} onEdit={(provider) => openCodexProviderEditor(provider)} onDelete={setCodexProviderDeleteTarget} onCreate={() => openCodexProviderEditor('__new__')} />}
+          {modelRuntimeFilter === 'codex' && <CodexProviderDirectory config={data.codexConfig} profile={codexProfile} runtimeActive={persistedCodex} saving={savingModel} pendingProvider={pendingDefault?.codexProvider} deleting={deletingCodexProvider} onSelect={(provider) => void activateCodexProvider(provider)} onEdit={(provider) => openCodexProviderEditor(provider)} onDelete={setCodexProviderDeleteTarget} onCreate={() => openCodexProviderEditor('__new__')} />}
           {modelRuntimeFilter === 'beaver' && <><div className="model-catalog-toolbar"><div><strong>{selectedRuntimeName} 配置</strong><small>{runtimeProfiles.length ? '配置 = Provider 连接 + 模型参数；保存后可在新会话中直接切换。' : '当前 Runtime 还没有保存的配置。'}</small></div><div className="model-catalog-toolbar-actions"><button className="primary-button" type="button" onClick={() => openProfileEditor(undefined, modelRuntimeFilter)}>＋ 新建配置</button></div></div>
           <div className="model-profile-directory" aria-label={`${selectedRuntimeName} 模型配置列表`}>
-            {runtimeProfiles.map((profile) => { const profileCodex = profile.settings.runtime === 'codex'; const isDefault = profile.id === data.activeModelProfileId; return <div className={`model-profile-row ${isDefault ? 'selected' : ''}`} key={profile.id}><button className="model-profile-select" type="button" onClick={() => openProfileEditor(profile)} aria-label={`编辑 ${profile.name}`}><span className={`runtime-nav-dot ${profileCodex ? (data.codex.installed && data.codex.appServerAvailable && (data.codex.authenticated || data.codexConfig.configured) ? 'ready' : '') : 'beaver-dot'}`} /><span><strong>{profile.name}</strong><small>{providerLabel(profile)} · {modelLabel(profile)}{!profileCodex && ` · ${profile.verified ? 'Function Call 已验证' : '待验证'}`}</small></span></button><div className="model-profile-row-actions">{isDefault ? <span className="profile-default-state"><span className="service-dot" />新会话默认</span> : <button className="profile-activate" type="button" disabled={savingModel} onClick={() => activateProfile(profile)}>设为新会话默认</button>}<button className="profile-edit" type="button" onClick={() => openProfileEditor(profile)}>编辑</button></div></div>})}
+            {runtimeProfiles.map((profile) => {
+              const profileCodex = profile.settings.runtime === 'codex'
+              const isDefault = profile.id === data.activeModelProfileId
+              const pending = pendingDefault?.profileId === profile.id
+              const actionLabel = pending ? (profile.verified ? '设置中…' : '验证中…') : '设为新会话默认'
+              return <div className={`model-profile-row ${isDefault ? 'selected' : ''}`} key={profile.id}>
+                <button className="model-profile-select" type="button" onClick={() => openProfileEditor(profile)} aria-label={`编辑 ${profile.name}`}>
+                  <span className={`runtime-nav-dot ${profileCodex ? (data.codex.installed && data.codex.appServerAvailable && (data.codex.authenticated || data.codexConfig.configured) ? 'ready' : '') : 'beaver-dot'}`} />
+                  <span><strong>{profile.name}</strong><small>{providerLabel(profile)} · {modelLabel(profile)}{!profileCodex && ` · ${profile.verified ? 'Function Call 已验证' : '待验证'}`}</small></span>
+                </button>
+                <div className="model-profile-row-actions">
+                  {isDefault ? <span className="profile-default-state"><span className="service-dot" />新会话默认</span> :
+                    <button className="profile-activate" type="button" disabled={savingModel} aria-busy={pending} onClick={() => void activateProfile(profile)}>{actionLabel}</button>}
+                  <button className="profile-edit" type="button" onClick={() => openProfileEditor(profile)}>编辑</button>
+                </div>
+              </div>
+            })}
             {!runtimeProfiles.length && <div className="model-empty-state"><span className={`runtime-nav-dot ${modelRuntimeFilter === 'beaver' ? 'beaver-dot' : ''}`} /><div><strong>{`还没有 ${selectedRuntimeName} 配置`}</strong><small>新建后可以先测试连接，再设为新会话默认。</small></div><button className="ghost-button" type="button" onClick={() => openProfileEditor(undefined, modelRuntimeFilter)}>新建配置</button></div>}
             {!currentProfileSaved && model.profileId && model.runtime === modelRuntimeFilter && <div className="model-profile-row draft"><button className="model-profile-select" type="button" onClick={() => setModelEditorOpen(true)} aria-label="编辑未保存配置"><span className="runtime-nav-dot" /><span><strong>{model.profileName || '新配置'}</strong><small>尚未保存 · 关闭编辑器后会放弃</small></span></button><div className="model-profile-row-actions"><span className="profile-runtime-tag draft">草稿</span><button className="profile-edit" type="button" onClick={() => setModelEditorOpen(true)}>继续编辑</button></div></div>}
             <div className="directory-foot">默认配置只用于未手动选择的新会话；创建前可直接切换 Runtime 和模型，已有会话不会随配置切换。</div>

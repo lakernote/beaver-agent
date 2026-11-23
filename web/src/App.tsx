@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { APIError, api, onAuthenticationRequired } from './api'
-import type { Bootstrap, ModelSettings, Session } from './types'
+import type { Bootstrap, ModelProfile, ModelSettings, Session } from './types'
 import { useTaskNotifications } from './notifications'
 import { isActive, mergeSessionHistory, mergeSessionSnapshot, sessionDisplayTitle, updateSessionSummary, type Page } from './sessionState'
 import { ForkDialog, WorktreeDialog, friendlyError, type ForkWorkspaceMode } from './dialogs'
@@ -32,6 +32,7 @@ export default function App() {
   const [cleaningWorktree, setCleaningWorktree] = useState(false)
   const [updatingRunState, setUpdatingRunState] = useState(false)
   const [settingsModelRuntime, setSettingsModelRuntime] = useState<ModelSettings['runtime']>()
+  const modelSelectionRevision = useRef(0)
 
   const clearAuthentication = useCallback((message = '') => {
     setAuthenticated(false)
@@ -47,9 +48,26 @@ export default function App() {
   }, [])
 
   const refresh = useCallback(async () => {
+    const revision = modelSelectionRevision.current
     const next = await api.bootstrap()
-    setData(next)
+    setData((current) => {
+      if (!current || revision === modelSelectionRevision.current) return next
+      // 先发出的全量刷新可能晚于设为默认的响应，只合并其他页面数据。
+      return { ...next, model: current.model, modelProfiles: current.modelProfiles, activeModelProfileId: current.activeModelProfileId }
+    })
     return next
+  }, [])
+
+  const applyDefaultModel = useCallback((profile: ModelProfile) => {
+    modelSelectionRevision.current++
+    setData((current) => {
+      if (!current) return current
+      const modelProfiles = [...current.modelProfiles]
+      const index = modelProfiles.findIndex((item) => item.id === profile.id)
+      if (index === -1) modelProfiles.push(profile)
+      else modelProfiles[index] = profile
+      return { ...current, model: profile.settings, modelProfiles, activeModelProfileId: profile.id }
+    })
   }, [])
 
   useEffect(() => onAuthenticationRequired(() => {
@@ -231,7 +249,7 @@ export default function App() {
       {page === 'chat' && <Chat session={session} data={data} onSession={setCurrentSession} onRefresh={refresh} onError={setError} onLoadOlder={loadSessionHistory} onOpenSkills={() => setPage('skills')} onOpenCapabilities={() => setPage('tools')} onOpenModelSettings={(runtime) => { setSettingsModelRuntime(runtime); setPage('runtime') }} onOpenTrace={() => setTraceOpen(true)} onStop={stopSession} onPause={pauseSession} onResume={resumeSession} runActionBusy={updatingRunState} />}
       <Suspense fallback={<PageLoading />}>
         {page === 'automations' && <AutomationPage data={data} onError={setError} onOpenSession={openSession} />}
-        {page !== 'chat' && page !== 'automations' && <SettingsShell page={page} data={data} initialModelRuntime={settingsModelRuntime} onPage={setPage} onRefresh={refresh} onError={setError} onLogout={logout} passwordGenerated={passwordGenerated} onOpenSession={openSession} />}
+        {page !== 'chat' && page !== 'automations' && <SettingsShell page={page} data={data} initialModelRuntime={settingsModelRuntime} onPage={setPage} onRefresh={refresh} onDefaultModelChanged={applyDefaultModel} onError={setError} onLogout={logout} passwordGenerated={passwordGenerated} onOpenSession={openSession} />}
       </Suspense>
     </main>
     {traceOpen && session && <Suspense fallback={null}><TracePanel session={session} onLoadOlder={loadSessionHistory} onError={setError} onClose={() => setTraceOpen(false)} /></Suspense>}

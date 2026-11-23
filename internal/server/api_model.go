@@ -89,7 +89,7 @@ func (server *Server) activateModelProfile(response http.ResponseWriter, request
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(response, http.StatusOK, publicModel(enrichOllamaContextWindow(request.Context(), value)))
+	writeJSON(response, http.StatusOK, publicModel(value))
 }
 
 func (server *Server) deleteModelProfile(response http.ResponseWriter, request *http.Request) {

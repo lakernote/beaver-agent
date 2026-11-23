@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Bootstrap, ModelSettings } from './types'
+import type { Bootstrap, ModelProfile, ModelSettings } from './types'
 import { api } from './api'
 import type { Page } from './sessionState'
 import { Capabilities, type SettingsSection } from './CapabilitiesPage'
@@ -13,6 +13,7 @@ type SettingsShellProps = {
   initialModelRuntime?: ModelSettings['runtime']
   onPage: (page: Page) => void
   onRefresh: () => Promise<Bootstrap>
+  onDefaultModelChanged: (profile: ModelProfile) => void
   onError: (value: string) => void
   onLogout: () => Promise<void>
   passwordGenerated?: boolean
@@ -39,7 +40,7 @@ function activeSection(page: Page): SettingsSection {
   return page === 'tasks' || page === 'skills' || page === 'tools' || page === 'usage' || page === 'weixin' || page === 'security' ? page : 'runtime'
 }
 
-export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefresh, onError, onLogout, onOpenSession, passwordGenerated = false }: SettingsShellProps) {
+export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefresh, onDefaultModelChanged, onError, onLogout, onOpenSession, passwordGenerated = false }: SettingsShellProps) {
   const selected = activeSection(page)
   const pageDescription: Record<SettingsSection, string> = {
     runtime: '选择执行引擎并管理模型配置',
@@ -116,7 +117,7 @@ export function SettingsShell({ page, data, initialModelRuntime, onPage, onRefre
         {selected === 'skills' && <Skills data={data} onRefresh={onRefresh} onError={onError} />}
         {selected === 'usage' && <UsagePage data={data} />}
         {selected === 'weixin' && <WeixinPage onError={onError} onOpenSession={onOpenSession} />}
-        {(selected === 'runtime' || selected === 'tasks' || selected === 'models' || selected === 'tools') && <Capabilities section="settings" initialSection={selected} initialModelRuntime={initialModelRuntime} data={data} onRefresh={onRefresh} onError={onError} onSettingsSectionChange={onPage} />}
+        {(selected === 'runtime' || selected === 'tasks' || selected === 'models' || selected === 'tools') && <Capabilities section="settings" initialSection={selected} initialModelRuntime={initialModelRuntime} data={data} onRefresh={onRefresh} onDefaultModelChanged={onDefaultModelChanged} onError={onError} onSettingsSectionChange={onPage} />}
         {selected === 'security' && <section className="account-panel account-security-page" aria-labelledby="account-title">
           <div><p className="settings-kicker">账户安全</p><h2 id="account-title">管理员账号</h2><p>当前登录用户：<code>admin</code>。服务重启、12 小时后或修改密码后需要重新登录。</p>{passwordGenerated && <div className="account-warning" role="status">当前仍是系统生成的密码，建议改成你自己的密码。当前密码就是启动日志里显示的初始密码。</div>}</div>
           <button className="ghost-button" type="button" onClick={() => { setShowPassword(!showPassword); setAccountError(''); setAccountMessage('') }}>{showPassword ? '收起改密' : '修改密码'}</button>

@@ -144,9 +144,7 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 ### 在 Beaver Runner 中使用 ChatGPT 订阅
 
-在本机打开 Beaver，进入 **设置 → 模型配置 → Beaver → 新建配置**。把连接方式选为 **ChatGPT 订阅**，点 **Continue with ChatGPT**，用自己的账号登录并同意使用套餐。选择账号可用的模型，测试 Function Calling，保存后即可在新会话中选择这套配置。
-
-可以保存多套 ChatGPT 订阅模型配置，每套选择账号与模型。符合条件的请求使用 [OpenAI 的订阅共享预览](https://developers.openai.com/siwc/token-sharing-open-source)，用量在 [ChatGPT 设置](https://chatgpt.com/settings/usage) 管理。授权浏览器需要和 Beaver 运行在同一台机器上。使用微信入口时，请为它保留其他模型作为新会话默认，在 Web 新会话中选择订阅配置。
+在 **设置 → 运行与模型 → Beaver → 新建配置** 中，选择 **API / 本地模型** 或 **ChatGPT 订阅（Codex 登录）**。已保存的旧版订阅配置仍可在列表中编辑。
 
 在运行 Beaver 的电脑上，通过 `127.0.0.1` 或 `localhost` 打开页面，即可选择 **ChatGPT 订阅（Codex 登录）**。默认监听 `0.0.0.0:8080` 时也可从本机连接。安装支持动态工具的 Codex CLI，点击 **登录 ChatGPT** 并用自己的账号授权，然后选择模型、测试并保存。官方 Codex 将每个账号的凭据单独保存在 `~/.beaver/chatgpt-codex/<账号 ID>/auth.json`。工具由 Beaver Runner 执行，包括现有的权限、审批和记录。
 

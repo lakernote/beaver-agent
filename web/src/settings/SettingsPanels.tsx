@@ -391,15 +391,13 @@ export function BeaverSettings({ data, model, setModel, notice, testing, saving,
   const changeConnection = (provider: string) => {
     setClearAPIKey(false)
     setChatGPTReady(false)
-    if (isChatGPTProvider(provider)) {
+    if (provider === chatGPTCodexProvider) {
       if (!usingChatGPT) {
         const { provider: apiProvider, protocol, baseUrl, model: name, apiKey, secretConfigured, thinking } = model
         setAPIConnection({ provider: apiProvider, protocol, baseUrl, model: name, apiKey, secretConfigured, thinking })
       }
-      const codexLogin = provider === chatGPTCodexProvider
       setModel({
-        ...model, provider, protocol: codexLogin ? 'app_server' : 'responses',
-        baseUrl: codexLogin ? '' : 'https://api.openai.com/v1',
+        ...model, provider, protocol: 'app_server', baseUrl: '',
         chatgptAccountId: undefined, model: '', apiKey: '', secretConfigured: false, thinking: '',
       })
     } else {
@@ -413,7 +411,7 @@ export function BeaverSettings({ data, model, setModel, notice, testing, saving,
   return (
     <div className="section-block beaver-config">
       <div className="section-heading">
-        <div><h2>模型连接</h2><p>选择 ChatGPT 订阅，或连接 Ollama、Anthropic 和 OpenAI 兼容服务。</p></div>
+        <div><h2>模型连接</h2><p>连接 API、本地模型，或用 Codex 登录 ChatGPT。</p></div>
         {!usingChatGPT && <span className="tag">{model.protocol}</span>}
       </div>
       {model.provider.trim().toLocaleLowerCase() === 'ollama' && <OllamaModelCatalog data={data} saving={saving} onActivate={onActivateOllama} />}
@@ -422,8 +420,8 @@ export function BeaverSettings({ data, model, setModel, notice, testing, saving,
         <label className="wide">连接方式
           <select value={usingChatGPT ? model.provider : 'api'} onChange={(event) => changeConnection(event.target.value)}>
             <option value="api">API / 本地模型</option>
-            <option value={chatGPTSubscriptionProvider}>ChatGPT 订阅</option>
             <option value={chatGPTCodexProvider}>{chatGPTCodexLabel}</option>
+            {model.provider === chatGPTSubscriptionProvider && <option value={chatGPTSubscriptionProvider} hidden disabled>ChatGPT 订阅（旧版）</option>}
           </select>
         </label>
         {usingChatGPT ? (subscriptionAvailable

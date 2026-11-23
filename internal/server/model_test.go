@@ -94,6 +94,13 @@ func TestRunModelTestRejectsTextThatPretendsToBeToolCall(t *testing.T) {
 }
 
 func TestBeaverProfileActivationRequiresMatchingCapabilityTest(t *testing.T) {
+	var modelRequests atomic.Int64
+	modelServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		modelRequests.Add(1)
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer modelServer.Close()
+
 	database, err := store.Open(t.TempDir() + "/beaver.db")
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +108,7 @@ func TestBeaverProfileActivationRequiresMatchingCapabilityTest(t *testing.T) {
 	defer database.Close()
 	settings := store.DefaultModelSettings()
 	settings.ProfileID, settings.ProfileName, settings.Model = "local", "Local", "qwen-test"
+	settings.BaseURL = modelServer.URL
 	if err := database.SaveModelProfile(settings); err != nil {
 		t.Fatal(err)
 	}
@@ -119,6 +127,9 @@ func TestBeaverProfileActivationRequiresMatchingCapabilityTest(t *testing.T) {
 	application.activateModelProfile(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("verified profile activation = HTTP %d %s", response.Code, response.Body.String())
+	}
+	if got := modelRequests.Load(); got != 0 {
+		t.Fatalf("changing the default contacted the model server %d times", got)
 	}
 }
 
